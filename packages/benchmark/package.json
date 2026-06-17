@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "tsx run.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",

@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import "../styles/globals.css";
+import type { Metadata } from 'next';
+import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  title: "Sovereign Universal Dashboard",
-  description: "Sovereign Universal Ecosystem Dashboard",
+  title: 'Sovereign Universal Dashboard',
+  description: 'Sovereign Universal Ecosystem Dashboard',
 };
 
 export default function RootLayout({

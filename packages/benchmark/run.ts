@@ -1,14 +1,14 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
 const benchmark = () => {
   console.log('Running sustainability and performance benchmarks...');
-  
+
   const report = {
-    buildStatus: "PASSED",
+    buildStatus: 'PASSED',
     bundleSizeKB: 128,
     maxMemoryAllocationMB: 142,
     dbPoolLimit: 5,
-    estimatedCarbonFactor: "OPTIMAL_A_GRADE"
+    estimatedCarbonFactor: 'OPTIMAL_A_GRADE',
   };
 
   fs.writeFileSync('benchmark-report.json', JSON.stringify(report, null, 2));
