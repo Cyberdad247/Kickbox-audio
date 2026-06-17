@@ -1,0 +1,28 @@
+name: Sovereign System Production Genesis
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Run linter and type-checker
+        run: pnpm run lint && pnpm exec tsc --noEmit
+      - name: Run Jest Unit & Integration tests
+        run: pnpm test
+      - name: Execute benchmark script
+        run: pnpm run benchmark
+      - name: Deploy to Vercel
+        if: github.ref == 'refs/heads/main'
+        run: npx vercel --token ${{ secrets.VERCEL_TOKEN }} --prod
