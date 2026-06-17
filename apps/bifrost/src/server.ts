@@ -3,6 +3,11 @@ import express from 'express';
 import http from 'http';
 import { PrismaClient } from '@prisma/client';
 
+// WebSocket carrying the heartbeat flag used by the reaper loop below.
+interface LiveSocket extends WebSocket {
+  isAlive?: boolean;
+}
+
 const prisma = new PrismaClient();
 const app = express();
 const server = http.createServer(app);
@@ -30,7 +35,7 @@ app.post('/webhook/zelle-sms', async (req, res) => {
   }
 });
 
-wss.on('connection', ws => {
+wss.on('connection', (ws: LiveSocket) => {
   console.log('Client connected');
 
   ws.isAlive = true;
@@ -54,7 +59,7 @@ wss.on('connection', ws => {
 
 // Connection timeout reaper
 const interval = setInterval(() => {
-  wss.clients.forEach(ws => {
+  wss.clients.forEach((ws: LiveSocket) => {
     if (!ws.isAlive) {
       console.log('Terminating dead client');
       return ws.terminate();
