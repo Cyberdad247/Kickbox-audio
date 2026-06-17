@@ -1,11 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import http from 'node:http';
-import { prisma } from '@sovereign/db';
 import express, { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
+import { MicrocubicMatrix } from './microcubic';
 import { type Command, parseCommand } from './nlp';
 import { verifyWebhookSignature } from './security';
-import { applyCommand, snapshot, state } from './state';
+import { applyCommand, snapshot } from './state';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -23,6 +24,17 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
+
+// Microcubic Matrix — each command runs in an isolated worker_threads microcube
+// (Zero Docker). Cubes own DB side effects; this thread owns state + broadcast.
+const matrix = new MicrocubicMatrix();
+matrix.on('cube_collapsed', (event) => {
+  if (event.success) {
+    console.log(`cube ${event.taskId} collapsed → ${event.result.command.action}`);
+  } else {
+    console.error(`cube ${event.taskId} failed:`, event.error);
+  }
+});
 
 app.use(
   express.json({
@@ -47,32 +59,16 @@ function broadcastState(): void {
   }
 }
 
-// Persist a command's side effects (best-effort; broadcast already reflects state).
-async function persistCommand(cmd: Command): Promise<void> {
+// Route a parsed command: update in-memory state, dispatch a microcube for the
+// DB side effects, then broadcast the new state to all clients.
+async function routeCommand(cmd: Command): Promise<void> {
+  applyCommand(cmd);
   try {
-    if (cmd.action === 'add_transaction') {
-      // Balanced journal entry (placeholder debit/credit mapping).
-      await prisma.journalEntry.create({
-        data: {
-          memo: `Command: add transaction ${cmd.amount}`,
-          lines: {
-            create: [
-              { debit: cmd.amount, credit: 0 },
-              { debit: 0, credit: cmd.amount },
-            ],
-          },
-        },
-      });
-    } else if (cmd.action === 'remind') {
-      await prisma.echoLog.create({ data: { message: `Reminder set for ${cmd.who}` } });
-    } else if (cmd.action === 'order') {
-      await prisma.echoLog.create({ data: { message: `Order placed: ${cmd.item}` } });
-    } else {
-      await prisma.echoLog.create({ data: { message: `Unrecognized command: ${cmd.raw}` } });
-    }
+    await matrix.executeCube({ id: randomUUID(), command: cmd });
   } catch (error) {
-    console.error('persistCommand failed:', error);
+    console.error('microcube execution failed:', error);
   }
+  broadcastState();
 }
 
 // ── Task 2.4 — SMS/webhook ingress (Telnyx/Bandwidth), HMAC-signed + rate-limited ──
@@ -89,14 +85,8 @@ app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
     return res.status(400).send('Message is required');
   }
 
-  await prisma.echoLog.create({ data: { message: `SMS webhook: ${message}` } });
-
-  // Route the inbound text through the command parser, then broadcast new state.
   const cmd = parseCommand(message);
-  applyCommand(cmd);
-  await persistCommand(cmd);
-  broadcastState();
-
+  await routeCommand(cmd);
   res.status(200).json({ status: 'received', command: cmd.action });
 });
 
@@ -114,21 +104,14 @@ wss.on('connection', (ws: LiveSocket) => {
     let cmd: Command;
     try {
       const parsed = JSON.parse(data.toString());
-      if (parsed?.type === 'VOICE_COMMAND' && typeof parsed.payload === 'string') {
-        cmd = parseCommand(parsed.payload);
-      } else if (typeof parsed?.payload === 'string') {
-        cmd = parseCommand(parsed.payload);
-      } else {
-        cmd = parseCommand(data.toString());
-      }
+      cmd =
+        typeof parsed?.payload === 'string'
+          ? parseCommand(parsed.payload)
+          : parseCommand(data.toString());
     } catch {
-      // Plain-text command frame.
       cmd = parseCommand(data.toString());
     }
-
-    applyCommand(cmd);
-    await persistCommand(cmd);
-    broadcastState();
+    await routeCommand(cmd);
   });
 
   ws.on('error', (error) => {
@@ -155,18 +138,16 @@ server.listen(PORT, () => {
   console.log(`Bifrost gateway listening on port ${PORT}`);
 });
 
-// ── Graceful shutdown: drain sockets, close server, disconnect Prisma ──
-async function shutdown(signal: string): Promise<void> {
+// ── Graceful shutdown: drain sockets, close server ──
+function shutdown(signal: string): void {
   console.log(`${signal} received — shutting down...`);
   clearInterval(interval);
   for (const client of wss.clients) client.terminate();
   wss.close();
-  server.close();
-  await prisma.$disconnect();
-  process.exit(0);
+  server.close(() => process.exit(0));
 }
 
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
-process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export { app, server, wss };
