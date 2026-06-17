@@ -2,20 +2,30 @@
   "name": "sovereign-system",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.11.0",
   "description": "Sovereign System monorepo — PWA + Bifrost gateway + Prisma DB (Vault_Ω / Raven_Ω / Echo_Ω)",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "npm run build --workspace=pwa",
-    "dev:pwa": "npm run dev --workspace=pwa",
-    "dev:bifrost": "npm run dev --workspace=bifrost",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "npm run generate --workspace=@sovereign/db",
     "db:migrate": "npm run migrate --workspace=@sovereign/db",
     "db:migrate:dev": "npm run migrate:dev --workspace=@sovereign/db",
     "db:seed": "npm run seed --workspace=@sovereign/db",
     "benchmark": "npm run start --workspace=@sovereign/benchmark"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "^20.10.5",
+    "turbo": "^2.3.3",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.8"
   },
   "engines": {
     "node": ">=20"

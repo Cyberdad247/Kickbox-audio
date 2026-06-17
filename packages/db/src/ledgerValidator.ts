@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 export const ledgerValidator: Prisma.Middleware = async (params, next) => {
   if (params.model === 'Transaction' && params.action === 'createMany') {

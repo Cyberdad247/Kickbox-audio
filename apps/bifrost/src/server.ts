@@ -1,7 +1,8 @@
-import WebSocket, { WebSocketServer } from 'ws';
-import express from 'express';
-import http from 'http';
+import http from 'node:http';
 import { PrismaClient } from '@prisma/client';
+import express from 'express';
+import type WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -43,7 +44,7 @@ wss.on('connection', (ws: LiveSocket) => {
     ws.isAlive = true;
   });
 
-  ws.on('message', message => {
+  ws.on('message', (message) => {
     console.log(`Received message: ${message}`);
     // Handle incoming messages from clients if needed
   });
@@ -52,21 +53,23 @@ wss.on('connection', (ws: LiveSocket) => {
     console.log('Client disconnected');
   });
 
-  ws.on('error', error => {
+  ws.on('error', (error) => {
     console.error('WebSocket error:', error);
   });
 });
 
 // Connection timeout reaper
 const interval = setInterval(() => {
-  wss.clients.forEach((ws: LiveSocket) => {
+  for (const client of wss.clients) {
+    const ws = client as LiveSocket;
     if (!ws.isAlive) {
       console.log('Terminating dead client');
-      return ws.terminate();
+      ws.terminate();
+      continue;
     }
     ws.isAlive = false;
     ws.ping();
-  });
+  }
 }, 30000); // Ping every 30 seconds
 
 wss.on('close', () => {
