@@ -1,0 +1,23 @@
+{
+  "name": "sovereign-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sovereign System monorepo — PWA + Bifrost gateway + Prisma DB (Vault_Ω / Raven_Ω / Echo_Ω)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=pwa",
+    "dev:pwa": "npm run dev --workspace=pwa",
+    "dev:bifrost": "npm run dev --workspace=bifrost",
+    "db:generate": "npm run generate --workspace=@sovereign/db",
+    "db:migrate": "npm run migrate --workspace=@sovereign/db",
+    "db:migrate:dev": "npm run migrate:dev --workspace=@sovereign/db",
+    "db:seed": "npm run seed --workspace=@sovereign/db",
+    "benchmark": "npm run start --workspace=@sovereign/benchmark"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -7,14 +7,92 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Transaction {
-  id        String   @id @default(uuid())
-  debit     Float
-  credit    Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ─────────────────────────────────────────────
+// Vault_Ω · Double-entry accounting ledger
+// A journal entry groups balanced debit/credit lines.
+// ledgerValidator enforces sum(debit) == sum(credit) on batch writes.
+// ─────────────────────────────────────────────
+model JournalEntry {
+  id        String        @id @default(uuid())
+  memo      String
+  createdAt DateTime      @default(now())
+  lines     Transaction[]
 }
 
+model Transaction {
+  id        String        @id @default(uuid())
+  debit     Float         @default(0)
+  credit    Float         @default(0)
+  journal   JournalEntry? @relation(fields: [journalId], references: [id])
+  journalId String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([journalId])
+}
+
+// ─────────────────────────────────────────────
+// Raven_Ω · Email campaigns (contacts, tags, sequences)
+// ─────────────────────────────────────────────
+model Contact {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  tags      Tag[]    @relation("ContactTags")
+  createdAt DateTime @default(now())
+}
+
+model Tag {
+  id       String    @id @default(uuid())
+  label    String    @unique
+  contacts Contact[] @relation("ContactTags")
+}
+
+model EmailSequence {
+  id        String         @id @default(uuid())
+  name      String
+  steps     SequenceStep[]
+  createdAt DateTime       @default(now())
+}
+
+model SequenceStep {
+  id         String        @id @default(uuid())
+  order      Int
+  subject    String
+  body       String
+  delayHours Int           @default(24)
+  sequence   EmailSequence @relation(fields: [sequenceId], references: [id])
+  sequenceId String
+
+  @@index([sequenceId])
+}
+
+// ─────────────────────────────────────────────
+// Echo_Ω · Comms gateway (stateful threads + raw webhook log)
+// ─────────────────────────────────────────────
+model MessageThread {
+  id        String    @id @default(uuid())
+  channel   String // sms | email | voice
+  handle    String // phone number or address
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([channel, handle])
+}
+
+model Message {
+  id        String        @id @default(uuid())
+  direction String // inbound | outbound
+  body      String
+  thread    MessageThread @relation(fields: [threadId], references: [id])
+  threadId  String
+  createdAt DateTime      @default(now())
+
+  @@index([threadId])
+}
+
+// Raw inbound webhook audit log (used by Bifrost /webhook/zelle-sms)
 model EchoLog {
   id        String   @id @default(uuid())
   message   String

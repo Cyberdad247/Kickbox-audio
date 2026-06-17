@@ -1,0 +1,14 @@
+{
+  "name": "@sovereign/benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx run.ts",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.3.3"
+  }
+}

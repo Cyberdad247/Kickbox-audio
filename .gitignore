@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+out/
+
+# Environment / secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.tsbuildinfo
+benchmark-report.json
+
+# OS / editor
+.DS_Store
+*.log
