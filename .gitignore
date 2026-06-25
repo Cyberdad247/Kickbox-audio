@@ -13,6 +13,9 @@ out/
 *.tsbuildinfo
 benchmark-report.json
 
+# Vercel local link state (machine-specific)
+.vercel/
+
 # OS / editor
 .DS_Store
 *.log

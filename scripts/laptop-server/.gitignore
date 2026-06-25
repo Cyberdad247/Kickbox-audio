@@ -1,0 +1,3 @@
+# Portable binaries and runtime logs — not source.
+bin/
+logs/
