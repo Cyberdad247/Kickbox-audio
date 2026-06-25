@@ -82,7 +82,9 @@ export function LakishaHUD() {
     if (!awaitingRef.current) return;
     awaitingRef.current = false;
     if (mutedRef.current) return;
-    speak(speakableResponse(state), {
+    // Prefer a remote MCP answer (//ROUTE) over the local confirmation.
+    const line = state.lastResponse ?? speakableResponse(state);
+    speak(line, {
       onStart: () => setSpeaking(true),
       onEnd: () => setSpeaking(false),
     });

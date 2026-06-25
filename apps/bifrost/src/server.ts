@@ -4,9 +4,9 @@ import express, { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MicrocubicMatrix } from './microcubic';
-import { type Command, parseCommand } from './nlp';
+import { type RouteOutcome, route } from './router';
 import { verifyWebhookSignature } from './security';
-import { applyCommand, snapshot } from './state';
+import { applyCommand, setLastResponse, snapshot } from './state';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -64,16 +64,32 @@ function broadcastState(): void {
   }
 }
 
-// Route a parsed command: update in-memory state, dispatch a microcube for the
-// DB side effects, then broadcast the new state to all clients.
-async function routeCommand(cmd: Command): Promise<void> {
-  applyCommand(cmd);
-  try {
-    await matrix.executeCube({ id: randomUUID(), command: cmd });
-  } catch (error) {
-    console.error('microcube execution failed:', error);
+// vMAX //ROUTE + //REZERO — remote MCP endpoint must be a Tailscale URL.
+const REMOTE_MCP_URL = process.env.REMOTE_MCP_URL;
+const ROUTE_BUDGET_MS = Number(process.env.ROUTE_BUDGET_MS) || 900;
+
+// Route an utterance: classify lane (local-first / Tailscale remote-MCP bypass
+// with REZERO), apply in-memory state, persist local side effects, broadcast.
+async function handleUtterance(raw: string): Promise<RouteOutcome> {
+  const outcome = await route(raw, { remoteMcpUrl: REMOTE_MCP_URL, budgetMs: ROUTE_BUDGET_MS });
+  applyCommand(outcome.command);
+
+  // Only known local actions get DB persistence via a microcube.
+  if (outcome.lane === 'LOCAL_TOOLS' && outcome.command.action !== 'unknown') {
+    try {
+      await matrix.executeCube({ id: randomUUID(), command: outcome.command });
+    } catch (error) {
+      console.error('microcube execution failed:', error);
+    }
   }
+
+  setLastResponse(outcome.response);
+  console.log(
+    `route ${outcome.lane}${outcome.rezeroed ? ` (//REZERO: ${outcome.reason})` : ''} ` +
+      `${outcome.latencyMs}ms -> ${outcome.command.action}`,
+  );
   broadcastState();
+  return outcome;
 }
 
 // ── Task 2.4 — SMS/webhook ingress (Telnyx/Bandwidth), HMAC-signed + rate-limited ──
@@ -90,9 +106,13 @@ app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
     return res.status(400).send('Message is required');
   }
 
-  const cmd = parseCommand(message);
-  await routeCommand(cmd);
-  res.status(200).json({ status: 'received', command: cmd.action });
+  const outcome = await handleUtterance(message);
+  res.status(200).json({
+    status: 'received',
+    lane: outcome.lane,
+    command: outcome.command.action,
+    rezeroed: outcome.rezeroed,
+  });
 });
 
 // ── WebSocket: command intake + heartbeat ──
@@ -106,17 +126,14 @@ wss.on('connection', (ws: LiveSocket) => {
   ws.send(JSON.stringify({ type: 'STATE_UPDATE', payload: snapshot() }));
 
   ws.on('message', async (data) => {
-    let cmd: Command;
+    let raw: string;
     try {
       const parsed = JSON.parse(data.toString());
-      cmd =
-        typeof parsed?.payload === 'string'
-          ? parseCommand(parsed.payload)
-          : parseCommand(data.toString());
+      raw = typeof parsed?.payload === 'string' ? parsed.payload : data.toString();
     } catch {
-      cmd = parseCommand(data.toString());
+      raw = data.toString();
     }
-    await routeCommand(cmd);
+    await handleUtterance(raw);
   });
 
   ws.on('error', (error) => {

@@ -6,6 +6,7 @@ const state = (over: Partial<SovereignState>): SovereignState => ({
   portfolioValuation: 14_215_000,
   transactionsCount: 1,
   lastCommand: null,
+  lastResponse: null,
   updatedAt: new Date(0).toISOString(),
   ...over,
 });
