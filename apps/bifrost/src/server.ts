@@ -21,9 +21,13 @@ interface RawBodyRequest extends Request {
 const PORT = Number(process.env.PORT) || 3001;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
 
+// Cap inbound frame size (16 KB) — commands are tiny; reject oversized payloads
+// at the protocol layer to avoid unbounded JSON.parse work.
+const MAX_WS_PAYLOAD = 16 * 1024;
+
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: MAX_WS_PAYLOAD });
 
 // Microcubic Matrix — each command runs in an isolated worker_threads microcube
 // (Zero Docker). Cubes own DB side effects; this thread owns state + broadcast.
@@ -38,6 +42,7 @@ matrix.on('cube_collapsed', (event) => {
 
 app.use(
   express.json({
+    limit: '64kb',
     verify: (req, _res, buf) => {
       (req as RawBodyRequest).rawBody = buf.toString('utf8');
     },

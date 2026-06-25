@@ -1,7 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Source_Serif_4 } from 'next/font/google';
 import { BifrostProvider } from '../context/BifrostContext';
 import '../styles/globals.css';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://kickbox-audio.vercel.app';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -18,8 +20,34 @@ const serif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: 'Sovereign Universal Dashboard',
-  description: 'Sovereign Universal Ecosystem Dashboard — KickBox Audio',
+  metadataBase: new URL(SITE_URL),
+  applicationName: 'Sovereign',
+  title: {
+    default: 'Sovereign Universal Dashboard',
+    template: '%s · Sovereign',
+  },
+  description: 'Sovereign Executive Intelligence — KickBox Audio',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Sovereign',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'Sovereign',
+    title: 'Sovereign Universal Dashboard',
+    description: 'Sovereign Executive Intelligence — KickBox Audio',
+    url: SITE_URL,
+  },
+  // Private executive dashboard — keep it out of search indexes.
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#050507',
+  width: 'device-width',
+  initialScale: 1,
+  colorScheme: 'dark',
 };
 
 export default function RootLayout({
