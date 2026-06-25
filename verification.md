@@ -21,6 +21,7 @@ Run the following test execution scripts inside the CI/CD pipeline on every comm
 ### C. UI Thread & View Swap (`npm run test:e2e`)
 - **Test:** Execute Playwright to load the page and click the "Properties" tab.
 - **Assertion:** The DOM must update to render the tenant cards and maintenance items without issuing a full page refresh.
+- **Status:** ⏭️ Pending — Playwright harness not yet wired (future march). The tab swap is `useState`-driven in `Dashboard.tsx` (no route change).
 
 ### D. Voice Action Execution (`npm run test:voice`)
 - **Test:** Emit a JSON payload resembling `{ type: "VOICE_COMMAND", payload: "add transaction 15000" }` via a test client.

@@ -9,7 +9,10 @@ export function StreamingTab() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {nodes.map((n) => (
-        <div key={n.group} className="rounded-xl border border-gold/20 bg-smoke-800/80 p-6">
+        <div
+          key={n.group}
+          className="border border-gold/20 bg-smoke-800/80 p-6 backdrop-blur-sm transition-shadow hover:shadow-gold"
+        >
           <p className="font-display text-lg text-white">{n.group}</p>
           <p className="mt-1 text-sm text-violet-light">{n.status}</p>
         </div>

@@ -1,9 +1,22 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap");
+/* Fonts are loaded via next/font in app/layout.tsx (self-hosted, no render-blocking request). */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply bg-obsidian font-sans text-white;
+  @apply bg-obsidian font-sans text-white antialiased;
+}
+
+/* Thin gold scrollbar to match the Sovereign Aura chrome. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #050507;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.25);
+  border-radius: 4px;
 }
