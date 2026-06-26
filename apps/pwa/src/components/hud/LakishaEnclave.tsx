@@ -17,8 +17,8 @@ export function LakishaEnclave() {
   return (
     <div className="fixed right-8 bottom-8 z-[60]">
       <div
-        className={`flex items-center gap-3 border border-[#D4AF37] bg-[#16161E]/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${
-          isSpeaking ? 'animate-pulse shadow-[0_0_28px_rgba(157,78,221,0.6)]' : 'shadow-none'
+        className={`flex items-center gap-3 border border-gold bg-smoke-800/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${
+          isSpeaking ? 'animate-pulse shadow-glow-lg' : 'shadow-none'
         }`}
       >
         {!connected ? (
@@ -26,7 +26,7 @@ export function LakishaEnclave() {
           <button
             type="button"
             onClick={connect}
-            className="flex items-center gap-2 text-[#D4AF37] text-xs uppercase tracking-widest transition-colors hover:text-[#FFD700]"
+            className="flex items-center gap-2 text-gold text-xs uppercase tracking-widest transition-colors hover:text-gold-royal"
           >
             <MicIcon className="h-4 w-4" />
             {error ?? 'Tap to Connect'}
@@ -35,10 +35,10 @@ export function LakishaEnclave() {
           // The Active HUD.
           <>
             <span
-              className={`relative flex h-2.5 w-2.5 ${isSpeaking ? 'text-[#9D4EDD]' : 'text-white/40'}`}
+              className={`relative flex h-2.5 w-2.5 ${isSpeaking ? 'text-violet-light' : 'text-white/40'}`}
             >
               {isSpeaking && (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#9D4EDD] opacity-70" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet opacity-70" />
               )}
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-current" />
             </span>
@@ -47,7 +47,7 @@ export function LakishaEnclave() {
 
             <span
               className={`text-xs uppercase tracking-widest ${
-                isSpeaking ? 'text-[#9D4EDD]' : 'text-white/50'
+                isSpeaking ? 'text-violet-light' : 'text-white/50'
               }`}
             >
               {status}
@@ -74,7 +74,7 @@ function Waveform({ active }: { active: boolean }) {
         <span
           key={bar.id}
           className={`w-0.5 rounded-full transition-all duration-150 ${
-            active ? 'animate-pulse bg-[#9D4EDD]' : 'bg-white/25'
+            active ? 'animate-pulse bg-violet' : 'bg-white/25'
           }`}
           style={{
             height: `${(active ? bar.h : 0.3) * 100}%`,
