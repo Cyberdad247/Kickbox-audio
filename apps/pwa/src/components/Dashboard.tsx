@@ -3,12 +3,24 @@
 import { useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
 import { LakishaHUD } from './LakishaHUD';
+import { PlanCard } from './PlanCard';
+import { CoffeeTab } from './tabs/CoffeeTab';
+import { KnightsTab } from './tabs/KnightsTab';
 import { OverviewTab } from './tabs/OverviewTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
+import { SettingsTab } from './tabs/SettingsTab';
 import { StreamingTab } from './tabs/StreamingTab';
 import { VentureTab } from './tabs/VentureTab';
 
-const TABS = ['Overview', 'Properties', 'Streaming', 'Venture'] as const;
+const TABS = [
+  'Overview',
+  'Knights',
+  'Properties',
+  'Streaming',
+  'Coffee',
+  'Venture',
+  'Settings',
+] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -80,12 +92,16 @@ export function Dashboard() {
 
         <main className="px-10">
           {active === 'Overview' && <OverviewTab />}
+          {active === 'Knights' && <KnightsTab />}
           {active === 'Properties' && <PropertiesTab />}
           {active === 'Streaming' && <StreamingTab />}
+          {active === 'Coffee' && <CoffeeTab />}
           {active === 'Venture' && <VentureTab />}
+          {active === 'Settings' && <SettingsTab />}
         </main>
       </div>
 
+      <PlanCard />
       <LakishaHUD />
     </div>
   );
