@@ -16,6 +16,9 @@ benchmark-report.json
 # Vercel local link state (machine-specific)
 .vercel/
 
+# Claude Code local state (agent worktrees, etc.)
+.claude/
+
 # OS / editor
 .DS_Store
 *.log

@@ -8,7 +8,7 @@ import { type WeatherCondition, useClevelandWeather } from '../../hooks/useCleve
 
 const GOLD = '#D4AF37';
 const VIOLET = '#9D4EDD';
-const VOID = '#050505';
+const VOID = '#050507'; // matches the canonical obsidian token (tailwind.config.js)
 
 // Highly performant falling rain — one InstancedMesh, one draw call.
 function Rain({ count, color }: { count: number; color: string }) {
