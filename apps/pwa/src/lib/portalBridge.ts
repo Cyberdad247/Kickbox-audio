@@ -45,10 +45,11 @@ export function shouldDownscaleOnMemoryPressure(): boolean {
 }
 
 // ─── CopilotKit shim ─────────────────────────────────────────────────────────
-// Local `useCopilotReadable` stand-in. With @copilotkit/react-core 1.61.2
-// installed (commit 8), the shim remains until a <CopilotKit> provider is
-// mounted at apps/pwa/src/app/layout.tsx. When swapping to the real import,
-// see PRIVACY note below.
+// Local `useCopilotReadable` stand-in. Inert today: no package is installed
+// and no provider is mounted at `apps/pwa/src/app/layout.tsx`. The shim is
+// kept as a forward-compatibility hook so a future maintainer can swap in a
+// real CopilotKit import without changing every call site. See PRIVACY below
+// for the warning that applies when that swap happens.
 //
 // PRIVACY: When this shim is replaced by
 //   `import { useCopilotReadable } from '@copilotkit/react-core'`
@@ -59,7 +60,7 @@ export function shouldDownscaleOnMemoryPressure(): boolean {
 // runtime URL and ensure the provider does NOT log/serialize the draft
 // to a remote endpoint (per AGENTS.md privacy rule).
 export function useCopilotReadable(_key: string, _value: unknown): void {
-  // intentional no-op; replacement:
+  // intentional no-op; replacement (if ever re-introduced):
   //   import { useCopilotReadable } from '@copilotkit/react-core';
 }
 
