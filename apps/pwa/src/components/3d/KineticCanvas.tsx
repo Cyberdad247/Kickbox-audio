@@ -74,8 +74,15 @@ function Monoliths() {
       {slabs.map((s) => (
         <Float key={s.id} speed={1} rotationIntensity={0.05} floatIntensity={0.4}>
           <mesh position={[s.x, s.y, s.z]}>
-            <boxGeometry args={[s.w, s.h, s.w]} />
-            <meshStandardMaterial color="#16161E" roughness={0.95} metalness={0.1} />
+            {/* brutalist audio-monolith cabinets */}
+            <boxGeometry args={[s.w * 1.5, s.h, s.w]} />
+            <meshStandardMaterial
+              color="#16161E"
+              roughness={0.9}
+              metalness={0.18}
+              emissive={GOLD}
+              emissiveIntensity={0.04}
+            />
           </mesh>
         </Float>
       ))}

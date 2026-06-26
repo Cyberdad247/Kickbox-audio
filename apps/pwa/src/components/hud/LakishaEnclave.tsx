@@ -1,10 +1,11 @@
 'use client';
 
 import { useLakishaVoice } from '../../hooks/useLakishaVoice';
+import { LakishaAvatar } from './LakishaAvatar';
 
-// Phase 3 — persistent headless voice enclave (bottom-right). No text inputs.
-// Shares useLakishaVoice with the bottom-center HUD: recognition primary, VAD-only
-// failsafe, so if one input path fails the other still keeps Lakisha live.
+// Ambassador Lakisha — video-avatar presence + persistent voice enclave
+// (bottom-right). Shares useLakishaVoice with the bottom-center HUD: recognition
+// primary, VAD-only failsafe, so if one input path fails the other keeps her live.
 export function LakishaEnclave() {
   const { connected, connect, isSpeaking, mode, error } = useLakishaVoice({ continuous: true });
 
@@ -15,9 +16,10 @@ export function LakishaEnclave() {
       : 'Awaiting Audio';
 
   return (
-    <div className="fixed right-8 bottom-8 z-[60]">
+    <div className="fixed right-8 bottom-8 z-[60] flex flex-col items-end gap-2">
+      <LakishaAvatar speaking={isSpeaking} connected={connected} />
       <div
-        className={`flex items-center gap-3 border border-gold bg-smoke-800/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${
+        className={`flex w-56 items-center gap-3 border border-gold bg-smoke-800/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${
           isSpeaking ? 'animate-pulse shadow-glow-lg' : 'shadow-none'
         }`}
       >
