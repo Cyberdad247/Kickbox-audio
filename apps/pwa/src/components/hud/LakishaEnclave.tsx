@@ -1,39 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useLakishaVoice } from '../../hooks/useLakishaVoice';
 
 // Phase 3 — persistent headless voice enclave (bottom-right). No text inputs.
-// Tap-to-connect bypasses autoplay, requests the mic, then runs a live HUD.
+// Shares useLakishaVoice with the bottom-center HUD: recognition primary, VAD-only
+// failsafe, so if one input path fails the other still keeps Lakisha live.
 export function LakishaEnclave() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const { connected, connect, isSpeaking, mode, error } = useLakishaVoice();
 
-  const connect = async () => {
-    setError(null);
-    try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setIsConnected(true);
-    } catch {
-      setError('MIC DENIED');
-    }
-  };
-
-  // Mock speaking cadence (visual proof the mic is hot) — real VAD replaces this.
-  useEffect(() => {
-    if (!isConnected) return;
-    const id = setInterval(() => setIsSpeaking((s) => !s), 1400);
-    return () => clearInterval(id);
-  }, [isConnected]);
-
-  // Release the mic on unmount.
-  useEffect(
-    () => () => {
-      for (const t of streamRef.current?.getTracks() ?? []) t.stop();
-    },
-    [],
-  );
+  const status = isSpeaking
+    ? 'Lakisha Active'
+    : mode === 'vad-only'
+      ? 'VAD Only'
+      : 'Awaiting Audio';
 
   return (
     <div className="fixed right-8 bottom-8 z-[60]">
@@ -42,7 +21,7 @@ export function LakishaEnclave() {
           isSpeaking ? 'animate-pulse shadow-[0_0_28px_rgba(157,78,221,0.6)]' : 'shadow-none'
         }`}
       >
-        {!isConnected ? (
+        {!connected ? (
           // The Gilded Gate — autoplay bypass.
           <button
             type="button"
@@ -71,7 +50,7 @@ export function LakishaEnclave() {
                 isSpeaking ? 'text-[#9D4EDD]' : 'text-white/50'
               }`}
             >
-              {isSpeaking ? 'Lakisha Active' : 'Awaiting Audio'}
+              {status}
             </span>
           </>
         )}

@@ -12,7 +12,8 @@ const VOID = '#050505';
 
 // Highly performant falling rain — one InstancedMesh, one draw call.
 function Rain({ count, color }: { count: number; color: string }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  // Typed loosely (any) to stay robust against @types/three copy duplication.
+  const meshRef = useRef<any>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const drops = useMemo(
     () =>
@@ -50,7 +51,7 @@ function Rain({ count, color }: { count: number; color: string }) {
 
 // Distant brutalist monoliths — slow rotation gives the void structural depth.
 function Monoliths() {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<any>(null);
   const slabs = useMemo(
     () =>
       Array.from({ length: 9 }, (_, i) => ({
