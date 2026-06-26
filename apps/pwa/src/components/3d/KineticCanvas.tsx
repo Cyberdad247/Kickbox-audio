@@ -1,10 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
+import { shouldDownscaleOnMemoryPressure } from '../../lib/portalBridge';
+
 type KineticCanvasProps = {
   className?: string;
 };
 
 export default function KineticCanvas({ className = '' }: KineticCanvasProps) {
+  useEffect(() => {
+    // Forward-compatibility hook: once a Three.js Gaussian-splat loader lands,
+    // gate its upload path on this. Today the canvas is a CSS gradient shell;
+    // the probe runs once on mount and emits a no-op debug line so future
+    // loaders can LOD-downscale on memory pressure.
+    if (shouldDownscaleOnMemoryPressure()) {
+      // eslint-disable-next-line no-console
+      console.debug('[kinetic] memory pressure detected — future loader would LOD-downscale here');
+    }
+  }, []);
+
   return (
     <div
       aria-hidden="true"
