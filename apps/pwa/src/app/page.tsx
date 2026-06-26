@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { LakishaHUD } from '../components/LakishaHUD';
+import { SettingsDrawer } from '../components/SettingsDrawer';
 
 const KineticCanvas = dynamic(() => import('@/components/3d/KineticCanvas'), {
   ssr: false,
@@ -13,6 +14,7 @@ export default function Home() {
     <>
       <KineticCanvas className="fixed inset-0 -z-10" />
       <LakishaHUD />
+      <SettingsDrawer />
     </>
   );
 }
