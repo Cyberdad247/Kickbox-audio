@@ -14,10 +14,12 @@
 //   0  files identical (or `--fix` reconciled them)
 //   1  drift detected, not repaired
 //   2  one or both target files do not exist
+//   3  --fix refused (CI=true or --reverse-mirror also drifting)
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -43,12 +45,44 @@ if (sourceBytes === mirrorBytes) {
 console.error('[sync-memory-md] DIVERGENCE detected.');
 console.error(`  source (root): ${sourceBytes.length} bytes`);
 console.error(`  mirror (public): ${mirrorBytes.length} bytes`);
-console.error('Run `node scripts/sync-memory-md.mjs --fix` to copy root → public.');
 
-if (process.argv.includes('--fix')) {
-  writeFileSync(mirrorPath, sourceBytes, 'utf8');
-  console.log('[sync-memory-md] reconciled (root → public).');
-  process.exit(0);
+// Print a first-diff summary (first line where source != mirror).
+const sourceLines = sourceBytes.split('\n');
+const mirrorLines = mirrorBytes.split('\n');
+const maxLen = Math.max(sourceLines.length, mirrorLines.length);
+let firstDiffLine = null;
+for (let i = 0; i < maxLen; i++) {
+  if (sourceLines[i] !== mirrorLines[i]) {
+    firstDiffLine = i + 1;
+    break;
+  }
+}
+if (firstDiffLine != null) {
+  console.error(`  first-differing-line: ${firstDiffLine}`);
+  console.error(`    source:  ${JSON.stringify(sourceLines[firstDiffLine - 1] ?? '')}`);
+  console.error(`    mirror:  ${JSON.stringify(mirrorLines[firstDiffLine - 1] ?? '')}`);
 }
 
-process.exit(1);
+const wantsFix = process.argv.includes('--fix');
+const isCI = process.env.CI === 'true' || process.env.CI === '1';
+
+if (wantsFix && isCI) {
+  console.error('[sync-memory-md] REFUSING --fix: detected CI=true; reconcile manually and re-run.');
+  process.exit(3);
+}
+
+if (!wantsFix) {
+  console.error('Run `node scripts/sync-memory-md.mjs --fix` to copy root → public.');
+  process.exit(1);
+}
+
+// --fix path: explicit reconcile + show after-diff line count.
+writeFileSync(mirrorPath, sourceBytes, 'utf8');
+console.log(`[sync-memory-md] reconciled (root → public). ${sourceBytes.length} bytes written.`);
+
+// After-fix sanity: re-read mirror and confirm equality.
+const verifyBytes = readFileSync(mirrorPath, 'utf8');
+const proc = spawnSync('node', [resolve(__dirname, 'sync-memory-md.mjs')], {
+  stdio: 'inherit',
+});
+process.exit(proc.status ?? 0);

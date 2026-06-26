@@ -45,8 +45,19 @@ export function shouldDownscaleOnMemoryPressure(): boolean {
 }
 
 // ─── CopilotKit shim ─────────────────────────────────────────────────────────
-// Local `useCopilotReadable` stand-in until `@copilotkit/react-core` lands.
-// The PortalSettings surface stays API-stable; the dependency swap is mechanical.
+// Local `useCopilotReadable` stand-in. With @copilotkit/react-core 1.61.2
+// installed (commit 8), the shim remains until a <CopilotKit> provider is
+// mounted at apps/pwa/src/app/layout.tsx. When swapping to the real import,
+// see PRIVACY note below.
+//
+// PRIVACY: When this shim is replaced by
+//   `import { useCopilotReadable } from '@copilotkit/react-core'`
+// the `useCopilotReadable('portal-settings-draft', draft)` call in
+// PortalSettings.tsx may push draft values (Twilio SID, Gmail Auth, etc.)
+// into provider state and potentially to a remote endpoint. The current
+// local shim is in-memory only. Maintainers must verify the CopilotKit
+// runtime URL and ensure the provider does NOT log/serialize the draft
+// to a remote endpoint (per AGENTS.md privacy rule).
 export function useCopilotReadable(_key: string, _value: unknown): void {
   // intentional no-op; replacement:
   //   import { useCopilotReadable } from '@copilotkit/react-core';
