@@ -7,6 +7,9 @@ const state = (over: Partial<SovereignState>): SovereignState => ({
   transactionsCount: 1,
   lastCommand: null,
   lastResponse: null,
+  lastLane: null,
+  lastLatencyMs: null,
+  lastRezeroed: false,
   updatedAt: new Date(0).toISOString(),
   ...over,
 });

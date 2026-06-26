@@ -9,6 +9,10 @@ export interface SovereignState {
   lastCommand: string | null;
   // Remote MCP answer (vMAX //ROUTE); null for pure-local commands.
   lastResponse: string | null;
+  // vMAX telemetry: lane that served the last utterance + server route time.
+  lastLane: string | null;
+  lastLatencyMs: number | null;
+  lastRezeroed: boolean;
   updatedAt: string;
 }
 

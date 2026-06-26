@@ -7,6 +7,10 @@ export interface SovereignState {
   lastCommand: string | null;
   // Remote MCP answer for the latest utterance; null for pure-local commands.
   lastResponse: string | null;
+  // vMAX telemetry: which lane served the last utterance + server route time.
+  lastLane: string | null;
+  lastLatencyMs: number | null;
+  lastRezeroed: boolean;
   updatedAt: string;
 }
 
@@ -18,6 +22,9 @@ export const state: SovereignState = {
   transactionsCount: 0,
   lastCommand: null,
   lastResponse: null,
+  lastLane: null,
+  lastLatencyMs: null,
+  lastRezeroed: false,
   updatedAt: new Date().toISOString(),
 };
 
@@ -35,12 +42,15 @@ export function applyCommand(cmd: Command, s: SovereignState = state): Sovereign
   return s;
 }
 
-/** Record the remote MCP answer (or null) for the latest utterance. */
-export function setLastResponse(
-  response: string | null,
+/** Record route telemetry (answer, lane, server latency, rezero) for the utterance. */
+export function setRouteTelemetry(
+  telemetry: { response: string | null; lane: string; latencyMs: number; rezeroed: boolean },
   s: SovereignState = state,
 ): SovereignState {
-  s.lastResponse = response;
+  s.lastResponse = telemetry.response;
+  s.lastLane = telemetry.lane;
+  s.lastLatencyMs = telemetry.latencyMs;
+  s.lastRezeroed = telemetry.rezeroed;
   s.updatedAt = new Date().toISOString();
   return s;
 }

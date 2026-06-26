@@ -3,7 +3,27 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
 import { useVad } from '../hooks/useVad';
+import { QUERY_BUDGET_MS, TTFA_BUDGET_MS, budgetStatus, formatMs } from '../lib/telemetry';
 import { cancelSpeech, speak, speakableResponse, speechSupported } from '../lib/voice';
+
+// One latency readout with a budget-colored status dot.
+function TelemetryMetric({
+  label,
+  ms,
+  budget,
+}: { label: string; ms: number | null; budget: number }) {
+  const status = budgetStatus(ms, budget);
+  const dot = status === 'breach' ? 'bg-red-400' : status === 'warn' ? 'bg-amber-400' : 'bg-violet';
+  const value =
+    status === 'breach' ? 'text-red-400' : status === 'warn' ? 'text-amber-300' : 'text-white/60';
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      <span className="text-white/35">{label}</span>
+      <span className={value}>{formatMs(ms)}</span>
+    </span>
+  );
+}
 
 export function LakishaHUD() {
   const { sendVoiceCommand, connected, state } = useBifrost();
@@ -13,7 +33,11 @@ export function LakishaHUD() {
   const [voiceReady, setVoiceReady] = useState(false);
   const [muted, setMuted] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // vMAX telemetry — measured client-side latencies.
+  const [ttfaMs, setTtfaMs] = useState<number | null>(null);
+  const [queryMs, setQueryMs] = useState<number | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const dispatchAtRef = useRef<number | null>(null);
 
   const { start: vadStart, stop: vadStop, level, voiced } = useVad();
 
@@ -28,6 +52,7 @@ export function LakishaHUD() {
       const cmd = raw.trim();
       if (!cmd) return;
       awaitingRef.current = true; // //IGNITE on the resulting STATE_UPDATE
+      dispatchAtRef.current = performance.now(); // start the query-latency clock
       sendVoiceCommand(cmd);
       setInput('');
     },
@@ -81,11 +106,25 @@ export function LakishaHUD() {
     lastUpdatedRef.current = state.updatedAt;
     if (!awaitingRef.current) return;
     awaitingRef.current = false;
-    if (mutedRef.current) return;
+
+    // Round-trip query latency (dispatch -> STATE_UPDATE).
+    if (dispatchAtRef.current != null) {
+      setQueryMs(performance.now() - dispatchAtRef.current);
+      dispatchAtRef.current = null;
+    }
+
+    if (mutedRef.current) {
+      setTtfaMs(null);
+      return;
+    }
     // Prefer a remote MCP answer (//ROUTE) over the local confirmation.
     const line = state.lastResponse ?? speakableResponse(state);
+    const speakAt = performance.now();
     speak(line, {
-      onStart: () => setSpeaking(true),
+      onStart: () => {
+        setTtfaMs(performance.now() - speakAt); // time-to-first-audio
+        setSpeaking(true);
+      },
       onEnd: () => setSpeaking(false),
     });
   }, [state]);
@@ -124,6 +163,22 @@ export function LakishaHUD() {
   };
 
   const meter = Math.min(1, level * 6); // normalize RMS for the visual bar
+
+  // Lane badge from the last route (//ROUTE telemetry).
+  const lane = state?.lastLane;
+  const laneLabel = state?.lastRezeroed
+    ? '//REZERO'
+    : lane === 'REMOTE_MCP'
+      ? 'REMOTE'
+      : lane === 'LOCAL_TOOLS'
+        ? 'LOCAL'
+        : null;
+  const laneClass = state?.lastRezeroed
+    ? 'border-amber-400/40 text-amber-300'
+    : lane === 'REMOTE_MCP'
+      ? 'border-violet/40 text-violet-light'
+      : 'border-gold/30 text-gold-light';
+  const showTelemetry = queryMs != null || laneLabel != null;
 
   return (
     <form
@@ -233,6 +288,21 @@ export function LakishaHUD() {
           Send
         </button>
       </div>
+      {/* vMAX KINETIC_THROUGHPUT telemetry strip */}
+      {showTelemetry && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-1 text-[10px] uppercase tracking-[0.14em]">
+          <TelemetryMetric label="TTFA" ms={ttfaMs} budget={TTFA_BUDGET_MS} />
+          <TelemetryMetric label="Query" ms={queryMs} budget={QUERY_BUDGET_MS} />
+          {laneLabel && (
+            <span className={`rounded-sm border px-1.5 py-0.5 ${laneClass}`}>
+              {laneLabel}
+              {state?.lastLatencyMs != null && (
+                <span className="ml-1 text-white/35">· {formatMs(state.lastLatencyMs)}</span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
       {!connected && (
         <p className="mt-2 pl-1 text-[11px] text-white/30">
           Bifrost offline — commands queue once the gateway reconnects.

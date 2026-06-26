@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { MicrocubicMatrix } from './microcubic';
 import { type RouteOutcome, route } from './router';
 import { verifyWebhookSignature } from './security';
-import { applyCommand, setLastResponse, snapshot } from './state';
+import { applyCommand, setRouteTelemetry, snapshot } from './state';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -83,7 +83,12 @@ async function handleUtterance(raw: string): Promise<RouteOutcome> {
     }
   }
 
-  setLastResponse(outcome.response);
+  setRouteTelemetry({
+    response: outcome.response,
+    lane: outcome.lane,
+    latencyMs: outcome.latencyMs,
+    rezeroed: outcome.rezeroed,
+  });
   console.log(
     `route ${outcome.lane}${outcome.rezeroed ? ` (//REZERO: ${outcome.reason})` : ''} ` +
       `${outcome.latencyMs}ms -> ${outcome.command.action}`,
