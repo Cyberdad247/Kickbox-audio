@@ -80,10 +80,47 @@ $env:PORT = "7800"; node apps/mcp-query/dist/server.js
 $env:REMOTE_MCP_URL = "http://$(tailscale ip -4):7800"
 ```
 
-It exposes a `query` tool (`tools/list` + `tools/call`). The default responder
-handles arithmetic / time / greetings in <1ms (stays within budget). Set
-`OLLAMA_MODEL` (+ optional `OLLAMA_URL`) for real LLM answers — note LLM latency
-may exceed `ROUTE_BUDGET_MS` and trigger `//REZERO`; raise the budget if needed.
+It exposes a `query` tool (`tools/list` + `tools/call`). Backends run in priority
+order: **Multivoice-router → Ollama → local responder**, each falling through to
+the next so a query always answers within budget.
+
+- **Local responder** (default): arithmetic / time / greetings in <1ms.
+- **Ollama**: set `OLLAMA_MODEL` (+ optional `OLLAMA_URL`) for LLM answers.
+
+### Multivoice-router (Anya_Ω governed compiler)
+[Cyberdad247/Multivoice-router](https://github.com/Cyberdad247/Multivoice-router)
+is the Camelot voice/persona/intent compiler. Its `runAnyaCompiler` (pure — QFT +
+AgentArmor + policy + AETHER routing, no network) can be exposed over HTTP with a
+tiny shim, then wired into mcp-query via `MULTIVOICE_URL`:
+
+```ts
+// anya-serve.ts (in a Multivoice-router checkout) — run with: tsx anya-serve.ts
+import http from 'node:http';
+import { runAnyaCompiler } from './src/anya/anya-compiler';
+http
+  .createServer((req, res) => {
+    if (req.method !== 'POST') return res.writeHead(405).end();
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', async () => {
+      const { utterance, query } = JSON.parse(raw || '{}');
+      const r: any = await runAnyaCompiler(utterance || query || '', { source: 'mcp' });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(r.interrupt ? { interrupt: r.interrupt } : r));
+    });
+  })
+  .listen(8790, '0.0.0.0');
+```
+
+```powershell
+# point mcp-query at the Anya compile shim (loopback or a Tailscale host only)
+$env:MULTIVOICE_URL = "http://localhost:8790"; $env:PORT = "7800"; node apps/mcp-query/dist/server.js
+```
+
+mcp-query POSTs `{ utterance }` and speaks the governed result — e.g.
+*"Compiled intent `android_action` routed to phoneclaw (confidence 88%), approval
+required."* The Multivoice host must be loopback or Tailscale (`100.64/10` /
+`*.ts.net`); otherwise it's rejected and the next backend is used.
 
 ## Upgrading to a STABLE public URL
 TryCloudflare URLs are **ephemeral** — they change on every tunnel restart (the

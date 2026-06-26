@@ -6,6 +6,7 @@ import http from 'node:http';
 import { answerQuery } from './query';
 
 const PORT = Number(process.env.PORT) || 7800;
+const MULTIVOICE_URL = process.env.MULTIVOICE_URL;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL;
 const OLLAMA_URL = process.env.OLLAMA_URL;
 const QUERY_TIMEOUT_MS = Number(process.env.QUERY_TIMEOUT_MS) || 800;
@@ -50,6 +51,7 @@ export async function handleRpc(body: RpcRequest): Promise<object> {
         return rpcError(id, -32602, 'query argument is required');
       }
       const answer = await answerQuery(query, {
+        multivoiceUrl: MULTIVOICE_URL,
         ollamaModel: OLLAMA_MODEL,
         ollamaUrl: OLLAMA_URL,
         timeoutMs: QUERY_TIMEOUT_MS,
@@ -64,7 +66,13 @@ export async function handleRpc(body: RpcRequest): Promise<object> {
 export const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', ollama: OLLAMA_MODEL ?? 'off' }));
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        multivoice: MULTIVOICE_URL ? 'on' : 'off',
+        ollama: OLLAMA_MODEL ?? 'off',
+      }),
+    );
     return;
   }
   if (req.method !== 'POST') {
@@ -101,6 +109,8 @@ export const server = http.createServer((req, res) => {
 // Bind all interfaces so the Tailscale IP is reachable.
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`mcp-query server on :${PORT} (ollama=${OLLAMA_MODEL ?? 'off'})`);
+    console.log(
+      `mcp-query server on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'})`,
+    );
   });
 }
