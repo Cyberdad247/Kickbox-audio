@@ -1,13 +1,18 @@
-import { KineticBackground } from '../components/3d/KineticBackground';
-import { Dashboard } from '../components/Dashboard';
-import { LakishaEnclave } from '../components/hud/LakishaEnclave';
+'use client';
+
+import dynamic from 'next/dynamic';
+import { LakishaHUD } from '../components/LakishaHUD';
+
+const KineticCanvas = dynamic(() => import('@/components/3d/KineticCanvas'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-[#050505]" />,
+});
 
 export default function Home() {
   return (
     <>
-      <KineticBackground />
-      <Dashboard />
-      <LakishaEnclave />
+      <KineticCanvas className="fixed inset-0 -z-10" />
+      <LakishaHUD />
     </>
   );
 }

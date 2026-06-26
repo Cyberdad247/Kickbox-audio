@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "repository": "https://schema.org/codeRepository"
+  },
+  "@type": "Artifact",
+  "@id": "urn:kickbox-audio:knight:PROP_001",
+  "knight_id": "PROP_001",
+  "name": "Darius Ledgerhold",
+  "role": "Asset Manager",
+  "repository": "./core/knights/prop.md",
+  "logic_framework": "Hierarchical Decomp",
+  "drive": "every asset has a story and every story has a ledger.",
+  "skill_graph_tier": "S4_Strategic",
+  "bifrost_connection": {
+    "tunnel": "planned_mTLS_Tunnel_0x004",
+    "confirmed_controls": ["hmac_webhook_validation", "tailscale_remote_mcp_guard", "local_first_rezero"]
+  },
+  "embedded_proxy": "tiny_llm_cache_v1",
+  "ingress_policy": {
+    "primary": "Hermes",
+    "allow_direct_ingress": false,
+    "human_gate": ["Andre", "Pam"]
+  },
+  "responsibilities": ["property status rollups", "asset issue decomposition", "owner-ready summaries"],
+  "escalation": {
+    "simple": "Nano-Squire record lookup",
+    "analytical": "Excalibur Kernel via Bifrost",
+    "high_priority": "Ambassador Lakisha"
+  },
+  "evidence_class": "planned"
+}

@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "repository": "https://schema.org/codeRepository"
+  },
+  "@type": "Artifact",
+  "@id": "urn:kickbox-audio:knight:CAL_001",
+  "knight_id": "CAL_001",
+  "name": "Iris Timewright",
+  "role": "Time Architect",
+  "repository": "./core/knights/cal.md",
+  "logic_framework": "Sequential Pipeline",
+  "drive": "protect the day before the day protects the vision.",
+  "skill_graph_tier": "S3_Contextual",
+  "bifrost_connection": {
+    "tunnel": "planned_mTLS_Tunnel_0x002",
+    "confirmed_controls": ["hmac_webhook_validation", "tailscale_remote_mcp_guard", "local_first_rezero"]
+  },
+  "embedded_proxy": "tiny_llm_cache_v1",
+  "ingress_policy": {
+    "primary": "Hermes",
+    "allow_direct_ingress": false,
+    "human_gate": ["Andre", "Pam"]
+  },
+  "responsibilities": ["calendar conflict detection", "reminder sequencing", "appointment handoff packets"],
+  "escalation": {
+    "simple": "Nano-Squire lookup",
+    "analytical": "Excalibur Kernel via Bifrost",
+    "high_priority": "Ambassador Lakisha"
+  },
+  "evidence_class": "planned"
+}

@@ -1,0 +1,69 @@
+{
+  "project": "kickbox-audio",
+  "audit_version": "1.0.0",
+  "design_tokens_conformance": {
+    "status": "FAIL",
+    "violations": [
+      {
+        "file": "apps/pwa/src/components/LakishaHUD.tsx",
+        "line": 16,
+        "violation": "Use of standard colors bg-red-400 and bg-amber-400 instead of Obsidian/Gold/Violet system tokens.",
+        "patch": {
+          "type": "replace",
+          "target": "const dot = status === 'breach' ? 'bg-red-400' : status === 'warn' ? 'bg-amber-400' : 'bg-violet';",
+          "replacement": "const dot = status === 'breach' ? 'bg-gold-royal/85 shadow-gold' : status === 'warn' ? 'bg-gold/45' : 'bg-violet';"
+        }
+      },
+      {
+        "file": "apps/pwa/src/components/LakishaHUD.tsx",
+        "line": 18,
+        "violation": "Use of standard colors text-red-400 and text-amber-300 instead of Obsidian/Gold/Violet system tokens.",
+        "patch": {
+          "type": "replace",
+          "target": "const value = status === 'breach' ? 'text-red-400' : status === 'warn' ? 'text-amber-300' : 'text-white/60';",
+          "replacement": "const value = status === 'breach' ? 'text-gold font-semibold' : status === 'warn' ? 'text-gold-light' : 'text-white/60';"
+        }
+      },
+      {
+        "file": "apps/pwa/src/components/LakishaHUD.tsx",
+        "line": 177,
+        "violation": "Use of standard colors border-amber-400/40 and text-amber-300 instead of Obsidian/Gold/Violet system tokens.",
+        "patch": {
+          "type": "replace",
+          "target": "const laneClass = state?.lastRezeroed\n    ? 'border-amber-400/40 text-amber-300'\n    : lane === 'REMOTE_MCP'\n      ? 'border-violet/40 text-violet-light'\n      : 'border-gold/30 text-gold-light';",
+          "replacement": "const laneClass = state?.lastRezeroed\n    ? 'border-gold/30 text-gold-light font-semibold'\n    : lane === 'REMOTE_MCP'\n      ? 'border-violet/40 text-violet-light'\n      : 'border-gold/30 text-gold-light';"
+        }
+      }
+    ]
+  },
+  "security_conformance": {
+    "status": "PASS",
+    "details": [
+      {
+        "check": "Zero-Trust API Proxying",
+        "result": "PASSED. Next.js PWA contains no API keys or raw credentials. All communication is WebSocket-based connecting to the Bifrost server, which holds secrets only in the server environment.",
+        "remediation": null
+      },
+      {
+        "check": "HMAC Webhook Validation",
+        "result": "PASSED. Webhook receiver /webhook/sms in apps/bifrost/src/server.ts validates x-webhook-signature using constant-time buffer comparison. Rejects requests immediately if WEBHOOK_SECRET is empty.",
+        "remediation": null
+      },
+      {
+        "check": "Tailscale Mesh Enforcement",
+        "result": "PASSED. assertTailscaleEndpoint in apps/bifrost/src/mcp.ts intercepts outbound REMOTE_MCP endpoints and rejects any URL outside loopback/Tailscale MagicDNS/CGNAT.",
+        "remediation": null
+      }
+    ]
+  },
+  "performance_conformance": {
+    "status": "WARN",
+    "details": [
+      {
+        "check": "Deferred 3D Canvas Import",
+        "result": "WARN. The component <KineticCanvas /> is planned but not yet implemented. The directory apps/pwa/src/components/3d contains only .gitkeep.",
+        "remediation": "When <KineticCanvas /> is added, it MUST be wrapped with next/dynamic and ssr: false (e.g. const KineticCanvas = dynamic(() => import('../components/3d/KineticCanvas'), { ssr: false })) to prevent blocking the initial paint and keeping FCP < 1.2s."
+      }
+    ]
+  }
+}

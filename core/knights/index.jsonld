@@ -1,0 +1,37 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "hasPart": "https://schema.org/hasPart"
+  },
+  "@type": "ArtifactCollection",
+  "@id": "urn:kickbox-audio:knight:index",
+  "name": "Kickbox Audio Genesis Knight Registry",
+  "ingress": {
+    "primary": "Hermes",
+    "policy": "Hermes is the only planned ingress touchpoint. Knights receive delegated tasks after triage."
+  },
+  "confirmed_bifrost_controls": [
+    "apps/bifrost/src/security.ts HMAC webhook validation",
+    "apps/bifrost/src/mcp.ts Tailscale remote MCP guard",
+    "apps/bifrost/src/router.ts local-first REZERO fallback",
+    "apps/bifrost/src/microcubic.ts worker-thread microcube isolation"
+  ],
+  "planned_controls": [
+    "mTLS tunnel binding per Knight",
+    "JSON-LD artifact ingestion into Excalibur index",
+    "Tiny LLM Nano-Squire runtime on ARM64 edge hardware"
+  ],
+  "hasPart": [
+    "./ceo.jsonld",
+    "./cal.jsonld",
+    "./mail.jsonld",
+    "./prop.jsonld",
+    "./maint.jsonld",
+    "./rent.jsonld",
+    "./stream.jsonld",
+    "./bill.jsonld",
+    "./coffee.jsonld",
+    "./growth.jsonld"
+  ]
+}

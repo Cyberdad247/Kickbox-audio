@@ -13,9 +13,14 @@ function TelemetryMetric({
   budget,
 }: { label: string; ms: number | null; budget: number }) {
   const status = budgetStatus(ms, budget);
-  const dot = status === 'breach' ? 'bg-red-400' : status === 'warn' ? 'bg-amber-400' : 'bg-violet';
+  const dot =
+    status === 'breach'
+      ? 'bg-gold-royal/85 shadow-gold'
+      : status === 'warn'
+        ? 'bg-gold/45'
+        : 'bg-violet';
   const value =
-    status === 'breach' ? 'text-red-400' : status === 'warn' ? 'text-amber-300' : 'text-white/60';
+    status === 'breach' ? 'text-gold' : status === 'warn' ? 'text-gold-light' : 'text-white/60';
   return (
     <span className="flex items-center gap-1.5">
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
@@ -34,8 +39,11 @@ export function LakishaHUD() {
   const [muted, setMuted] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   // vMAX telemetry — measured client-side latencies.
-  const [ttfaMs, setTtfaMs] = useState<number | null>(null);
-  const [queryMs, setQueryMs] = useState<number | null>(null);
+  const [ttfaMs, setTtfaMs] = useState<number | null>(null);  const [queryMs, setQueryMs] = useState<number | null>(null);
+  // Browser autoplay policy: AudioContext + getUserMedia block until user gesture.
+  // Gate the HUD behind an explicit unlock state so speech-synthesis / VAD wire up.
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const dispatchAtRef = useRef<number | null>(null);
 
@@ -162,7 +170,41 @@ export function LakishaHUD() {
     dispatch(input);
   };
 
+  // Tap-to-connect autoplay-gate: acquires mic permission and resumes AudioContext so
+  // downstream speech-synthesis / Web Speech API / VAD can actually initialize. Stream
+  // tracks are released immediately after the gesture because the real mic capture is
+  // owned by `recognition` and `useVad` afterwards.
+  const handleTapToConnect = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioCtor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtor) await new AudioCtor().resume();
+      stream.getTracks().forEach((track) => track.stop());
+    } finally {
+      setIsUnlocked(true);
+    }
+  };
+
   const meter = Math.min(1, level * 6); // normalize RMS for the visual bar
+
+  // Autoplay-gate render block (Gilded). Bottom-right fixed pane before any user
+  // gesture; full HUD renders once `isUnlocked` flips true.
+  if (!isUnlocked) {
+    return (
+      <div className="fixed bottom-8 right-8 z-50 border border-gold/40 bg-plate-900/95 px-4 py-3 text-gold-light shadow-gold backdrop-blur-md">
+        <button
+          type="button"
+          onClick={handleTapToConnect}
+          className="flex items-center gap-2 font-serif text-sm tracking-executive"
+        >
+          <span className="flex h-2 w-2 rounded-full bg-violet shadow-glow" />
+          Tap to Connect Lakisha
+        </button>
+      </div>
+    );
+  }
 
   // Lane badge from the last route (//ROUTE telemetry).
   const lane = state?.lastLane;
@@ -174,7 +216,7 @@ export function LakishaHUD() {
         ? 'LOCAL'
         : null;
   const laneClass = state?.lastRezeroed
-    ? 'border-amber-400/40 text-amber-300'
+    ? 'border-gold/30 text-gold-light'
     : lane === 'REMOTE_MCP'
       ? 'border-violet/40 text-violet-light'
       : 'border-gold/30 text-gold-light';
@@ -187,7 +229,7 @@ export function LakishaHUD() {
         speaking
           ? 'border-gold-royal/70 shadow-gold'
           : listening && voiced
-            ? 'animate-pulse-glow border-violet/60'
+            ? 'animate-pulse animate-pulse-glow border-violet/60 shadow-[0_0_12px_#9D4EDD]'
             : listening
               ? 'border-violet/40'
               : 'border-gold/40 shadow-gold'
@@ -225,7 +267,7 @@ export function LakishaHUD() {
           </button>
         )}
 
-        <span className="font-display text-gold-light text-sm tracking-minted">Lakisha</span>
+        <span className="font-serif text-gold-light text-sm tracking-executive">Lakisha</span>
 
         <div className="relative flex-1">
           <input

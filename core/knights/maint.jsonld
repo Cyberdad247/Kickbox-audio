@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "repository": "https://schema.org/codeRepository"
+  },
+  "@type": "Artifact",
+  "@id": "urn:kickbox-audio:knight:MAINT_001",
+  "knight_id": "MAINT_001",
+  "name": "Reese Repair",
+  "role": "Repair Lead",
+  "repository": "./core/knights/maint.md",
+  "logic_framework": "ReAct",
+  "drive": "repair is a promise made visible.",
+  "skill_graph_tier": "S3_Contextual",
+  "bifrost_connection": {
+    "tunnel": "planned_mTLS_Tunnel_0x005",
+    "confirmed_controls": ["hmac_webhook_validation", "tailscale_remote_mcp_guard", "local_first_rezero"]
+  },
+  "embedded_proxy": "tiny_llm_cache_v1",
+  "ingress_policy": {
+    "primary": "Hermes",
+    "allow_direct_ingress": false,
+    "human_gate": ["Andre", "Pam"]
+  },
+  "responsibilities": ["repair request intake", "vendor handoff prep", "status escalation"],
+  "escalation": {
+    "simple": "Nano-Squire ticket status",
+    "analytical": "Excalibur Kernel via Bifrost",
+    "high_priority": "Ambassador Lakisha"
+  },
+  "evidence_class": "planned"
+}

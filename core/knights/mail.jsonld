@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "repository": "https://schema.org/codeRepository"
+  },
+  "@type": "Artifact",
+  "@id": "urn:kickbox-audio:knight:MAIL_001",
+  "knight_id": "MAIL_001",
+  "name": "Noah Inbox",
+  "role": "Inbox Warden",
+  "repository": "./core/knights/mail.md",
+  "logic_framework": "ReAct Tool-Use",
+  "drive": "no message moves without purpose.",
+  "skill_graph_tier": "S3_Contextual",
+  "bifrost_connection": {
+    "tunnel": "planned_mTLS_Tunnel_0x003",
+    "confirmed_controls": ["hmac_webhook_validation", "tailscale_remote_mcp_guard", "local_first_rezero"]
+  },
+  "embedded_proxy": "tiny_llm_cache_v1",
+  "ingress_policy": {
+    "primary": "Hermes",
+    "allow_direct_ingress": false,
+    "human_gate": ["Andre", "Pam"]
+  },
+  "responsibilities": ["inbox triage", "draft classification", "client-response routing"],
+  "escalation": {
+    "simple": "Nano-Squire label suggestion",
+    "analytical": "Excalibur Kernel via Bifrost",
+    "high_priority": "Ambassador Lakisha"
+  },
+  "evidence_class": "planned"
+}
