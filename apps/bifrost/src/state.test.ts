@@ -7,6 +7,9 @@ const freshState = (): SovereignState => ({
   transactionsCount: 0,
   lastCommand: null,
   lastResponse: null,
+  lastLane: null,
+  lastLatencyMs: null,
+  lastRezeroed: false,
   updatedAt: new Date(0).toISOString(),
 });
 
