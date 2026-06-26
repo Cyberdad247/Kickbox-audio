@@ -15,7 +15,7 @@ export function SettingsDrawer() {
 
   return (
     <aside
-      className="fixed top-4 right-4 z-40 flex max-h-[calc(100vh-6rem)] w-[min(92vw,28rem)] flex-col items-end"
+      className="fixed top-4 right-4 md:right-6 z-40 flex max-h-[calc(100vh-6rem)] w-[min(94vw,28rem)] flex-col items-end"
       aria-label="Lakisha settings"
     >
       <button
