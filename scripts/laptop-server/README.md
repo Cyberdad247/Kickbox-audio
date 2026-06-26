@@ -56,6 +56,19 @@ $env:DATABASE_URL = "postgresql://USER:PASS@localhost:5432/sovereign"
 npm run db:migrate        # apply schema
 ```
 
+## Remote MCP fallback (vMAX `//ROUTE` + `//REZERO`)
+Known commands run on the local fast path. Unknown / complex utterances bypass to
+a remote MCP server — but **only over the Tailscale mesh**. Configure it via env:
+
+```powershell
+$env:REMOTE_MCP_URL = "https://<machine>.<tailnet>.ts.net/mcp"  # MUST be Tailscale
+$env:ROUTE_BUDGET_MS = "900"   # latency budget; breach -> //REZERO to local
+```
+
+Any non-Tailscale endpoint (`100.64.0.0/10` or `*.ts.net` only) throws a
+`CompilationError` and the router falls back to local tools. If unset, unknown
+utterances simply `//REZERO` to a local response.
+
 ## Upgrading to a STABLE public URL
 TryCloudflare URLs are **ephemeral** — they change on every tunnel restart (the
 supervisor compensates by auto-redeploying, but each change costs a Vercel

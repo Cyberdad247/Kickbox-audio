@@ -6,6 +6,7 @@ const freshState = (): SovereignState => ({
   portfolioValuation: BASELINE_VALUATION,
   transactionsCount: 0,
   lastCommand: null,
+  lastResponse: null,
   updatedAt: new Date(0).toISOString(),
 });
 

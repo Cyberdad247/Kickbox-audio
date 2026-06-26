@@ -7,6 +7,8 @@ export interface SovereignState {
   portfolioValuation: number;
   transactionsCount: number;
   lastCommand: string | null;
+  // Remote MCP answer (vMAX //ROUTE); null for pure-local commands.
+  lastResponse: string | null;
   updatedAt: string;
 }
 

@@ -5,6 +5,8 @@ export interface SovereignState {
   portfolioValuation: number;
   transactionsCount: number;
   lastCommand: string | null;
+  // Remote MCP answer for the latest utterance; null for pure-local commands.
+  lastResponse: string | null;
   updatedAt: string;
 }
 
@@ -15,6 +17,7 @@ export const state: SovereignState = {
   portfolioValuation: BASELINE_VALUATION,
   transactionsCount: 0,
   lastCommand: null,
+  lastResponse: null,
   updatedAt: new Date().toISOString(),
 };
 
@@ -28,6 +31,16 @@ export function applyCommand(cmd: Command, s: SovereignState = state): Sovereign
     s.transactionsCount += 1;
   }
   s.lastCommand = cmd.action;
+  s.updatedAt = new Date().toISOString();
+  return s;
+}
+
+/** Record the remote MCP answer (or null) for the latest utterance. */
+export function setLastResponse(
+  response: string | null,
+  s: SovereignState = state,
+): SovereignState {
+  s.lastResponse = response;
   s.updatedAt = new Date().toISOString();
   return s;
 }
