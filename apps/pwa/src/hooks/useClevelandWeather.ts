@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 
 // KINETIC SUBSTRATE — real-time weather/time-of-day for Cleveland, OH (Eastern).
-// Conditions are mocked today; drop an OpenWeatherMap key into NEXT_PUBLIC_OWM_KEY
-// and the fetch path below activates with zero call-site changes.
+// Live conditions come from the server route /api/weather, which holds the
+// OpenWeatherMap key server-side. No API key ever reaches the client bundle.
 
 export type WeatherCondition = 'clear' | 'clouds' | 'rain' | 'snow';
 
@@ -26,8 +26,6 @@ function clevelandIsDay(now: Date = new Date()): boolean {
   return hour >= 6 && hour < 20;
 }
 
-const CLEVELAND = { lat: 41.4993, lon: -81.6944 };
-
 export function useClevelandWeather(): ClevelandWeather {
   const [weather, setWeather] = useState<ClevelandWeather>(() => ({
     temp: 72,
@@ -38,25 +36,11 @@ export function useClevelandWeather(): ClevelandWeather {
   useEffect(() => {
     setWeather((w) => ({ ...w, isDay: clevelandIsDay() }));
 
-    const key = process.env.NEXT_PUBLIC_OWM_KEY;
-    if (!key) return;
-
-    const url =
-      `https://api.openweathermap.org/data/2.5/weather?lat=${CLEVELAND.lat}` +
-      `&lon=${CLEVELAND.lon}&units=imperial&appid=${key}`;
     const controller = new AbortController();
-    fetch(url, { signal: controller.signal })
+    fetch('/api/weather', { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { main?: { temp: number }; weather?: Array<{ main: string }> }) => {
-        const main = d.weather?.[0]?.main?.toLowerCase() ?? 'rain';
-        const condition: WeatherCondition = main.includes('snow')
-          ? 'snow'
-          : main.includes('rain') || main.includes('drizzle')
-            ? 'rain'
-            : main.includes('cloud')
-              ? 'clouds'
-              : 'clear';
-        setWeather({ temp: Math.round(d.main?.temp ?? 72), condition, isDay: clevelandIsDay() });
+      .then((d: ClevelandWeather) => {
+        setWeather({ temp: d.temp, condition: d.condition, isDay: d.isDay });
       })
       .catch(() => {
         /* keep the mocked baseline */
