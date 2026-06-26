@@ -69,6 +69,22 @@ Any non-Tailscale endpoint (`100.64.0.0/10` or `*.ts.net` only) throws a
 `CompilationError` and the router falls back to local tools. If unset, unknown
 utterances simply `//REZERO` to a local response.
 
+### Bundled MCP server (`apps/mcp-query`)
+A real JSON-RPC MCP server lives in the monorepo. Run it bound to all interfaces
+so the laptop's Tailscale IP is reachable, then point Bifrost at that IP:
+
+```powershell
+# 1) start the MCP server (fast local responder; set OLLAMA_MODEL for LLM answers)
+$env:PORT = "7800"; node apps/mcp-query/dist/server.js
+# 2) point Bifrost at the laptop's Tailscale IP (passes the zero-trust gate)
+$env:REMOTE_MCP_URL = "http://$(tailscale ip -4):7800"
+```
+
+It exposes a `query` tool (`tools/list` + `tools/call`). The default responder
+handles arithmetic / time / greetings in <1ms (stays within budget). Set
+`OLLAMA_MODEL` (+ optional `OLLAMA_URL`) for real LLM answers — note LLM latency
+may exceed `ROUTE_BUDGET_MS` and trigger `//REZERO`; raise the budget if needed.
+
 ## Upgrading to a STABLE public URL
 TryCloudflare URLs are **ephemeral** — they change on every tunnel restart (the
 supervisor compensates by auto-redeploying, but each change costs a Vercel
