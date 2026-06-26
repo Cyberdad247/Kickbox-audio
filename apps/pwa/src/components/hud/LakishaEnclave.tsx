@@ -6,7 +6,7 @@ import { useLakishaVoice } from '../../hooks/useLakishaVoice';
 // Shares useLakishaVoice with the bottom-center HUD: recognition primary, VAD-only
 // failsafe, so if one input path fails the other still keeps Lakisha live.
 export function LakishaEnclave() {
-  const { connected, connect, isSpeaking, mode, error } = useLakishaVoice();
+  const { connected, connect, isSpeaking, mode, error } = useLakishaVoice({ continuous: true });
 
   const status = isSpeaking
     ? 'Lakisha Active'

@@ -1,10 +1,9 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { useBifrost } from '../context/BifrostContext';
-import { useVad } from '../hooks/useVad';
+import { useLakishaVoice } from '../hooks/useLakishaVoice';
 import { QUERY_BUDGET_MS, TTFA_BUDGET_MS, budgetStatus, formatMs } from '../lib/telemetry';
-import { cancelSpeech, speak, speakableResponse, speechSupported } from '../lib/voice';
 
 // One latency readout with a budget-colored status dot.
 function TelemetryMetric({
@@ -26,136 +25,26 @@ function TelemetryMetric({
 }
 
 export function LakishaHUD() {
-  const { sendVoiceCommand, connected, state } = useBifrost();
-  const [input, setInput] = useState('');
-  const [listening, setListening] = useState(false);
-  const [supported, setSupported] = useState(false);
-  const [voiceReady, setVoiceReady] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  // vMAX telemetry — measured client-side latencies.
-  const [ttfaMs, setTtfaMs] = useState<number | null>(null);
-  const [queryMs, setQueryMs] = useState<number | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const dispatchAtRef = useRef<number | null>(null);
-
-  const { start: vadStart, stop: vadStop, level, voiced } = useVad();
-
-  // Speak only for commands THIS client sent (gate the //IGNITE response).
-  const awaitingRef = useRef(false);
-  const lastUpdatedRef = useRef<string | null>(null);
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
-
-  const dispatch = useCallback(
-    (raw: string) => {
-      const cmd = raw.trim();
-      if (!cmd) return;
-      awaitingRef.current = true; // //IGNITE on the resulting STATE_UPDATE
-      dispatchAtRef.current = performance.now(); // start the query-latency clock
-      sendVoiceCommand(cmd);
-      setInput('');
-    },
-    [sendVoiceCommand],
-  );
-
-  // //INGEST transcript path — Web Speech recognition (client-only).
-  useEffect(() => {
-    const Ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!Ctor) return;
-
-    const recognition = new Ctor();
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onresult = (event) => {
-      let interim = '';
-      let final = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0].transcript;
-        if (result.isFinal) final += text;
-        else interim += text;
-      }
-      if (final) dispatch(final);
-      else setInput(interim);
-    };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-
-    recognitionRef.current = recognition;
-    setSupported(true);
-    return () => recognition.abort();
-  }, [dispatch]);
-
-  // Resolve speech-synthesis support after mount (avoids SSR hydration mismatch).
-  useEffect(() => setVoiceReady(speechSupported()), []);
-
-  // Run the VAD meter only while listening.
-  useEffect(() => {
-    if (listening) void vadStart();
-    else vadStop();
-  }, [listening, vadStart, vadStop]);
-
-  // //IGNITE — speak the response when our command's STATE_UPDATE returns.
-  useEffect(() => {
-    if (!state) return;
-    if (lastUpdatedRef.current === state.updatedAt) return;
-    lastUpdatedRef.current = state.updatedAt;
-    if (!awaitingRef.current) return;
-    awaitingRef.current = false;
-
-    // Round-trip query latency (dispatch -> STATE_UPDATE).
-    if (dispatchAtRef.current != null) {
-      setQueryMs(performance.now() - dispatchAtRef.current);
-      dispatchAtRef.current = null;
-    }
-
-    if (mutedRef.current) {
-      setTtfaMs(null);
-      return;
-    }
-    // Prefer a remote MCP answer (//ROUTE) over the local confirmation.
-    const line = state.lastResponse ?? speakableResponse(state);
-    const speakAt = performance.now();
-    speak(line, {
-      onStart: () => {
-        setTtfaMs(performance.now() - speakAt); // time-to-first-audio
-        setSpeaking(true);
-      },
-      onEnd: () => setSpeaking(false),
-    });
-  }, [state]);
-
-  // Stop any in-flight speech on unmount.
-  useEffect(() => () => cancelSpeech(), []);
-
-  const toggleListening = () => {
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-    if (listening) {
-      recognition.stop();
-      setListening(false);
-    } else {
-      setInput('');
-      cancelSpeech(); // barge-in: silence Lakisha when the Sovereign speaks
-      try {
-        recognition.start();
-        setListening(true);
-      } catch {
-        // start() throws if already running — ignore.
-      }
-    }
-  };
-
-  const toggleMute = () => {
-    setMuted((m) => {
-      if (!m) cancelSpeech();
-      return !m;
-    });
-  };
+  const { connected, state } = useBifrost();
+  // Unified voice core (toggle-listen model). Re-implements nothing locally:
+  // recognition, VAD, //IGNITE, telemetry primitives, and mute all come from
+  // the shared hook. Aliases keep the JSX below byte-for-byte equivalent.
+  const {
+    input,
+    setInput,
+    listening,
+    recognitionSupported: supported,
+    voiceSupported: voiceReady,
+    muted,
+    speaking,
+    ttfaMs,
+    queryMs,
+    level,
+    voiced,
+    toggleListening,
+    toggleMute,
+    dispatch,
+  } = useLakishaVoice();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
