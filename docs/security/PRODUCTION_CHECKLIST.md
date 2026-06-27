@@ -27,13 +27,14 @@ Observability → Incident Response → Cross-cutting**.
 - [ ] Provision secrets via `camelot keys set` (NOT in any tracked `.env`)
 - [ ] Bifrost binds `0.0.0.0:3017`; helmet headers set upstream (CDN / load balancer)
 - [ ] `apps/pwa` production build (`next build` → `.next/`) deployed to CDN
-- [ ] Database (`@sovereign/db` workspace) migrated via `prisma migrate deploy`
-- [ ] WebSocket load balancer configured for long-lived `?upgrade=ws` connections
+- [ ] Database (`@sovereign/db` workspace) migrated via `prisma migrate deploy`- [ ] WebSocket load balancer configured for long-lived `?upgrade=ws` connections
+- [ ] Vercel Preview URL captured at PR open time becomes the production smoke target. Re-run `node scripts/ci/fixture-hitl.mjs HOST=$VercelHost PORT=443` post-deploy to confirm `/api/bifrost/hitl` handshake under TLS.
+- [ ] `apps/bifrost/package.json` exact-version pin (no `^`/`~`) on @prisma/client, express, express-rate-limit, ws, zod — reproducible build, no surprise minor updates.
 
 ## Post-Deploy
-
 - [ ] **T+0** Externally reachable `/health` returns `200 { status: "ok", clients: N }`
 - [ ] **T+10m** WS state stream joins; one `KBA_SYNC_001` verb exercised end-to-end
+- [ ] **T+15m** Vercel Preview URL smoke: `curl -sf $URL/health` returns 200; same URL `/api/bifrost/hitl` issues PASS for KBA_SYNC_001 with the canonical HMAC envelope.
 - [ ] **T+30m** DefenseGrid observation invokes `KBA_AUDIT_VLT_002`; state.ts `kbaActionsByDomain.audit` increments
 - [ ] **T+24h** No `SignatureError` in bifrost logs; rate-limit triggers ≤ SLO; no 5xx > 0.1%
 
