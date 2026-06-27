@@ -8,12 +8,20 @@
 //   - page.tsx changes the KineticCanvas mount contract (performance)
 //   - security.ts, server.ts, mcp.ts HMAC/Tailscale behavior shifts (security)
 //
-// Usage: node scripts/regen-helio-patch.mjs [workspace-root]
+// Usage:
+//   node scripts/regen-helio-patch.mjs [workspace-root]
+//   HELIO_DRY_RUN=1 node scripts/regen-helio-patch.mjs        # print to stdout, do not write
+//
+// Per AGENTS.md Rule 6, runic authority flows only through the sovereign
+// Pointer channel (this CLI / typed commits). Output here represents a
+// deterministic regen from source-of-truth files; HELIO_PATCH.json must
+// never be hand-edited.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? '.');
+const dryRun = process.env.HELIO_DRY_RUN === '1';
 
 const safeRead = (rel) => {
   try {
@@ -109,7 +117,17 @@ const out = {
 };
 
 const target = resolve(root, 'HELIO_PATCH.json');
-writeFileSync(target, JSON.stringify(out, null, 2) + '\n');
+const payload = JSON.stringify(out, null, 2) + '\n';
+
+if (dryRun) {
+  process.stdout.write(payload);
+  console.error(
+    `[regen-helio-patch] DRY-RUN: would have written ${target}; design=${out.design_tokens_conformance.status} security=${out.security_conformance.status} performance=${out.performance_conformance.status}`,
+  );
+  process.exit(0);
+}
+
+writeFileSync(target, payload);
 console.log(
   `[regen-helio-patch] wrote ${target}; design=${out.design_tokens_conformance.status} security=${out.security_conformance.status} performance=${out.performance_conformance.status}`,
 );

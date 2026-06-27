@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_FUTURE_SKEW_MS,
+  DEFAULT_PAST_SKEW_MS,
   SignatureError,
   assertFresh,
   verifyActionSignature,
@@ -33,17 +35,80 @@ describe('verifyWebhookSignature (Task 2.4 ingress security)', () => {
 
 // ── KBA Cartridge additions ──
 
-describe('assertFresh (KBA freshness gate)', () => {
-  it('passes when expiresAt is in the future', () => {
-    expect(() => assertFresh(Date.now() + 60_000)).not.toThrow();
+describe('assertFresh (KBA freshness gate — symmetric past/future skew defense)', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('exposes the documented default skew windows', () => {
+    expect(DEFAULT_PAST_SKEW_MS).toBe(60_000);
+    expect(DEFAULT_FUTURE_SKEW_MS).toBe(30_000);
   });
 
-  it('rejects when expiresAt is past tolerance window', () => {
-    expect(() => assertFresh(Date.now() - 60_000)).toThrow(SignatureError);
+  it('passes when timestamp equals now and no expiresAt given', () => {
+    expect(() => assertFresh({ timestamp: NOW, now: NOW })).not.toThrow();
   });
 
-  it('allows small clock skew within tolerance', () => {
-    expect(() => assertFresh(Date.now() - 3_000)).not.toThrow();
+  it('passes within the past-skew window', () => {
+    expect(() =>
+      assertFresh({ timestamp: NOW - DEFAULT_PAST_SKEW_MS + 1000, now: NOW }),
+    ).not.toThrow();
+  });
+
+  it('passes within the future-skew window', () => {
+    expect(() =>
+      assertFresh({ timestamp: NOW + DEFAULT_FUTURE_SKEW_MS - 1000, now: NOW }),
+    ).not.toThrow();
+  });
+
+  it('rejects when timestamp is past the past-skew window', () => {
+    expect(() =>
+      assertFresh({ timestamp: NOW - DEFAULT_PAST_SKEW_MS - 1000, now: NOW }),
+    ).toThrow(SignatureError);
+  });
+
+  it('rejects when timestamp is further in the future than the future-skew window', () => {
+    expect(() =>
+      assertFresh({ timestamp: NOW + DEFAULT_FUTURE_SKEW_MS + 1000, now: NOW }),
+    ).toThrow(SignatureError);
+  });
+
+  it('rejects when expiresAt is past by more than the 1s hard-expiry grace', () => {
+    expect(() =>
+      assertFresh({
+        timestamp: NOW,
+        now: NOW,
+        expiresAt: NOW - 60_000,
+      }),
+    ).toThrow(SignatureError);
+  });
+
+  it('accepts when expiresAt is within the 1s hard-expiry grace', () => {
+    expect(() =>
+      assertFresh({
+        timestamp: NOW,
+        now: NOW,
+        expiresAt: NOW - 500,
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects non-finite timestamp with MALFORMED', () => {
+    expect(() => assertFresh({ timestamp: Number.NaN, now: NOW })).toThrow(SignatureError);
+  });
+
+  it('rejects non-finite expiresAt with MALFORMED', () => {
+    expect(() =>
+      assertFresh({ timestamp: NOW, now: NOW, expiresAt: Number.POSITIVE_INFINITY }),
+    ).toThrow(SignatureError);
+  });
+
+  it('respects caller-supplied skew overrides', () => {
+    expect(() =>
+      assertFresh({
+        timestamp: NOW - 10_000,
+        now: NOW,
+        pastSkewMs: 5_000,
+      }),
+    ).toThrow(SignatureError);
   });
 });
 
@@ -79,16 +144,27 @@ describe('verifyActionSignature (KBA bundle validator)', () => {
     ).toThrow(SignatureError);
   });
 
-  it('rejects when expiresAt is past', () => {
+  it('rejects when timestamp claims to be from the future beyond the skew window', () => {
     expect(() =>
       verifyActionSignature({
         actionId,
-        timestamp,
-        signature: signBundle(actionId, timestamp, SECRET),
-        expiresAt: timestamp - 60_000,
+        timestamp: Date.now() + 5 * 60_000,
+        signature: signBundle(actionId, Date.now() + 5 * 60_000, SECRET),
+        expiresAt: Date.now() + 10 * 60_000,
+        secret: SECRET,
+      }),
+    ).toThrow(SignatureError);
+  });
+
+  it('rejects when expiresAt is past hard expiration', () => {
+    expect(() =>
+      verifyActionSignature({
+        actionId,
+        timestamp: Date.now() - 10 * 60_000,
+        signature: signBundle(actionId, Date.now() - 10 * 60_000, SECRET),
+        expiresAt: Date.now() - 60_000,
         secret: SECRET,
       }),
     ).toThrow(SignatureError);
   });
 });
-

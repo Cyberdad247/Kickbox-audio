@@ -28,12 +28,64 @@ export class SignatureError extends Error {
   }
 }
 
-export function assertFresh(expiresAt: number, now: number = Date.now()): void {
-  if (!Number.isFinite(expiresAt)) {
-    throw new SignatureError('MALFORMED', 'expiresAt must be a finite number');
+/**
+ * Freshness check for a signed action bundle. Validates three things:
+ *   1. `timestamp` is well-formed (finite number).
+ *   2. `timestamp` is not older than `pastSkewMs` (default 60 s) and not further
+ *      in the future than `futureSkewMs` (default 30 s) — symmetric
+ *      defense-in-depth against both replay and timestamp-forgery attacks.
+ *   3. If `expiresAt` is supplied, `now` may not exceed it by more than 1 s
+ *      of additional grace.
+ */
+export interface FreshnessOptions {
+  /** Unix epoch ms when the signature was minted. */
+  timestamp: number;
+  /** Optional absolute hard expiration set by the issuer. */
+  expiresAt?: number;
+  /** Override current time (testing). */
+  now?: number;
+  /** Past-skew window in ms. Default 60_000. */
+  pastSkewMs?: number;
+  /** Future-skew window in ms. Default 30_000. */
+  futureSkewMs?: number;
+}
+
+export const DEFAULT_PAST_SKEW_MS = 60_000;
+export const DEFAULT_FUTURE_SKEW_MS = 30_000;
+
+export function assertFresh(opts: FreshnessOptions): void {
+  const now = opts.now ?? Date.now();
+  const pastSkewMs = opts.pastSkewMs ?? DEFAULT_PAST_SKEW_MS;
+  const futureSkewMs = opts.futureSkewMs ?? DEFAULT_FUTURE_SKEW_MS;
+
+  if (!Number.isFinite(opts.timestamp)) {
+    throw new SignatureError('MALFORMED', 'timestamp must be a finite number');
   }
-  if (now > expiresAt + 5_000) {
-    throw new SignatureError('EXPIRED', 'signature expired');
+
+  const skewMs = now - opts.timestamp;
+  if (skewMs > pastSkewMs) {
+    throw new SignatureError(
+      'EXPIRED',
+      `signature too old (age=${skewMs}ms > ${pastSkewMs}ms)`,
+    );
+  }
+  if (skewMs < -futureSkewMs) {
+    throw new SignatureError(
+      'INVALID',
+      `signature timestamp too far in future (skew=${-skewMs}ms > ${futureSkewMs}ms)`,
+    );
+  }
+
+  if (opts.expiresAt !== undefined) {
+    if (!Number.isFinite(opts.expiresAt)) {
+      throw new SignatureError('MALFORMED', 'expiresAt must be a finite number');
+    }
+    if (now > opts.expiresAt + 1000) {
+      throw new SignatureError(
+        'EXPIRED',
+        `signature past hard expiration (now=${now} > expiresAt+1s=${opts.expiresAt + 1000})`,
+      );
+    }
   }
 }
 
@@ -53,5 +105,5 @@ export function verifyActionSignature(args: {
   if (!verifyWebhookSignature(rawBody, signature, secret)) {
     throw new SignatureError('INVALID', 'signature mismatch');
   }
-  assertFresh(expiresAt);
+  assertFresh({ timestamp, expiresAt });
 }
