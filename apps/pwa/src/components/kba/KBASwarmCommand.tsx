@@ -17,10 +17,33 @@ interface SignedAction {
   expiresAt: number;
 }
 
+interface KbaAction {
+  id: string;
+  label: string;
+  /** `gold` keeps the high-emphasis plate-1500 styling; default is plate. */
+  emphasis?: 'gold';
+}
+
+// KBA Cartridge v1001 — full verb coverage. Indexed by the same KbaDomain
+// enum that nlp.ts + state.ts + server.ts (Zod) align on. ActionId discriminator
+// must match `/^KBA_(SYNC|AUDIT|REROUTE|REZERO|HEAL|NANO|SCAN|FORGE)_[A-Z0-9]{2,16}$/`.
+const KBA_ACTIONS: KbaAction[] = [
+  { id: 'KBA_SYNC_001', label: 'Sync KBA Ledgers', emphasis: 'gold' },
+  { id: 'KBA_AUDIT_002', label: 'Run Fiscal Audit' },
+  { id: 'KBA_REROUTE_003', label: 'Reroute Uplink' },
+  { id: 'KBA_REZERO_004', label: 'Rezero Systems' },
+  { id: 'KBA_HEAL_005', label: 'Heal Cluster' },
+  { id: 'KBA_NANO_006', label: 'Nano Deployment' },
+  { id: 'KBA_SCAN_007', label: 'Scan Perimeter' },
+  { id: 'KBA_FORGE_008', label: 'Forge Signatures' },
+];
+
 export function KBASwarmCommand() {
   const [status, setStatus] = useState<Status>('AWAITING_DIRECTIVE');
+  const [lastActionId, setLastActionId] = useState<string | null>(null);
 
   const executeSecureCommand = async (actionId: string): Promise<void> => {
+    setLastActionId(actionId);
     setStatus('REQUESTING_BIFROST_SIGNATURE');
     try {
       const issueRes = await fetch('/api/bifrost/issue', {
@@ -45,7 +68,9 @@ export function KBASwarmCommand() {
         body: JSON.stringify({ payload: signed.payload }),
       });
 
-      setStatus(execRes.ok ? 'COMMAND_EXECUTED_SUCCESSFULLY' : 'BIFROST_REJECTED_PAYLOAD');
+      setStatus(
+        execRes.ok ? 'COMMAND_EXECUTED_SUCCESSFULLY' : 'BIFROST_REJECTED_PAYLOAD',
+      );
     } catch (err) {
       console.error('[KBA_NODE_ERR]', err);
       setStatus('BIFROST_UPLINK_FAILED');
@@ -60,24 +85,28 @@ export function KBASwarmCommand() {
         </h2>
         <span className="text-xs text-violet-light bg-violet/10 px-2 py-1 rounded-none border border-violet/30 uppercase tracking-wider">
           {status.replace(/_/g, ' ')}
+          {lastActionId ? ` · ${lastActionId}` : ''}
         </span>
       </div>
 
-      <div className="mt-6 flex gap-4">
-        <button
-          type="button"
-          onClick={() => executeSecureCommand('KBA_SYNC_001')}
-          className="px-6 py-2 bg-gold/10 text-gold border border-gold/50 hover:bg-gold/20 rounded-none transition-colors text-sm font-bold uppercase tracking-widest"
-        >
-          Sync KBA Ledgers
-        </button>
-        <button
-          type="button"
-          onClick={() => executeSecureCommand('KBA_AUDIT_002')}
-          className="px-6 py-2 bg-plate-950 text-plate-400 border border-plate-700 hover:text-gold hover:border-gold/50 rounded-none transition-colors text-sm font-bold uppercase tracking-widest"
-        >
-          Run Fiscal Audit
-        </button>
+      <div className="mt-6 flex flex-wrap gap-4">
+        {KBA_ACTIONS.map((action) => {
+          const isGold = action.emphasis === 'gold';
+          return (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => executeSecureCommand(action.id)}
+              className={
+                isGold
+                  ? 'px-6 py-2 bg-gold/10 text-gold border border-gold/50 hover:bg-gold/20 rounded-none transition-colors text-sm font-bold uppercase tracking-widest'
+                  : 'px-6 py-2 bg-plate-950 text-plate-400 border border-plate-700 hover:text-gold hover:border-gold/50 rounded-none transition-colors text-sm font-bold uppercase tracking-widest'
+              }
+            >
+              {action.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
