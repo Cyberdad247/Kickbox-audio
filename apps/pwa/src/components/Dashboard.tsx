@@ -11,12 +11,24 @@ import { MemoryVault } from './dashboard/MemoryVault';
 import { LakeishaBriefing } from './dashboard/LakeishaBriefing';
 import { HomeTab } from './dashboard/HomeTab';
 import { KnightSwarmCommand } from './dashboard/KnightSwarmCommand';
+import { PortalSettings } from './PortalSettings';
 
 const LakishaHUD = dynamic(() => import('./LakishaHUD').then((mod) => mod.LakishaHUD), {
   ssr: false,
 });
 
-const TABS = ['Overview', 'Home', 'Workforce Matrix', 'Briefing & Tasks', 'Properties', 'Streaming', 'Venture', 'Memory Vault'] as const;
+const TABS = [
+  'Overview',
+  'Home',
+  'Workforce Matrix',
+  'Briefing & Tasks',
+  'Properties',
+  'Streaming',
+  'Coffee',
+  'Venture',
+  'Memory Vault',
+  'Settings',
+] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -93,8 +105,27 @@ export function Dashboard() {
           {active === 'Briefing & Tasks' && <LakeishaBriefing />}
           {active === 'Properties' && <PropertiesTab />}
           {active === 'Streaming' && <StreamingTab />}
+          {active === 'Coffee' && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 font-mono">
+              {[
+                { name: 'Cleveland Roast Reserve', status: 'Inventory stable' },
+                { name: 'Gold Label Espresso', status: 'Reorder watch' },
+                { name: 'Lakefront Cold Brew', status: 'Ready for dispatch' },
+              ].map((row) => (
+                <article
+                  key={row.name}
+                  className="border border-gold/20 bg-[#16161E]/70 p-6 backdrop-blur-xl transition-shadow hover:shadow-gold"
+                >
+                  <p className="font-display text-lg text-white">{row.name}</p>
+                  <p className="mt-2 text-sm text-violet-light">{row.status}</p>
+                  <span className="mt-6 block h-1 w-full bg-gradient-to-r from-gold-royal via-violet to-transparent" />
+                </article>
+              ))}
+            </div>
+          )}
           {active === 'Venture' && <VentureTab />}
           {active === 'Memory Vault' && <MemoryVault />}
+          {active === 'Settings' && <PortalSettings />}
         </main>
       </div>
 
