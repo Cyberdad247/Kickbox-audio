@@ -50,6 +50,19 @@ jobs:
         # workspace links generate their client outputs.
         run: npm ci --no-audit --no-fund
 
+      - name: Build @sovereign/db workspace
+        # npm ci invokes @prisma/client's postinstall (root-level) but
+        # does NOT run application-level build scripts. packages/db
+        # declares "types": "dist/index.d.ts" + "main": "dist/index.js",
+        # so its src→dist compile must run explicitly before:
+        #   * apps/bifrost tsc (resolves @sovereign/db at typecheck)
+        #   * apps/bifrost tsx boot (loads worker's cubeWorker.ts at
+        #     runtime, which imports prisma from @sovereign/db)
+        # Local devs don't need this because packages/db/dist/ already
+        # exists from prior builds; CI runs cold, so this gate step is
+        # CI-only.
+        run: npm --prefix packages/db run build
+
       - name: Boot Bifrost dev server
         run: bash scripts/ci/start-bifrost.sh
 
