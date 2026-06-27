@@ -1,0 +1,72 @@
+name: KBA Smoke
+
+# Per AGENTS.md governance rules, this workflow exercises the
+# /api/bifrost/hitl handshake end-to-end on every push to a feat branch
+# and on every PR targeting a feat branch. The workflow mints a real
+# HMAC-signed KBA bundle (canonical actionId:timestamp) and asserts that
+# the gated acknowledgement comes back. It also gates the read-only
+# HELIO_PATCH.json dry-run to prove the regen script stays hygienic.
+
+on:
+  push:
+    branches: ['feat/**']
+  pull_request:
+    branches: ['feat/**']
+  workflow_dispatch:
+
+jobs:
+  hitl-handshake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      WEBHOOK_SECRET: kba-smoke-secret
+      ACTION_SECRET: kba-smoke-secret
+      HOST: http://localhost
+      PORT: '3017'
+      ACTION_ID: KBA_SYNC_001
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install monorepo deps
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Boot Bifrost dev server
+        run: |
+          npx tsx apps/bifrost/src/server.ts &
+          echo $! > /tmp/bifrost.pid
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            if curl -sf http://localhost:3017/health > /dev/null; then
+              echo "Bifrost ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:3017/health
+
+      - name: Verify security.ts / state.ts typecheck
+        run: |
+          npm --prefix apps/bifrost run typecheck
+          npm --prefix apps/pwa run typecheck
+
+      - name: Vitest — security/issuance/nlp/state
+        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
+
+      - name: Issue signed KBA action via fixture
+        run: node scripts/ci/fixture-hitl.mjs
+
+      - name: Dry-run HELIO_PATCH regen gate
+        run: HELIO_DRY_RUN=1 node scripts/regen-helio-patch.mjs > /tmp/helio-dry.json && grep -q '"status": "PASS"' /tmp/helio-dry.json && echo "regen dry-run satisfied"
+
+      - name: Tear down Bifrost
+        if: always()
+        run: |
+          if [ -f /tmp/bifrost.pid ]; then
+            kill $(cat /tmp/bifrost.pid) || true
+            sleep 1
+            kill -9 $(cat /tmp/bifrost.pid) 2>/dev/null || true
+          fi
