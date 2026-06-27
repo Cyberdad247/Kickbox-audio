@@ -59,7 +59,7 @@ jobs:
         run: node scripts/ci/fixture-hitl.mjs
 
       - name: Dry-run HELIO_PATCH regen gate
-        run: HELIO_DRY_RUN=1 node scripts/regen-helio-patch.mjs > /tmp/helio-dry.json && grep -q "status: PASS" /tmp/helio-dry.json && echo "regen dry-run satisfied"
+        run: bash scripts/ci/check-helio-dry.sh
 
       - name: Tear down Bifrost + dump logs
         if: always()

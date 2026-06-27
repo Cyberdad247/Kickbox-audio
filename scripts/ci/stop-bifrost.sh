@@ -6,6 +6,8 @@
 # inside GitHub Actions. Always runs from the always()-tier teardown so
 # success or failure paths both publish the bifrost log.
 
+set -uo pipefail
+
 PID=/tmp/bifrost.pid
 LOG=/tmp/bifrost.log
 
