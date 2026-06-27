@@ -5,6 +5,8 @@ import { BASELINE_VALUATION, type SovereignState, applyCommand } from './state';
 const freshState = (): SovereignState => ({
   portfolioValuation: BASELINE_VALUATION,
   transactionsCount: 0,
+  kbaActionsCount: 0,
+  lastKbaDomain: null,
   lastCommand: null,
   lastResponse: null,
   lastLane: null,

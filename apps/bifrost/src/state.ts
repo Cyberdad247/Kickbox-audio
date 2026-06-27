@@ -4,6 +4,10 @@ import type { Command } from './nlp';
 export interface SovereignState {
   portfolioValuation: number;
   transactionsCount: number;
+  // KBA Cartridge counters — incremented on every /api/bifrost/hitl dispatch
+  // whose `route("kba KBA_<DOMAIN>_<id>")` parses to `action: 'kba'`.
+  kbaActionsCount: number;
+  lastKbaDomain: string | null;
   lastCommand: string | null;
   // Remote MCP answer for the latest utterance; null for pure-local commands.
   lastResponse: string | null;
@@ -20,6 +24,8 @@ export const BASELINE_VALUATION = 14_200_000;
 export const state: SovereignState = {
   portfolioValuation: BASELINE_VALUATION,
   transactionsCount: 0,
+  kbaActionsCount: 0,
+  lastKbaDomain: null,
   lastCommand: null,
   lastResponse: null,
   lastLane: null,
@@ -36,6 +42,9 @@ export function applyCommand(cmd: Command, s: SovereignState = state): Sovereign
   if (cmd.action === 'add_transaction') {
     s.portfolioValuation += cmd.amount;
     s.transactionsCount += 1;
+  } else if (cmd.action === 'kba') {
+    s.kbaActionsCount += 1;
+    s.lastKbaDomain = cmd.domain;
   }
   s.lastCommand = cmd.action;
   s.updatedAt = new Date().toISOString();
