@@ -6,19 +6,6 @@ name: KBA Smoke
 # HMAC-signed KBA bundle (canonical actionId:timestamp) and asserts that
 # the gated acknowledgement comes back. It also gates the read-only
 # HELIO_PATCH.json dry-run to prove the regen script stays hygienic.
-#
-# 2026-06-27 hardening (closes the prod-grade promotion gap):
-#   * permissions: contents: read — explicit GHA token scope (late-2024
-#     tightened defaults otherwise reject implicit step writes)
-#   * cache-dependency-path: 'package-lock.json' — deterministic cache key
-#     prevents cache-miss races on partial lockfile edits
-#   * npm ci WITHOUT --ignore-scripts — required so the @prisma/client /
-#     @sovereign/db workspace postinstalls run; without this Bifrost
-#     crashes immediately at tsx boot, BEFORE the /health probe ever
-#     succeeds (the prior root cause of conclusion:failure + jobs:[])
-#   * nohup + /tmp/bifrost.log + log dump on healthcheck failure
-#   * always()-tier teardown now prints the bifrost log so future runs
-#     leave a forensic trail even on green runs
 
 on:
   push:
@@ -55,36 +42,15 @@ jobs:
           cache-dependency-path: 'package-lock.json'
 
       - name: Install monorepo deps
-        # FIX: removed --ignore-scripts; Prisma postinstall must run so
-        # @prisma/client + @sovereign/db workspace links generate their
-        # client outputs. Without this, npx tsx crashes immediately.
+        # Prisma postinstall must run so @prisma/client + @sovereign/db
+        # workspace links generate their client outputs.
         run: npm ci --no-audit --no-fund
 
       - name: Boot Bifrost dev server
-        # FIX: nohup detaches the background process from the step
-        # session; stdout/stderr redirected to /tmp/bifrost.log so a
-        # crash trail is preserved. curl --fail on the trailing probe
-        # also dumps the log on failure.
-        run: |
-          nohup npx tsx apps/bifrost/src/server.ts > /tmp/bifrost.log 2>&1 &
-          echo $! > /tmp/bifrost.pid
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            if curl -sf http://localhost:3017/health > /dev/null; then
-              echo "Bifrost ready after ${i}s"
-              break
-            fi
-            sleep 1
-          done
-          curl -sf http://localhost:3017/health || {
-            echo "--- BIFROST LOGS (healthcheck failed) ---"
-            cat /tmp/bifrost.log
-            exit 1
-          }
+        run: bash scripts/ci/start-bifrost.sh
 
       - name: Verify security.ts / state.ts typecheck
-        run: |
-          npm --prefix apps/bifrost run typecheck
-          npm --prefix apps/pwa run typecheck
+        run: npm --prefix apps/bifrost run typecheck && npm --prefix apps/pwa run typecheck
 
       - name: Vitest — security/issuance/nlp/state
         run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
@@ -93,17 +59,8 @@ jobs:
         run: node scripts/ci/fixture-hitl.mjs
 
       - name: Dry-run HELIO_PATCH regen gate
-        run: HELIO_DRY_RUN=1 node scripts/regen-helio-patch.mjs > /tmp/helio-dry.json && grep -q '"status": "PASS"' /tmp/helio-dry.json && echo "regen dry-run satisfied"
+        run: HELIO_DRY_RUN=1 node scripts/regen-helio-patch.mjs > /tmp/helio-dry.json && grep -q "status: PASS" /tmp/helio-dry.json && echo "regen dry-run satisfied"
 
       - name: Tear down Bifrost + dump logs
         if: always()
-        run: |
-          if [ -f /tmp/bifrost.pid ]; then
-            kill $(cat /tmp/bifrost.pid) || true
-            sleep 1
-            kill -9 $(cat /tmp/bifrost.pid) 2>/dev/null || true
-          fi
-          if [ -f /tmp/bifrost.log ]; then
-            echo "--- BIFROST LOGS (teardown) ---"
-            cat /tmp/bifrost.log || echo "(no bifrost.log present)"
-          fi
+        run: bash scripts/ci/stop-bifrost.sh
