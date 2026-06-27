@@ -8,15 +8,18 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "pretest:e2e": "next build",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@agent-native/core": "^0.79.20",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "next": "^14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.169.0"
+    "three": "^0.169.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

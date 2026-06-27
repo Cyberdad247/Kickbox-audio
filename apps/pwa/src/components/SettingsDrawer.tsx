@@ -24,7 +24,7 @@ export function SettingsDrawer() {
         aria-expanded={open}
         aria-controls="settings-drawer-panel"
         aria-label={open ? 'Close settings drawer' : 'Open settings drawer'}
-        className="mb-2 inline-flex items-center gap-2 border border-gold/40 bg-plate-900/95 px-3 py-2 font-serif text-sm tracking-executive text-gold-light backdrop-blur-md transition-colors hover:bg-violet/20"
+        className="mb-2 inline-flex items-center gap-2 border border-gold/40 bg-[#16161E]/70 px-3 py-2 font-serif text-sm tracking-executive text-gold-light backdrop-blur-xl transition-colors hover:bg-violet/20"
       >
         <span
           aria-hidden="true"
@@ -37,7 +37,7 @@ export function SettingsDrawer() {
       {open && (
         <div
           id="settings-drawer-panel"
-          className="w-full space-y-4 overflow-y-auto border border-filigree-500/40 bg-plate-900/95 p-4 backdrop-blur-md"
+          className="w-full space-y-4 overflow-y-auto border border-filigree-500/40 bg-[#16161E]/70 p-4 backdrop-blur-xl"
         >
           <PortalSettings />
           <LearnWithMe />

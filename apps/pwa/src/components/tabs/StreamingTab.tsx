@@ -1,8 +1,8 @@
 // Placeholder streaming node groups (demo only).
 const nodes = [
-  { group: 'Edge · NA-East', status: 'Live' },
-  { group: 'Edge · EU-West', status: 'Live' },
-  { group: 'Edge · APAC', status: 'Standby' },
+  { group: 'Edge - NA-East', status: 'Live' },
+  { group: 'Edge - EU-West', status: 'Live' },
+  { group: 'Edge - APAC', status: 'Standby' },
 ];
 
 export function StreamingTab() {
@@ -11,7 +11,7 @@ export function StreamingTab() {
       {nodes.map((n) => (
         <div
           key={n.group}
-          className="border border-gold/20 bg-smoke-800/80 p-6 backdrop-blur-sm transition-shadow hover:shadow-gold"
+          className="border border-gold/20 bg-[#16161E]/70 p-6 backdrop-blur-xl transition-shadow hover:shadow-gold"
         >
           <p className="font-display text-lg text-white">{n.group}</p>
           <p className="mt-1 text-sm text-violet-light">{n.status}</p>

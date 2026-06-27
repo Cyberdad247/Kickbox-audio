@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Source_Serif_4 } from 'next/font/google';
-import { BifrostProvider } from '../context/BifrostContext';
+import { KoARealmProvider } from '../context/KoARealmProvider';
 import '../styles/globals.css';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://kickbox-audio.vercel.app';
@@ -58,7 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${serif.variable}`}>
       <body>
-        <BifrostProvider>{children}</BifrostProvider>
+        <KoARealmProvider>{children}</KoARealmProvider>
       </body>
     </html>
   );

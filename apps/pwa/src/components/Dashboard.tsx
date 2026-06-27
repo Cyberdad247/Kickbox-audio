@@ -1,14 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useBifrost } from '../context/BifrostContext';
-import { LakishaHUD } from './LakishaHUD';
 import { OverviewTab } from './tabs/OverviewTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
 import { StreamingTab } from './tabs/StreamingTab';
 import { VentureTab } from './tabs/VentureTab';
+import { MemoryVault } from './dashboard/MemoryVault';
 
-const TABS = ['Overview', 'Properties', 'Streaming', 'Venture'] as const;
+const LakishaHUD = dynamic(() => import('./LakishaHUD').then((mod) => mod.LakishaHUD), {
+  ssr: false,
+});
+
+const TABS = ['Overview', 'Properties', 'Streaming', 'Venture', 'Memory Vault'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -83,6 +88,7 @@ export function Dashboard() {
           {active === 'Properties' && <PropertiesTab />}
           {active === 'Streaming' && <StreamingTab />}
           {active === 'Venture' && <VentureTab />}
+          {active === 'Memory Vault' && <MemoryVault />}
         </main>
       </div>
 
