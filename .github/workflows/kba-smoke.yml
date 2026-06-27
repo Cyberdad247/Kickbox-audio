@@ -51,17 +51,18 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build @sovereign/db workspace
-        # npm ci invokes @prisma/client's postinstall (root-level) but
-        # does NOT run application-level build scripts. packages/db
-        # declares "types": "dist/index.d.ts" + "main": "dist/index.js",
-        # so its src→dist compile must run explicitly before:
-        #   * apps/bifrost tsc (resolves @sovereign/db at typecheck)
-        #   * apps/bifrost tsx boot (loads worker's cubeWorker.ts at
-        #     runtime, which imports prisma from @sovereign/db)
-        # Local devs don't need this because packages/db/dist/ already
-        # exists from prior builds; CI runs cold, so this gate step is
-        # CI-only.
-        run: npm --prefix packages/db run build
+        # 2026-06-27 fix: switched from `npm --prefix packages/db run
+        # build` to `npm run build --workspace=@sovereign/db`. In npm
+        # 10.x/11.x, `--prefix` is unreliable for `npm run` (it does
+        # NOT change the script's CWD), so the inner `tsc` invocation
+        # walked up from the monorepo root looking for a tsconfig.json,
+        # found none, and fell back to TS defaults (declaration=false)
+        # → no .d.ts emitted → bifrost typecheck identifies the same
+        # TS2307 error against @sovereign/db downstream.
+        # The --workspace flag uses the workspaces field in the root
+        # package.json to correctly set CWD=packages/db, where its
+        # tsconfig.json emits dist/index.{js,d.ts} deterministically.
+        run: npm run build --workspace=@sovereign/db
 
       - name: Boot Bifrost dev server
         run: bash scripts/ci/start-bifrost.sh
