@@ -20,6 +20,14 @@ function useEnvironment(): { timeOfDay: TimeOfDay; weather: WeatherCondition; lo
   };
 }
 
+// Procedural wave equation to simulate smooth biome elevation heights.
+function getProceduralHeight(x: number, y: number, time: number): number {
+  const h1 = Math.sin(x * 0.25 + time * 0.12) * Math.cos(y * 0.25 - time * 0.1) * 1.1;
+  const h2 = Math.sin(x * 0.55 - time * 0.2) * Math.cos(y * 0.5 + time * 0.15) * 0.45;
+  const h3 = Math.sin(x * 1.1 + time * 0.35) * Math.cos(y * 1.0 - time * 0.3) * 0.15;
+  return h1 + h2 + h3;
+}
+
 export function SpatialBackground() {
   const { timeOfDay, weather, lowPower } = useEnvironment();
   const isNight = timeOfDay === 'night';
@@ -40,23 +48,80 @@ export function SpatialBackground() {
           }}
         >
           <color attach="background" args={['#050505']} />
-          <ambientLight intensity={isNight ? 0.18 : 0.75} />
-          <mesh position={[0, 0, -5]}>
-            <planeGeometry args={[18, 12]} />
-            <meshBasicMaterial color={isNight ? '#0D0D11' : '#16161E'} />
-          </mesh>
+          <ambientLight intensity={isNight ? 0.22 : 0.85} />
+          
+          {/* Dynamic Procedural Biome Grid */}
+          <ProceduralBiomeMap active={isWet} isNight={isNight} condition={weather} />
+
           <directionalLight
             color={isNight ? '#9D4EDD' : '#FFD700'}
-            intensity={isNight ? 1.4 : 2.3}
-            position={isNight ? [-2, 2, 4] : [3, 5, 6]}
+            intensity={isNight ? 1.6 : 2.5}
+            position={isNight ? [-3, 3, 5] : [4, 6, 7]}
           />
-          <pointLight color="#D4AF37" intensity={isNight ? 0.3 : 1.2} position={[2.5, -1.2, 3]} />
+          <pointLight color="#D4AF37" intensity={isNight ? 0.4 : 1.4} position={[3, -1.5, 4]} />
+          
           <Atmosphere isNight={isNight} />
           <RainParticles active={isWet || isNight} lowPower={lowPower} />
         </Canvas>
       </div>
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.05),rgba(5,5,5,0.72))]" />
     </div>
+  );
+}
+
+function ProceduralBiomeMap({
+  active,
+  isNight,
+  condition,
+}: {
+  active: boolean;
+  isNight: boolean;
+  condition: WeatherCondition;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const timeRef = useRef(0);
+
+  // Smooth biome color mapping (tligames aesthetics)
+  const biomeColor = useMemo(() => {
+    if (condition === 'clear' || condition === 'clouds') {
+      return isNight ? '#0B2914' : '#D4AF37'; // Golden Emerald highlights
+    }
+    if (condition === 'snow') {
+      return isNight ? '#1B2C4A' : '#EBF5FB'; // Ice biome hues
+    }
+    // Rain/Storm
+    return isNight ? '#3D0F75' : '#9D4EDD'; // Electric Violet biome hues
+  }, [condition, isNight]);
+
+  useFrame((_state, delta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    timeRef.current += delta * (condition === 'rain' ? 1.6 : 0.7);
+    const geom = mesh.geometry as THREE.PlaneGeometry;
+    const pos = geom.getAttribute('position') as THREE.BufferAttribute;
+
+    const v3 = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v3.fromBufferAttribute(pos, i);
+      const z = getProceduralHeight(v3.x, v3.y, timeRef.current);
+      pos.setZ(i, z);
+    }
+    pos.needsUpdate = true;
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, -2.4, -3.8]} rotation={[-Math.PI / 3.6, 0, 0]}>
+      <planeGeometry args={[28, 18, 32, 32]} />
+      <meshStandardMaterial
+        color={biomeColor}
+        wireframe
+        roughness={0.75}
+        metalness={0.15}
+        transparent
+        opacity={0.42}
+      />
+    </mesh>
   );
 }
 

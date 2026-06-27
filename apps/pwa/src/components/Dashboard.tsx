@@ -8,12 +8,13 @@ import { PropertiesTab } from './tabs/PropertiesTab';
 import { StreamingTab } from './tabs/StreamingTab';
 import { VentureTab } from './tabs/VentureTab';
 import { MemoryVault } from './dashboard/MemoryVault';
+import { LakeishaBriefing } from './dashboard/LakeishaBriefing';
 
 const LakishaHUD = dynamic(() => import('./LakishaHUD').then((mod) => mod.LakishaHUD), {
   ssr: false,
 });
 
-const TABS = ['Overview', 'Properties', 'Streaming', 'Venture', 'Memory Vault'] as const;
+const TABS = ['Overview', 'Briefing & Tasks', 'Properties', 'Streaming', 'Venture', 'Memory Vault'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -85,6 +86,7 @@ export function Dashboard() {
 
         <main className="px-10">
           {active === 'Overview' && <OverviewTab />}
+          {active === 'Briefing & Tasks' && <LakeishaBriefing />}
           {active === 'Properties' && <PropertiesTab />}
           {active === 'Streaming' && <StreamingTab />}
           {active === 'Venture' && <VentureTab />}
