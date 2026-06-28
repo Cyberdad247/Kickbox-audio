@@ -200,6 +200,7 @@ Items not yet implemented, sorted by severity × effort.
 | # | Asset | Item                                                            | Severity | Effort | Target   |
 | - | ----- | --------------------------------------------------------------- | -------- | ------ | -------- |
 | 1 | A1    | Migrate RBAC JWT HS256 → RS256 w/ OIDC + vault-stored private key | H        | 2 d    | v1.4.0   |
+| 1a | A1 | **v1.3.0 Tier 4.1 (verification-side DONE, 2026-06-28):** Bifrost `apps/bifrost/src/auth.ts` now verifies RS256 JWTs via vault-loaded PEM public key (algorithm-driven via `RBAC_JWT_ALGORITHM`); 9 new vitest cases cover the RS256 path (valid sig, wrong key, expired, invalid role, OIDC `iss`/`aud` validation, requireRole pass/403, RBAC_MISCONFIGURED gate). End-to-end OIDC dance (IdP-side issuance + PWA inbound OIDC flow) deferred to v1.4.0. Cutover procedure in `PRODUCTION_RUNBOOK.md §6.2`. | — | — | — | | H        | 2 d    | v1.4.0   |
 | 2 | A2    | Add a CSP `script-src` nonce and remove `unsafe-eval`           | M        | 1 d    | v1.4.0   |
 | 3 | A3    | Client-cert revocation workflow (revoke + reissue)              | M        | 1 d    | v1.4.0   |
 | 4 | A5    | 30-day PG audit-log retention (instead of 7-day default)         | M        | 1 h    | v1.4.0   |
@@ -213,6 +214,8 @@ Items not yet implemented, sorted by severity × effort.
 | Risk                                                                       | Severity | Why accepted                                                                       |
 | --------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
 | Stolen JWT from DevTools used for ≤ 5 minutes                              | M        | TTL bounds the window; refresh is automatic on each `issue` call                   |
+| Stolen RS256 private key (IdP-side) → reuse window until next rotation    | M        | Private key never touches Bifrost; IdP holds it tier-1; rotation cadence 90 days; alg-confusion downgrade blocked by strict env check |
+| Client cert stolen → 90-day window of misuse                              | M        | Manual revocation workflow is in backlog (#3); new TLS pin in v1.4.0 closes this   |                              | M        | TTL bounds the window; refresh is automatic on each `issue` call                   |
 | Client cert stolen → 90-day window of misuse                              | M        | Manual revocation workflow is in backlog (#3); new TLS pin in v1.4.0 closes this   |
 | PWA bundle fingerprint publicly visible                                     | L        | Bundle is open-source; leaking dep fingerprints via JS analysis is accepted        |
 | Tailscale node compromise                                                   | M        | Out of project scope; ACLs reviewed quarterly                                      |

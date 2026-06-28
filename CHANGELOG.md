@@ -51,6 +51,76 @@ v1.2.0. No code or runtime changes — only operator-facing artifacts.
   trust-boundary introductions. SRE / dashboard owners should
   implement the burn-rate alerts in §6 of `SLO_BUDGETS.md`.
 
+### Added — Tier 4.1 RBAC hardening — RS256 partial (verification-side, 2026-06-28)
+
+The verification-side cut of THREAT_MODEL §5 row 1. Bifrost is now ready
+to consume RS256 JWTs from an external OIDC IdP; end-to-end OIDC dance
+(IdP-side issuance + PWA inbound flow) deferred to v1.4.0.
+
+- **`apps/bifrost/src/auth.ts`** — algorithm-driven `verifyToken`
+  (HS256 default, RS256 opt-in via `RBAC_JWT_ALGORITHM`). RS256
+  verification uses a vault-loaded PEM public key. Strict env check
+  prevents the classic alg-confusion downgrade (never auto-detect
+  from JWT `alg` header). Optional OIDC claim validation
+  (`RBAC_OIDC_ISSUER`, `RBAC_OIDC_AUDIENCE`). New module-level
+  setter `setRbacPublicKey(pem)` lets the boot resolver wire the
+  vault-loaded key without making the verifier async.
+
+- **`apps/bifrost/src/secrets.ts`** — `loadRbacPublicKey()` with
+  Doppler vault (`bifrost/rbac-public-key-pem`) + env fallback
+  (`RBAC_PUBLIC_KEY`). 5-min cache TTL, sibling to `loadBifrostSecrets`.
+
+- **`apps/bifrost/src/server.ts`** — RS256 boot resolver propagates
+  the public-key PEM through `setRbacPublicKey()` and mirrors it to
+  `process.env.RBAC_PUBLIC_KEY`. `ensureSecretsLoaded` 503-gates on
+  the RS256 key in addition to HMAC secrets when RS256 is configured.
+
+- **`apps/bifrost/src/auth.test.ts`** — 9 new vitest cases for the
+  RS256 path (ephemeral RSA keypair generated in `beforeAll` via
+  `crypto.generateKeyPairSync('rsa')`): valid RS256 signature, wrong
+  private key, expired, invalid role, OIDC `iss` validation, OIDC
+  `aud` validation, RS256 issueToken round-trip, `requireRole` pass
+  through (admin on operator route), `requireRole` 403 (viewer on
+  operator route), `RBAC_MISCONFIGURED` when RS256 active + key empty.
+  The 11 existing HS256 cases stay green (no behavior change).
+
+- **`.env.example`** — RBAC JWT algorithm block + RS256 public-key
+  generation procedure (openssl) + OIDC claim validation block +
+  vault-key naming convention + rotation cadence.
+
+- **`docs/PRODUCTION_RUNBOOK.md` §6.2** — full RS256 RBAC signing
+  section: openssl keypair generation, Doppler storage of public
+  key, IdP private-key handling (treat as tier-1), alg-confusion
+  guard for the cutover, 90-day rotation procedure (single-key
+  mode; multi-key `kid` rotation deferred to v1.4.0), and an
+  explicit "what's not shipped" note for the end-to-end OIDC flow.
+
+- **`docs/THREAT_MODEL.md`** — §5 row 1 status note
+  (verification-side DONE 2026-06-28); new §6 residual risk row
+  for stolen IdP private key (M, mitigated by tier-1 storage +
+  90-day rotation + strict env check).
+
+### Migration notes
+
+- **No breaking change for existing deployments.** HS256 remains the
+  default. The PWA and any internal clients continue to work
+  unchanged. To opt into RS256, set `RBAC_JWT_ALGORITHM=RS256` in
+  the Bifrost Tailscale-node env and store the public key in
+  Doppler (`bifrost/rbac-public-key-pem`). The HMAC envelope on
+  `/api/bifrost/*` (KBA cartridge issuance, used by `apps/bifrost/src/issuance.ts`)
+  is unchanged—it reuses `WEBHOOK_SECRET` regardless of which JWT
+  algorithm is active.
+- **Alg-confusion guard.** Bifrost strictly trusts `RBAC_JWT_ALGORITHM`
+  and never auto-detects from the JWT header. When flipping to
+  RS256, do the IdP cutover AND the Bifrost env flip in the same
+  maintenance window; in-flight HS256 tokens will be rejected until
+  the IdP re-issues them as RS256.
+- **End-to-end OIDC dance deferred to v1.4.0.** The current cut is
+  the *verification* side: Bifrost will accept RS256 JWTs as soon
+  as the IdP starts issuing them. The PWA inbound OIDC flow
+  (acquire_token + refresh, error display, telemetry) lands in
+  a follow-on release.
+
 ## [1.2.0] - 2026-06-28
 
 The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget

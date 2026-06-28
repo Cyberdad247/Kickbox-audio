@@ -16,8 +16,8 @@ import { SignatureError, verifyActionSignature, verifyWebhookSignature } from '.
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
 import { issueSignedAction } from './issuance';
 import { logger } from './logger';
-import { requireRole } from './auth';
-import { loadBifrostSecrets } from './secrets';
+import { requireRole, setRbacPublicKey } from './auth';
+import { loadBifrostSecrets, loadRbacPublicKey } from './secrets';
 // initSentry is still imported (re-exported from sentry-init) for callers
 // that want to capture exceptions from non-server-entry points.
 import { captureException } from './sentry';
@@ -52,6 +52,26 @@ loadBifrostSecrets()
     WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
   });
 
+// v1.3.0 Tier 4.1: when RS256 RBAC is configured, load the public key
+// out-of-band. Two-step propagation: (1) module-level setter so the
+// verifyToken runtime reaches it synchronously, (2) mirror to env so
+// ensureSecretsLoaded's RBAC-public-key gate works on the next request.
+// The PRIVATE key never touches Bifrost — issuance lives in the IdP.
+if (process.env.RBAC_JWT_ALGORITHM === 'RS256') {
+  loadRbacPublicKey()
+    .then((pem) => {
+      setRbacPublicKey(pem);
+      process.env.RBAC_PUBLIC_KEY = pem;
+      logger.info('[secrets] vault-loaded RBAC public key (RS256)');
+    })
+    .catch((err) => {
+      logger.warn(
+        { err: (err as Error).message },
+        '[secrets] RBAC public key vault load failed; using env fallback',
+      );
+    });
+}
+
 // v1.2.0 T3.4 race-window fix: reject requests with 503 until secrets
 // are loaded. Applied globally so /api/bifrost/* never handles a request
 // with a partial/stale secret. /health is EXEMPT so liveness probes work
@@ -63,7 +83,14 @@ function ensureSecretsLoaded(req: Request, res: Response, next: () => void): voi
     return;
   }
   if (!WEBHOOK_SECRET) {
-    res.status(503).json({ error: 'STARTING_UP', message: 'Secrets are still loading' });
+    res.status(503).json({ error: 'STARTING_UP', message: 'HMAC secrets still loading' });
+    return;
+  }
+  // v1.3.0 Tier 4.1: when RS256 RBAC is configured, also wait for the
+  // public key to load before serving authenticated requests. /health
+  // remains exempt (handled above) so liveness probes work during boot.
+  if (process.env.RBAC_JWT_ALGORITHM === 'RS256' && !process.env.RBAC_PUBLIC_KEY) {
+    res.status(503).json({ error: 'STARTING_UP', message: 'RBAC public key loading' });
     return;
   }
   next();

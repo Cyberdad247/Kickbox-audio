@@ -102,6 +102,32 @@ export async function loadBifrostSecrets(): Promise<{ webhookSecret: string; act
   return { webhookSecret, actionSecret };
 }
 
+/**
+ * v1.3.0 Tier 4.1: load the RS256 RBAC public key from the vault.
+ * Reads from Doppler (RBAC_PUBLIC_KEY_VAULT_KEY) with env fallback
+ * (RBAC_PUBLIC_KEY). Returns the PEM string in SPKI format:
+ *
+ *   -----BEGIN PUBLIC KEY-----
+ *   ...
+ *   -----END PUBLIC KEY-----
+ *
+ * Bifrost is a Resource Server (verifier) — it NEVER holds the private
+ * key. The private key lives in the external OIDC IdP (Auth0, Clerk,
+ * Cognito, etc.) and in dev/CI test fixtures. Issuance flows from the
+ * IdP, not from Bifrost.
+ *
+ * Used by server.ts at boot when RBAC_JWT_ALGORITHM=RS256. The result
+ * is propagated to auth.ts via setRbacPublicKey() and mirrored to
+ * process.env.RBAC_PUBLIC_KEY so the requireRole middleware's env
+ * fallback and the ensureSecretsLoaded STARTING_UP gate both work.
+ */
+export async function loadRbacPublicKey(): Promise<string> {
+  return getSecret(
+    process.env.RBAC_PUBLIC_KEY_VAULT_KEY ?? 'bifrost/rbac-public-key-pem',
+    'RBAC_PUBLIC_KEY',
+  );
+}
+
 export function clearSecretCache(): void {
   cache.clear();
   dopplerCache = null;

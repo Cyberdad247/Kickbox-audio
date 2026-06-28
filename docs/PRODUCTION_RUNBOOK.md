@@ -267,12 +267,83 @@ Frequency: **every 90 days** (or immediately on suspected compromise).
 Downtime: **zero** if you keep both secrets live for the overlap
 window and gate kba-smoke.yml on "new-secret" before deleting the old.
 
-### 6.2 JWT signing secret
+### 6.2 RBAC JWT signing
 
-v1.2.0: reuses `WEBHOOK_SECRET` for HS256 (single secret). v1.4.0
-follow-on migrates to RS256 with OIDC + vault-stored keys. Until then,
-rotating `WEBHOOK_SECRET` rotates the JWT key simultaneously (§6.1
-covers both).
+**v1.2.0 (HS256, legacy default):** reuses `WEBHOOK_SECRET` as the
+symmetric signing/verification key. To rotate, follow §6.1 (publish
+`WEBHOOK_SECRET_NEXT` then promote).
+
+**v1.3.0 Tier 4.1 (RS256 — verification-side shipped):** the Bifrost
+gateway can verify RS256 JWTs signed by an external OIDC IdP with
+public-key cryptography. Bifrost never holds the private key; it is
+a Resource Server, not an IdP. Operators flip on the new mode per
+the procedure below.
+
+```text
+# --- one-time keypair generation (run on a secure workstation) ---
+openssl genpkey -algorithm RSA -out /tmp/rbac-private.pem \
+  -pkeyopt rsa_keygen_bits:2048
+openssl rsa -in /tmp/rbac-private.pem -pubout -out /tmp/rbac-public.pem
+chmod 600 /tmp/rbac-private.pem
+
+# --- store the PUBLIC key in Doppler ---
+# Doppler dashboard → kickbox-audio/prd → set:
+#   bifrost/rbac-public-key-pem  ← contents of /tmp/rbac-public.pem
+# (Multi-line PEM strings are first-class in Doppler; no escaping.)
+
+# --- store the PRIVATE key in the IdP (NOT in Doppler / Vercel) ---
+# Set the private key in your IdP's signing-key config (Auth0, Clerk,
+# Cognito, etc.). The IdP signs RBAC JWTs with this key when issuing
+# tokens for the PWA + any internal client.
+# Treat /tmp/rbac-private.pem as a tier-1 secret. Delete after import
+# into the IdP, and from any local backups. Rotation = §6.2 next.
+
+# --- cutover ---
+# 1. RBAC_JWT_ALGORITHM=RS256  (env on bifrost Tailscale node)
+# 2. (optional) RBAC_OIDC_ISSUER + RBAC_OIDC_AUDIENCE if your IdP
+#    sets iss + aud claims; both must be set together
+# 3. pm2 restart bifrost  → ensureSecretsLoaded BLOCKS the new
+#    RS256 path until loadRbacPublicKey resolves (5–30 s typically).
+#    /health remains 200 during this window.
+# 4. Verify a token minted by the IdP is accepted:
+#      curl -H "Authorization: Bearer <jwt>" \
+#           https://<tailscale>:3017/api/bifrost/state
+#    Expected: 200 with the live state payload.
+# 5. Verify a forged signature is rejected:
+#      curl -H "Authorization: Bearer $(jwt-sign-rs256-with-wrong-key)" \
+#           https://<tailscale>:3017/api/bifrost/state
+#    Expected: 401 INVALID_TOKEN.
+```
+
+**Alg-confusion guard:** the default `RBAC_JWT_ALGORITHM=HS256`
+verification path requires a strict env match. Switching to `RS256`
+will silently BREAK any in-flight HS256 tokens until the IdP
+re-issues them as RS256. Always do the IdP cutover AND the Bifrost
+env flip in the same maintenance window.
+
+**Rotation cadence:** every 90 days (or on suspected compromise).
+Current implementation is single-key mode — `RBAC_PUBLIC_KEY`
+points at the active public key only. Rotating means swapping the
+vault value. A kid-based multi-key verifier (rotate by repointing
+the IdP's `kid` header without downtime) is a v1.4.0 candidate
+(see THREAT_MODEL §5 row 3).
+
+Until then, the rotation sequence is:
+
+```text
+1. Generate NEW keypair (openssl as above)
+2. Add NEW public key to Doppler alongside OLD (use vault versioning)
+3. Flip RBAC_PUBLIC_KEY env to NEW through pm2 restart
+4. Point IdP to NEW private key; mint a fresh token; verify on Bifrost
+5. Once 24 h has elapsed with zero OLD-key signatures, delete OLD
+   from Doppler + revoke OLD at the IdP
+```
+
+**What's not shipped in v1.3.0 Tier 4.1:** end-to-end OIDC dance
+(IdP-side issuance plus the PWA inbound OIDC flow). That's a
+v1.4.0 follow-on (see THREAT_MODEL §5 row 1) — the current cut is
+the **verification-side**: Bifrost is ready to consume RS256 JWTs
+as soon as the IdP starts issuing them.
 
 ### 6.3 mTLS certs (CA, server, client)
 
