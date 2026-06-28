@@ -123,6 +123,7 @@ listener on A3; only Tailscale mesh clients can reach it.
 | **I**nfo disclosure | Bundle fingerprint leaks dependencies                                 | **I**    | Public bundle is OD-safe; no secret-bearing code shipped to the browser                                | none     |
 | **D**oS | Bundle blown (asset CDN cost)                                         | **M**    | `scripts/ops/bundle-size.mjs` enforces `BUNDLE_SIZE_BUDGET_BYTES=153600` in CI                          | low      |
 | **D**oS | Vercel usage spike                                                    | **M**    | Vercel hard-limit per plan; Sentry/OTel sampling caps help                                            | low      |
+| **D**oS | Rate-limit flood on `/api/diagnostics/replay-coverage`               | **M**    | In-memory sliding-window limiter (60 req / IP / 60 s); 429 + `Retry-After: N` header. Wired AFTER `ADMIN_TOKEN` auth (so unauth callers don't pollute the rate-limit state). Single-instance only; for multi-region accuracy, lift to Vercel Edge KV (v1.4.0 ticket). | low |
 | **E**levation | Render-side escalation (XSS → privileged token exfil)                 | **H**    | JSON-only fetches; no `<script>` injection surfaces; CSP `script-src 'self'`                          | low      |
 
 ### A3 — Tailscale MCP guard (apps/mcp-query)
@@ -208,6 +209,7 @@ Items not yet implemented, sorted by severity × effort.
 | 4 | A5    | 30-day PG audit-log retention (instead of 7-day default)         | M        | 1 h    | v1.4.0   |
 | 5 | A5    | DPIA per PII field; current state: no PII fields                 | L        | 0.5 d  | v1.4.0   |
 | 6 | A1    | Sweep `apps/bifrost/src/state.ts` `snapshot()` PII fields quarterly | M        | 0.5 d  | ongoing  |
+| 7 | A2    | **v1.3.1 (DONE, 2026-06-28):** `apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts` now rate-limits at 60 req / IP / 60 s (in-memory sliding-window; 429 + `Retry-After: N` header). Closes the standing F ⚠️ minor from the v1.3.0 code-review (replay-coverage rate-limit gap). Multi-region accuracy lift to Vercel Edge KV is a v1.4.0 ticket. | M | 0.5 d | done |
 
 ---
 

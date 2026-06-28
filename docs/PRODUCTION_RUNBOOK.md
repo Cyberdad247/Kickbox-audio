@@ -558,6 +558,11 @@ replaysSessionSampleRate=0.1). Verification drill:
 #         https://<vercel-domain>/api/diagnostics/replay-coverage?since=24h
 #    Expected JSON (200):
 #      { sessionCount: <int>, errorCaptureRate: <float>, p75ReplayBytes: <int> }
+#    Rate-limit contract (v1.3.1): 60 req / IP / 60 s, 429 + Retry-After
+#      header on exceedance. In-memory is single-instance only; for
+#      multi-region accuracy lift to Vercel Edge KV (v1.4.0 ticket).
+#      The limiter is wired AFTER ADMIN_TOKEN auth, so unauth callers
+#      never pollute the rate-limit state.
 #
 # 5. Report-bug UI (sanity check):
 #    Click the floating "Report bug" button in the lower-right of the

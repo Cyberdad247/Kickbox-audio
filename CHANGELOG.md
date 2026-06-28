@@ -383,10 +383,24 @@ changes, no operator config required.
 - **Rate-limit response:** 429 with `Retry-After: N` (seconds). The
   `Retry-After` is calculated from the oldest timestamp in the current
   60 s window. Operators should observe this if their scrape loop
-  accidentally exceeds 60 reqs per minute.
-- **Sentry events surface when `SENTRY_DSN` is configured.** If you
-  don't have a Sentry DSN wired, `captureMessage` is a no-op and the
-  Pino audit log remains the source of truth.
+  accidentally exceeds 60 reqs per minute.- **Sentry events surface when `SENTRY_DSN` is configured.** If you don't
+  have a Sentry DSN wired, `captureMessage` is a no-op and the Pino audit
+  log remains the source of truth.
+
+### Doc updates — 2026-06-28 (post-ship, governance)
+
+Governance-doc follow-up to v1.3.1. Closes the standing F ⚠️ minor from
+the v1.3.0 code-review (replay-coverage rate-limit gap noted in
+`THREAT_MODEL` review round 1, item F).
+
+- **`docs/THREAT_MODEL.md`** — added DoS row to §4 A2 STRIDE table for
+  `/api/diagnostics/replay-coverage` (in-memory sliding-window limiter,
+  M-severity, low residual). Added §5 backlog entry (item 7, A2) marked
+  **v1.3.1 (DONE, 2026-06-28)** to record the rate-limit closure.
+- **`docs/PRODUCTION_RUNBOOK.md` §10** — appended the rate-limit
+  contract to the Sentry Replay verification drill: `60 req / IP / 60 s`,
+  `429 + Retry-After: N` on exceedance, single-instance note + v1.4.0
+  Edge-KV lift ticket.
 
 ## [1.2.0] - 2026-06-28
 
