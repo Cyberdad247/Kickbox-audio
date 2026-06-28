@@ -15,6 +15,20 @@ if (dsn) {
       Sentry.replayIntegration({
         maskAllText: true,
         blockAllMedia: true,
+        // v1.3.0 Tier 3.2: explicit CSS-selector masking so any element
+        // with class `pii-mask`, any password input, or any credit-card
+        // input is masked BEFORE replays are serialized. This adds
+        // immediate compliance over the global maskAllText blanket and
+        // is a v1.3.0 hard cut. Form-aware JS traversal (auto-detect
+        // autocomplete=cc-* on dynamic forms) is a v1.4.0 candidate
+        // (see THREAT_MODEL §3 v1.4 row deferred).
+        mask: [
+          '.pii-mask',
+          'input[type="password"]',
+          'input[autocomplete="cc-number"]',
+          'input[autocomplete="cc-csc"]',
+          'input[autocomplete="cc-exp"]',
+        ],
       }),
     ],
   });

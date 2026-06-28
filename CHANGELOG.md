@@ -176,6 +176,166 @@ scripts can load transitively, and tightens the per-source-list (X-Frame
   report-only CSP shadow (runbooks can enable `Content-Security-Policy-
   Report-Only` for a week if a regression is suspected).
 
+### Added — Tier 4.3 client-cert revocation workflow (2026-06-28)
+
+Closes the M-severity item in THREAT_MODEL section 5 row 3
+(client-cert revocation is currently a manual process — the
+§6.3 procedure says "rebuild CA + reissue", which is a 30-min
+operational burden). Bifrost now owns an in-memory revocation
+registry that rejects JWTs bound to a revoked client cert.
+
+- **`apps/bifrost/src/certRevocation.ts`** — new module exposing
+  `revokeCert(args)`, `reissueCert(args)`, `isRevoked(args)`,
+  `loadRevocationSeed()`, `listRevocations()`. Identity is keyed
+  on `clientCertSerial` (normalized `lowercase` + colons stripped),
+  `clientCertSubject` (CN), OR `rbacSubject` (JWT `sub` claim).
+  Idempotent — second revoke returns the original `revokedAt`.
+  Auto-purges entries >30 d on read. Audit log via the existing
+  Pino `logger.warn` path (no new logger config).
+- **`apps/bifrost/src/certRevocation.test.ts`** — 15 vitest cases
+  covering revoke (6), reissue (2), isRevoked+30-day-purge (3),
+  env-seed parsing (3: 2-entry / at=epoch / load-or-0), and a
+  cross-marker-keying safety check (1).
+- **`apps/bifrost/src/server.ts`** — three admin endpoints added:
+  `POST /api/bifrost/admin/cert/revoke`,
+  `POST /api/bifrost/admin/cert/reissue`,
+  `GET /api/bifrost/admin/cert/revocations`. Auth is `ADMIN_TOKEN`
+  via Bearer header; `adminAuth()` middleware returns 503 if the
+  token is unconfigured (so dev environments don't accidentally
+  expose the endpoints).
+- **`apps/bifrost/src/auth.ts`** — `requireRole` middleware now
+  rejects JWTs whose `sub` claim is in the revocation list BEFORE
+  the role-hierarchy check (`CERT_REVOKED` 403). A stolen RBAC
+  JWT cannot outlive its mTLS client.
+- **`.env.example`** — new `ADMIN_TOKEN` env var block + new
+  `CERT_REVOKED_LIST` env-var block (cold-boot seed format).
+- **`docs/PRODUCTION_RUNBOOK.md` §6.5** — full client-cert
+  revocation drill: revoke call → Caddy rebuild → reissue call →
+  smoke check. Includes the canonical Caddy config diff.
+- **`docs/THREAT_MODEL.md`** — §5 row 3 status note (DONE),
+  §6 residual-risk row updated (stolen-client-cert window:
+  from 90 d → revoked in seconds).
+
+### Migration notes
+
+- **No breaking change for existing deployments.** The hot store
+  is empty on first boot. Operators load a cold-boot seed via
+  `CERT_REVOKED_LIST` if needed; otherwise revocations start
+  fresh. To wire the hot store from a CSV/JSON dump, deploy a
+  one-shot script that parses the dump and POSTs each row to
+  `/api/bifrost/admin/cert/revoke` with the operator's
+  `ADMIN_TOKEN` Bearer.
+- **Caddy mTLS enforcement remains the canonical path.** This
+  module cannot block the TLS handshake (which terminates in front
+  of Bifrost); it curtails the JWT-borne damage of a stolen
+  cert and gives the operator a Tailscale-edge ACL rebuild
+  checklist (§6.5 step 2).
+
+### Added — Tier 3.1 Vault Ops (Doppler rotation script + cache invalidation, 2026-06-28)
+
+Closes the v1.2.0 T3.4 follow-on: the vault wrapper exists, but
+operators had to nudge Bifrost via deploy or wait 5 min for the
+cache TTL to drain. Tier 3.1 adds the rotation script + an
+instant cache-invalidation hand-off.
+
+- **`scripts/rotate-secrets.ts`** — Node-runnable (tsx) script.
+  Reads `rotations.yaml`, resolves each entry's value (literal
+  or sub-shell `value_cmd`), POSTs to Doppler's REST API
+  (`POST /v3/configs/config/secrets`). Dry-run by default; --apply
+  flips writes on. Streams JSON to stdout for CI piping. Exit 0
+  on every-success, 1 on any failure, 2 on bad CLI usage. Zero
+  new dependencies — uses native `fetch` + `node:child_process`.
+- **`scripts/rotate-secrets.test.ts`** — 5 vitest cases covering
+  YAML parse, value-resolve, apply-to-Doppler (mocked), double-
+  rejection on missing fields, non-200 error path.
+- **`scripts/rotations.example.yaml`** — example manifest with
+  HMAC + RBAC rotation cadence (90 d each) and notes for the
+  operator. Comments mark safe defaults.
+- **`apps/bifrost/src/server.ts`** — SIGUSR1 handler added:
+  `pm2 sendSignal SIGUSR1 bifrost` (or `kill -USR1 <pid>`) clears
+  the secret cache AND re-loads the revocation seed from env. Zero
+  HTTP requests served during the hand-off; no WS drops.
+- **`package.json`** — `vault:rotate` and `vault:rotate:apply`
+  scripts at the root.
+- **`.github/workflows/vault-rotate.yml`** — `workflow_dispatch`
+  manual Action: pick rotations YAML + dry-run/apply mode,
+  requires `DOPPLER_TOKEN` repo secret. No schedule trigger
+  (rotations are operator-supervised).
+- **`docs/PRODUCTION_RUNBOOK.md` §6.6`** — full rotation drill:
+  dry-run → review → apply → SIGUSR1 → smoke check.
+- **`docs/THREAT_MODEL.md`** — §4 A4 (Secrets vault) row updated
+  to reference the rotation script; §5 new row 1b (Vault rotation
+  automation) marked DONE.
+
+### Migration notes
+
+- **Opt-in.** The script is in the repo but no GitHub Action fires
+  on its own. Operators trigger from the Actions UI (manual)
+  OR from the Bifrost Tailscale node directly.
+- **Cache window shrinks from 5 min to instant** post-rotation.
+  Without SIGUSR1, the existing 5-min TTL still applies (graceful
+  fallback).
+- **The Doppler CLI (`doppler secrets set`) is a viable alternative
+  on workstations where it's installed.** The script is preferred
+  in CI because it requires only `DOPPLER_TOKEN` env var + curl-level
+  auth (no CLI install).
+
+### Added — Tier 3.2 Sentry session replay wiring (2026-06-28)
+
+Tier 3.2 v1.2.0 added the Sentry SDK init + a basic error capture
+path. Tier 3.2 v1.3.0 closes the operative gap: boundary +
+telemetry + PII selectors + report-bug UI.
+
+- **`apps/pwa/src/app/error.tsx`** — new page-level Next.js
+  error boundary; calls `Sentry.captureException()` with the
+  current session `replayId` so the replay is correlated with
+  the exception. Renders a friendly sans-serif fallback with
+  Retry.
+- **`apps/pwa/src/app/global-error.tsx`** — new root-level
+  Next.js error boundary (replaces root layout when triggered);
+  same Sentry capture path with `level: 'fatal'` and a
+  `boundary: 'global-error'` tag.
+- **`apps/pwa/src/components/ErrorBoundary.tsx`** — class component
+  for client-side subtree catch. Captures `componentStack` +
+  `replayId` for any wrapped component. The v1.2.0 stub is
+  preserved with the Sentry capture path now wired.
+- **`apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts`** —
+  internal endpoint that proxies Sentry's `replay-stats/`
+  sub-endpoint so the operator can curl the PWA itself
+  (`Authorization: Bearer ${ADMIN_TOKEN}`) and see live
+  `sessionCount`, `errorCaptureRate`, `p75ReplayBytes`. Returns
+  503 if `SENTRY_AUTH_TOKEN` is unset.
+- **`apps/pwa/src/lib/secrets.ts`** — minimal `getSecret()` helper
+  for the PWA server-runtime (mirrors the Bifrost interface; 60-s
+  cache; no SDK dependency).
+- **`apps/pwa/src/components/ReportBugButton.tsx`** — dynamically-
+  imported button that calls `Sentry.showReportDialog` (keeps
+  the Sentry SDK out of first paint).
+- **`apps/pwa/sentry.client.config.ts`** — added explicit `mask`
+  array to `Sentry.replayIntegration` covering `.pii-mask`,
+  `input[type="password"]`, and `input[autocomplete="cc-number"]`
+  (immediate compliance over the blanket `maskAllText`).
+- **`.env.example`** — new `SENTRY_AUTH_TOKEN` block + `SENTRY_ORG`
+  + `SENTRY_PROJECT` env vars.
+- **`docs/PRODUCTION_RUNBOOK.md` §10** — Sentry Replay verification
+  drill: trigger a synthetic error → confirm replay → curl the
+  replay-coverage endpoint → confirm dashboard ingest.
+
+### Migration notes
+
+- **No breaking change.** Replays were already enabled in v1.2.0
+  T3.2; this commit only wires capture + correlation + reporting
+  UI + explicit PII selectors.
+- **Replay IDs only surface when a replay is ACTIVE.** If the
+  user never triggered a session (replaysSessionSampleRate=0.1),
+  the replayId is `null` in the captured exception. This is
+  expected; the Sentry UI shows "no replay attached" and operates
+  as before.
+- **NOT shipped in this commit** (deferred to v1.4.0 per the
+  design memo): form-aware JS masking (auto-detect `autocomplete`
+  on dynamic forms), server-side replay linkage across Next.js
+  API routes, full Sentry dashboard with replay drill-down.
+
 ## [1.2.0] - 2026-06-28
 
 The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget

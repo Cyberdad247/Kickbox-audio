@@ -4,7 +4,7 @@
 import './instrumentation';
 import './sentry-init';
 
-import { randomUUID } from 'node:crypto';
+import crypto, { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import express, { type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -17,7 +17,14 @@ import { applyCommand, setRouteTelemetry, snapshot } from './state';
 import { issueSignedAction } from './issuance';
 import { logger } from './logger';
 import { requireRole, setRbacPublicKey } from './auth';
-import { loadBifrostSecrets, loadRbacPublicKey } from './secrets';
+import { clearSecretCache, loadBifrostSecrets, loadRbacPublicKey } from './secrets';
+import {
+  isRevoked as isCertRevoked,
+  loadRevocationSeed,
+  listRevocations,
+  reissueCert,
+  revokeCert,
+} from './certRevocation';
 // initSentry is still imported (re-exported from sentry-init) for callers
 // that want to capture exceptions from non-server-entry points.
 import { captureException } from './sentry';
@@ -300,6 +307,101 @@ app.post('/api/bifrost/hitl', requireRole('operator'), hitlLimiter, async (req, 
     lane: outcome.lane,
     rezeroed: outcome.rezeroed,
   });
+});
+
+// v1.3.0 Tier 4.3: client-cert revocation workflow (revoke + reissue).
+// Authenticated by ADMIN_TOKEN via Bearer header (HS256 admin JWT is a
+// v1.4.0 candidate). The store is in-memory + env-seeded via
+// CERT_REVOKED_LIST. Operators follow PRODUCTION_RUNBOOK §6.5 after a
+// revoke to rebuild the Caddy ACME-side cert bound.
+const RevokeBodySchema = z.object({
+  clientCertSerial: z.string().min(1).max(64).optional(),
+  clientCertSubject: z.string().min(1).max(128).optional(),
+  rbacSubject: z.string().min(1).max(128).optional(),
+  revokedBy: z.string().min(1).max(64),
+  reason: z.string().max(256).optional(),
+});
+
+const ReissueBodySchema = z.object({
+  clientCertSerial: z.string().min(1).max(64).optional(),
+  clientCertSubject: z.string().min(1).max(128).optional(),
+  rbacSubject: z.string().min(1).max(128).optional(),
+});
+
+// Q2 (code-reviewer): 401 (not 503) when ADMIN_TOKEN is unset so an
+// attacker can't probe "is this env configured?". Constant-time compare
+// via crypto.timingSafeEqual on equal-length buffers avoids the
+// microsecond string-compare timing oracle.
+function adminAuth(req: Request, res: Response, next: () => void): void {
+  const expected = process.env.ADMIN_TOKEN ?? '';
+  const auth = req.header('authorization') ?? '';
+  if (!expected || !auth.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'UNAUTHORIZED' });
+    return;
+  }
+  const presented = auth.slice('Bearer '.length);
+  if (presented.length !== expected.length) {
+    res.status(401).json({ error: 'UNAUTHORIZED' });
+    return;
+  }
+  const ok = crypto.timingSafeEqual(Buffer.from(presented), Buffer.from(expected));
+  if (!ok) {
+    res.status(401).json({ error: 'UNAUTHORIZED' });
+    return;
+  }
+  next();
+}
+
+app.post('/api/bifrost/admin/cert/revoke', adminAuth, (req, res) => {
+  const parsed = RevokeBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+  }
+  const result = revokeCert(parsed.data);
+  res.status(result.duplicate ? 200 : 201).json({
+    status: result.duplicate ? 'ALREADY_REVOKED' : 'REVOKED',
+    marker: result.marker,
+    revoked: result.revoked,
+  });
+});
+
+app.post('/api/bifrost/admin/cert/reissue', adminAuth, (req, res) => {
+  const parsed = ReissueBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+  }
+  const result = reissueCert(parsed.data);
+  if (!result) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'no revocation found for that marker' });
+  }
+  res.status(200).json({ status: 'REISSUED', ...result });
+});
+
+app.get('/api/bifrost/admin/cert/revocations', adminAuth, (_req, res) => {
+  res.status(200).json({ revocations: listRevocations() });
+});
+
+// v1.3.0 Tier 3.1: SIGUSR1 triggers a vault cache invalidation so the
+// post-Doppler-rotation window is bounded by SIGUSR1 delivery instead
+// of CACHE_TTL_MS. PM2: `pm2 sendSignal SIGUSR1 bifrost`. Manual:
+// `kill -USR1 $(pgrep -f "node.*dist/server.js")`. Loopback-only check:
+// operator can prove the handler is wired via `kill -USR1 <pid>` in a
+// dev session (the log line `[secrets] SIGUSR1 received; cache cleared`
+// confirms).
+// Q12 (code-reviewer fix): revocation store ATOMICALLY swapped instead
+// of clear-then-load so a request landing in the microsecond window
+// between clear() and seed-replay cannot pass a revoked JWT.
+process.on('SIGUSR1', () => {
+  const previousRevocations = listRevocations();
+  clearSecretCache();
+  for (const entry of previousRevocations) {
+    revokeCert(entry);
+  }
+  loadRevocationSeed();
+  logger.info(
+    { restoredCount: previousRevocations.length },
+    '[secrets] SIGUSR1 received; secret cache cleared; revocation store atomically swapped',
+  );
 });
 
 app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {

@@ -1,0 +1,42 @@
+# v1.3.0 Tier 3.1: example Doppler rotations manifest.
+#
+# Usage:
+#   tsx scripts/rotate-secrets.ts --from ./scripts/rotations.yaml
+#     (dry-run; safe to run anywhere)
+#   tsx scripts/rotate-secrets.ts --from ./scripts/rotations.yaml --apply
+#     (writes; requires DOPPLER_TOKEN)
+#
+# Each rotation entry rotates ONE secret in ONE Doppler project+config.
+# value_cmd runs a shell command to produce the new value (e.g. openssl
+# rand -hex 32). Use `value:` only for dev/test — production rotations
+# must always source the value dynamically.
+#
+# Rotation cadence: every 90 days, or immediately on suspected compromise.
+# See PRODUCTION_RUNBOOK.md §6.6.
+
+rotations:
+  # 90-day cadence for HMAC envelope keys
+  - project: kickbox-audio
+    config: prd
+    name: bifrost/webhook-secret
+    value_cmd: openssl rand -hex 32
+    note: HMAC envelope key — 90-day rotation per PRODUCTION_RUNBOOK §6.1
+
+  - project: kickbox-audio
+    config: prd
+    name: bifrost/action-secret
+    value_cmd: openssl rand -hex 32
+    note: HMAC action key — 90-day rotation per PRODUCTION_RUNBOOK §6.1
+
+  # 90-day cadence for the RBAC RS256 public key surface:
+  # 1. Generate keypair out-of-band (see PRODUCTION_RUNBOOK §6.2)
+  # 2. Update the IdP's private-key reference
+  # 3. Push the new public key into this vault slot
+  # 4. pm2 restart bifrost
+  # 5. After 24 h, restore the previous slot to the OLD key (kid
+  #    multi-key rotation is a v1.4.0 candidate; current is single-key)
+  # - project: kickbox-audio
+  #   config: prd
+  #   name: bifrost/rbac-public-key-pem
+  #   value_cmd: cat /tmp/rbac-public.pem
+  #   note: RBAC RS256 public PEM — rotate per PRODUCTION_RUNBOOK §6.2

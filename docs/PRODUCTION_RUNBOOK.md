@@ -375,7 +375,111 @@ curl --cacert certs/ca.pem \
 
 If the rotation breaks clients, see §5.2 for the Tailscale rollback.
 
-### 6.4 Database password
+### 6.5 Client-cert revocation (v1.3.0 Tier 4.3)
+
+Frequency: **on suspected compromise** or **on operator offboard**.
+
+Tent work is at the cert boundary (Caddy at the Tailscale edge).
+Bifrost's `apps/bifrost/src/certRevocation.ts` is the *JWT-borne*
+backstop: it revokes the RBAC JWT bound to a stolen cert so the
+stolen token cannot outlive its mTLS client. The TLS handshake
+itself still terminates in front of Bifrost — Caddy must be
+rebuilt to enforce the actual cert ban.
+
+```text
+1. Take your ADMIN_TOKEN from Doppler (bifrost/admin-token) or env.
+   If unset, the HF endpoints return 503 ADMIN_TOKEN_UNCONFIGURED.
+2. Hot-revoke the JIT or RBAC JWT:
+     curl -X POST https://<tailscale>:3017/api/bifrost/admin/cert/revoke \
+          -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -d '{"clientCertSerial":"<hex>","revokedBy":"alice","reason":"compromised"}'
+     # → 201 REVOKED            (first call)
+     # → 200 ALREADY_REVOKED   (subsequent call; idempotent)
+3. Rebuild Caddy to drop the cert at the TLS layer:
+     cd /opt/audit-kickbox-audio
+     scripts/ops/caddy-rebuild-with-revoked.sh   # (if present)
+     # OR manually: cd /etc/caddy && caddy reload --config ./Caddyfile
+     #   Caddyfile snippet (machine-read from revocation list):
+     #     @revoked_client {
+     #       remote_ip <tailscale-client-ip>
+     #       tls_client_issuer "<issuer-dn-of-stolen-cert>"
+     #     }
+     #     reverse_proxy @revoked_client localhost:7800 {
+     #       transport fastfail
+     #     }
+4. Smoke check:
+     curl --cacert certs/ca.pem --cert certs/client.pem --key certs/client-key.pem \
+          https://<tailscale>:7800/health
+     # Expected: 200 OK (the healthy cert still works)
+     curl --cacert certs/ca.pem --cert certs/<revoked-cert>.pem --key certs/<revoked-key>.pem \
+          https://<tailscale>:7800/health
+     # Expected: TLS handshake rejected (Caddy-side)
+5. Reissue path (when the employee returns / cert replaced):
+     curl -X POST https://<tailscale>:3017/api/bifrost/admin/cert/reissue \
+          -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -d '{"clientCertSerial":"<hex>"}'
+     # → 200 REISSUED            (the marker IS removed from Bifrost's hot store)
+     # → 404 NOT_FOUND           (no record)
+     # ⚠ Caddy also needs to be rebuilt to re-leaf the new cert.
+6. Audit trail:
+     listRevocations() is visible at:
+       curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+            https://<tailscale>:3017/api/bifrost/admin/cert/revocations
+     # Returns { revocations: [{ clientCertSerial, revokedAt, revokedBy, reason, ... }] }
+7. Cold-boot seed via env:
+     If the process is replaced and you need to RESTORE revoked
+     certs without a manual call, set CERT_REVOKED_LIST in env:
+       CERT_REVOKED_LIST="serial:abc;by:alice;reason:compromised,
+                          subject:mcp-query-stg;by:bob"
+     # Format: comma-separated, each entry is ;-delimited key:value pairs.
+     # Keys: serial=, subject=, sub=, at=, by=, reason=
+     # at is a ms-epoch; defaults to Date.now() if absent.
+```
+
+**NOT shipped in v1.3.0:** CRL-from-HTTP behind Caddy (per-cert CRL
+fetch at handshake), multi-cert CRL refresh background worker. Both
+are v1.4.0 candidates.
+
+### 6.6 Vault rotation script (v1.3.0 Tier 3.1)
+
+Frequency: **every 90 days** for `WEBHOOK_SECRET` / `ACTION_SECRET` (HMAC
+envelope). RS256 RBAC keys per §6.2. Database password per §6.4.
+
+```text
+1. Prepare the rotations manifest: copy scripts/rotations.example.yaml
+   to scripts/rotations.yaml and verify the cadence. This file is not
+   committed (it's an operator-only file).
+2. Dry-run to see what would change:
+     npm run vault:rotate -- --from ./scripts/rotations.yaml
+     # → JSON printout, no Doppler writes, exit 0
+3. Inspect the plan; if anyone should be excluded, edit the YAML.
+4. Apply:
+     npm run vault:rotate:apply -- --from ./scripts/rotations.yaml \
+       -- (NOT VALID HTML; the npm script already encodes --apply)
+     # OR via the GitHub Action: Actions → "Vault Rotation" → Run workflow
+     #   default config is dry-run; flip apply_mode=true to write.
+5. After apply succeeds, invalidate the Bifrost cache:
+     # PM2 (production):
+       pm2 sendSignal SIGUSR1 bifrost
+     # Direct (laptop / dev):
+       kill -USR1 $(pgrep -f "node.*dist/server.js")
+     # Confirm: log line `[secrets] SIGUSR1 received; secret + revocation caches cleared`
+6. Smoke check (zero-downtime window):
+     curl -fsSL https://<tailscale>:3017/health         # → 200
+     node scripts/ops/live-anya-probe.mjs              # → probes pass with new secret
+```
+
+**Cache hand-off math:** before this commit, post-rotation window = 5 min
+(CACHE_TTL_MS). With SIGUSR1, window < 1 s. If you choose NOT to send
+the signal, the 5-min fallback is exact (no surprises for ops scripts
+that forget the signal).
+
+**Cyberdad commit**: the rotation history belongs in
+`C:\Users\vizio\CAMELOT_OS\SOVEREIGNTY_LEDGER.md` (parent repo, NOT
+inside this one). Append after every rotation: SHA, secret name, prev
+value fingerprint (e.g. first 8 hex chars), by whom, why.
+
+### 6.7 Database password
 
 Frequency: **on personnel change** or every 180 days.
 
@@ -423,6 +527,51 @@ Frequency: **on personnel change** or every 180 days.
 | WebSocket `ECONNRESET`                           | Bifrost down or restarting              | Vercel rollback / Tailscale restart             |
 | `OTLP 503` from Sentry                          | OTel collector quota exceeded           | Lower `SENTRY_TRACES_SAMPLE_RATE` to `0.05`     |
 | PWA 504 on heavy traffic                         | Vercel cold start or rate-limit         | Bump issue rate-limit OR add Vercel cron warmup |
+
+---
+
+## 10. Sentry Replay verification (v1.3.0 Tier 3.2)
+
+The PWA's session replay integration is set up at
+`apps/pwa/sentry.client.config.ts` (maskAllText + explicit `.pii-mask`
+selectors, blockAllMedia, replaysOnErrorSampleRate=1.0,
+replaysSessionSampleRate=0.1). Verification drill:
+
+```text
+# 1. Confirm the SDK init is wired (open DevTools on the prod URL):
+#    window.__SENTRY__?.hub.getClient().getOptions().replaysSessionSampleRate
+#    → 0.1 (if not, the DSN is unset; check NEXT_PUBLIC_SENTRY_DSN)
+#
+# 2. Trigger a synthetic unhandled-error (with /api/health bypassed):
+#    In DevTools console, paste:
+#      throw new Error('Sentry-replay-drill-001');
+#    Expected: page navigates to /error.tsx fallback; Sentry fires an event
+#    tagged with boundary='page' AND replayId attached.
+#
+# 3. From the Sentry UI (https://sentry.io → kickbox-audio → Replays):
+#    Confirm the replay pane shows the drag-track + console breadcrumbs.
+#
+# 4. From your laptop, query the internal replay-coverage endpoint:
+#    ADMIN_TOKEN=$(doppler secrets get --project kickbox-audio \
+#                  --config prd  bifrost/admin-token)
+#    curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+#         https://<vercel-domain>/api/diagnostics/replay-coverage?since=24h
+#    Expected JSON (200):
+#      { sessionCount: <int>, errorCaptureRate: <float>, p75ReplayBytes: <int> }
+#
+# 5. Report-bug UI (sanity check):
+#    Click the floating "Report bug" button in the lower-right of the
+#    dashboard. A Sentry.showReportDialog modal should open. Submit a
+#    fake report and confirm it lands in Sentry under the user's sub.
+#
+# Rev promotions: set OFFLINE_REPLAY_DRY_RUN=1 in env to disable the
+# replay SDK init while you test (the SDK checks the env).
+```
+
+**What this drill catches:** DSN drift, replay SDK missing the page
+boundary hook, replayCoverage endpoint stale (proxy
+auth misconfigured), report-bug UI broken (Sentry client bundle not
+ eagerly loaded).
 
 ---
 

@@ -1,0 +1,71 @@
+# v1.3.0 Tier 3.1: manual vault rotation — workflow_dispatch action.
+#
+# TRIGGER: GitHub UI → Actions → "Vault Rotation" → Run workflow.
+# Inputs: rotations_yaml_path (default scripts/rotations.example.yaml)
+#         apply_mode (default false = dry-run)
+#
+# REQUIRED SECRETS (Repository secrets):
+#   DOPPLER_TOKEN          — service token (project=kickbox-audio, config=prd)
+#
+# The action is intentionally manual (no schedule). Operators review the
+# YAML diff + Doppler audit trail before flipping apply_mode=true.
+
+name: Vault Rotation
+
+on:
+  workflow_dispatch:
+    inputs:
+      rotations_yaml_path:
+        description: 'Path to rotations.yaml'
+        required: true
+        default: 'scripts/rotations.example.yaml'
+      apply_mode:
+        description: 'Apply the rotations (default: dry-run)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+
+# Q6 (code-reviewer fix): concurrency block prevents two operators from
+# racing an apply-mode rotation (Doppler's last-write-wins would lose
+# one). cancel-in-progress: false means a fresh dispatch waits for the
+# in-flight run to finish instead of dropping it mid-write.
+concurrency:
+  group: vault-rotate
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install tsx (no full install, just the binary)
+        run: npm install --no-save tsx@4.19.2
+      - name: Run rotation
+        env:
+          APPLY: ${{ inputs.apply_mode }}
+        run: |
+          if [ "$APPLY" = "true" ]; then
+            npx tsx scripts/rotate-secrets.ts --from "${{ inputs.rotations_yaml_path }}" --apply
+          else
+            npx tsx scripts/rotate-secrets.ts --from "${{ inputs.rotations_yaml_path }}"
+          fi
+      - name: Post-step reminder (cache invalidation)
+        if: inputs.apply_mode == 'true' && success()
+        run: |
+          echo "## Next step — invalidate Bifrost vault cache"
+          echo "Run from the Bifrost Tailscale node:"
+          echo "  pm2 sendSignal SIGUSR1 bifrost"
+          echo "or, if pm2 is gone:"
+          echo "  kill -USR1 \$(pgrep -f 'node.*dist/server.js')"

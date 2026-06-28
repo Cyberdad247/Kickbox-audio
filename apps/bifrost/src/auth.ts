@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { logger } from './logger';
+import { isRevoked as isCertRevoked } from './certRevocation';
 
 /**
  * v1.3.0 Tier 4.1: RBAC middleware for Bifrost /api/bifrost/* routes.
@@ -249,6 +250,13 @@ export function requireRole(minRole: Role): RequestHandler {
     const payload = verifyToken(match[1]);
     if (!payload) {
       res.status(401).json({ error: 'INVALID_TOKEN' });
+      return;
+    }
+    // v1.3.0 Tier 4.3: reject JWTs bound to a revoked client cert so a
+    // stolen RBAC token cannot outlive its mTLS client.
+    if (isCertRevoked({ rbacSubject: payload.sub })) {
+      logger.warn({ sub: payload.sub, alg }, '[auth] JWT subject is in cert revocation list');
+      res.status(403).json({ error: 'CERT_REVOKED' });
       return;
     }
     const userLevel = ROLE_HIERARCHY[payload.role];

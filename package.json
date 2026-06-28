@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:vault": "vitest run packages/db/src/ledgerValidator.test.ts",
+    "vault:rotate": "tsx scripts/rotate-secrets.ts",
+    "vault:rotate:apply": "tsx scripts/rotate-secrets.ts --apply",
     "test:bifrost": "vitest run apps/bifrost/src/server.test.ts",
     "test:voice": "vitest run apps/bifrost/src/state.test.ts",
     "db:generate": "npm run generate --workspace=@sovereign/db",
