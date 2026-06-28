@@ -5,6 +5,129 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-06-28
+
+The v1.5.1 weekly drift detection closure. Closes the v1.4.5
+forward-reference ("Drift detection pattern (optional, v1.4.6
+candidate): wrap the VERIFICATION_LOG.md read in a weekly cron that
+alerts on `fallback_warnings > 0` OR `Sentry_503s > 0` OR
+`runner_min > 5`"). The per-run observability rows from v1.4.5 are
+now aggregated into a weekly drift digest that opens / updates a
+GitHub Issue on breach. This is the long-tail complement to the
+v1.4.6 real-time Sentry alert (which fires per-request, <30s): the
+weekly detector catches the slow patterns (intermittent
+degradation, Sentry drift, CI runner slow-down) that the
+per-request alert cannot.
+
+### Added
+
+- **`.github/workflows/burst-drift-check.yml`** (NEW) - the weekly
+  drift detector. `on: schedule: cron: '0 9 * * 1'` (Mondays 09:00
+  UTC, 6 h after the Monday 03:00 UTC nightly burst-test) +
+  `on: workflow_dispatch` (manual override for ad-hoc audits). Steps:
+  (1) read `docs/VERIFICATION_LOG.md` via `gh api` (REST
+  `contents: read`), (2) `awk` filter that extracts rows from the
+  last `lookback_days` (default 7) and filters for valid ISO8601
+  dates (skips the placeholder row), (3) breach evaluation against
+  3 thresholds (`fallback_warnings > 0`, `Sentry_503s > 0`,
+  `runner_min > 5`), (4) **idempotency check** via
+  `gh issue list --label drift-detected --state open --json number`
+  (label, NOT title, for rename-resilience), (5) **all-TBD
+  detection**: if every row in the window is `TBD`, opens a
+  separate `drift-unverifiable` issue (the VERCEL_TOKEN-loss
+  canary), (6) **update existing issue body** with the latest rows
+  if an open `drift-detected` issue already exists, (7) **close
+  issue** on next zero-breach run (`--reason completed`). 3-min
+  timeout, `ubuntu-latest`, `concurrency: group: burst-drift-check`
+  (serializes overlap), `contents: read` + `issues: write`
+  permissions (scoped per least-privilege; no `pull-requests: write`
+  because we do not auto-open PRs).
+
+- **`.github/CODEOWNERS`** - added
+  `/.github/workflows/burst-drift-check.yml @Cyberdad247
+  @sovereign/kba-authority` for symmetry with the existing
+  `burst-test.yml` + `burst-log.yml` + `kba-smoke.yml` ownership
+  entries (all under the CI surface block).
+
+- **`docs/VERIFICATION_LOG.md`** - new "Drift detection (v1.5.1)"
+  section below the existing "Rows" section. Documents the workflow
+  file path, the Monday 09:00 UTC schedule, the 3 thresholds + drift
+  categories in a 4-column table (column, threshold, category, why
+  Sentry does NOT cover), the all-TBD handling rationale
+  (VERCEL_TOKEN-loss canary), the issue lifecycle (open / update /
+  close / unverifiable), the label-based idempotency, and the
+  manual trigger overrides (`lookback_days` + `fail_open` inputs).
+
+- **`docs/PRODUCTION_RUNBOOK.md` §6.8** - replaced the v1.4.5
+  forward-reference block ("Drift detection pattern (optional,
+  v1.4.6 candidate)") with the full v1.5.1 operator handoff. The
+  new sub-bullet documents: the workflow file + schedule + why
+  weekly (not piggybacking on `burst-log`); the full issue
+  lifecycle (open / update / close / unverifiable); the 4-step
+  operator handoff (confirm enabled, optional manual run to
+  populate first status, triage cadence); and a real-time vs.
+  weekly comparison table (v1.4.6 Sentry = per-request canary,
+  v1.5.1 drift detector = weekly digest - complementary, not
+  duplicative).
+
+### Migration notes
+
+- **No breaking change.** The workflow is fully additive; the
+  existing v1.4.4 burst-test + v1.4.5 burst-log chain is unchanged.
+  No existing CI surface is altered; the new workflow runs in
+  parallel and only opens/updates GitHub issues.
+- **No new env vars required.** The workflow reads
+  `docs/VERIFICATION_LOG.md` via the GitHub API (the default
+  `GITHUB_TOKEN` is sufficient for `contents: read` + `issues:
+  write`).
+- **No new dependencies.** Pure bash + `gh` CLI + `awk` (all
+  pre-installed on `ubuntu-latest`).
+- **Operator action required (one-time, ~5 min):**
+  1. Confirm the workflow is enabled (Actions tab -> should be
+     listed by name).
+  2. (Optional) Run it once manually to populate the first drift
+     status. If the first run finds 0 rows in the log (no
+     burst-test has run yet), it will open the `drift-unverifiable`
+     issue (correct behavior; close it manually once the first
+     burst-test row lands).
+  3. Triage cadence: every Monday, check open `drift-detected` +
+     `drift-unverifiable` issues. The `drift-detected` body has
+     direct links to Sentry + the offending rows for fast triage.
+- **What the issue looks like in practice** (drift detected):
+  ```text
+  Title: Burst regression drift detected
+  Label: drift-detected
+  Body:
+    N rows breached 1+ threshold in the last 7 days.
+    Offending rows (date, commit, fallback_warnings, Sentry_503s, runner-min):
+    - 2026-06-25T03:00:12Z | abc1234 | 1 | 0 | 1
+    - 2026-06-26T03:00:09Z | def5678 | 0 | 2 | 1
+    Triage links:
+    - Sentry: https://sentry.io/organizations/kickbox-audio/issues/?query=...
+    - Doppler: https://dashboard.doppler.com/workplace/kickbox-audio/activity
+  ```
+- **What the issue looks like in practice** (unverifiable):
+  ```text
+  Title: Burst regression unverifiable: VERCEL_TOKEN missing
+  Label: drift-unverifiable
+  Body:
+    The last 7 days of VERIFICATION_LOG.md rows are all TBD.
+    This means the VERCEL_TOKEN secret is missing, rotated, or
+    expired. Re-add it to repo secrets
+    (Settings -> Secrets and variables -> Actions) per
+    PRODUCTION_RUNBOOK §6.8 (v1.4.5 sub-bullet).
+  ```
+- **Cost**: ~30s of ubuntu-latest per weekly run (the file is
+  small, the dominant cost is the API roundtrip). With the Monday
+  cron, that's ~2.5 runner-min/month = ~30 runner-min/year
+  (negligible; public repo: free; private repo: 1.5% of the
+  2000-min/mo free tier).
+- **What this is NOT**: this is a weekly digest, not a real-time
+  alert. For per-request detection (Upstash-unreachable fallback
+  within 30s of firing), wire the v1.4.6 Sentry alert per
+  `docs/ALERTING.md`. The 2 layers are complementary, not
+  duplicative.
+
 ## [1.5.0] - 2026-06-28
 
 The v1.5.0 per-IP daily hard-circuit observability closure. Closes

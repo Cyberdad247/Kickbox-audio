@@ -680,11 +680,71 @@ Adding the token unlocks the per-run observability that catches
 1 -> 1` indicates the Upstash free tier is being exhausted, even
 though no single run fails).
 
-**Drift detection pattern** (optional, v1.4.6 candidate): wrap the
-VERIFICATION_LOG.md read in a weekly cron that alerts on
-`fallback_warnings > 0` OR `Sentry_503s > 0` (Sentry drift) OR
-`runner_min > 5` (slow-build regression). The schema in
-`docs/VERIFICATION_LOG.md` is greppable; an awk filter is ~10 LOC.
+**Drift detection pattern (v1.5.1)**: the per-run observability is
+now wired into a weekly drift detector at
+`.github/workflows/burst-drift-check.yml`. It runs every Monday at
+09:00 UTC (6 h after the Monday 03:00 UTC nightly burst-test) and
+reads `docs/VERIFICATION_LOG.md` via the GitHub API. If any row in
+the last 7 days breaches **any** of the 3 thresholds
+(`fallback_warnings > 0` OR `Sentry_503s > 0` OR `runner_min > 5`),
+the workflow opens (or updates) a GitHub issue titled `Burst
+regression drift detected` (labeled `drift-detected`) with the
+offending rows + a Sentry/Doppler deep-link for triage.
+
+**Why a separate workflow** (vs. piggybacking on `burst-log`): the
+`burst-log` workflow fires on every burst-test run; a weekly digest
+needs a different cadence. The `burst-drift-check` workflow is
+`on: schedule: cron: '0 9 * * 1'` + `on: workflow_dispatch`
+(manual override for ad-hoc audits).
+
+**Issue lifecycle** (v1.5.1 semantics):
+
+- **Open**: on first detected breach in a 7-day window. Title
+  `Burst regression drift detected`, body lists the offending rows
+  + a Sentry link (`https://sentry.io/kickbox-audio/issues/?query=...`)
+  + a Doppler link to the vault rotation history.
+- **Update**: if an open `drift-detected` issue already exists (from
+  a prior week), the workflow updates the body with the latest
+  rows. Idempotency is via the label, NOT the title (operators can
+  rename the issue without breaking the workflow).
+- **Close**: on the next weekly run with zero breaches, the
+  workflow adds a `Resolved by: <run-url>` comment then closes with
+  `--reason completed`. Manual close (`--reason not_planned`) is
+  allowed for known-acceptable drifts.
+- **Unverifiable**: if every row in the 7-day window is `TBD` (the
+  `VERCEL_TOKEN` secret was rotated, expired, or never set), the
+  workflow opens a separate issue labeled `drift-unverifiable`
+  titled `Burst regression unverifiable: VERCEL_TOKEN missing`. This
+  is the canary for a broken log scan; without it, a dropped
+  `VERCEL_TOKEN` would fail silently for weeks.
+
+**Operator handoff (one-time per repo, ~5 min)**:
+
+```text
+1. Repo is in @Cyberdad247/Kickbox-audio (already enabled by v1.5.1;
+   the workflow file is on main; the schedule auto-fires from the
+   next Monday 09:00 UTC).
+2. Confirm the workflow is enabled: Actions tab -> "Burst regression
+   drift check (v1.5.1)" should be listed.
+3. (Optional) Run it once manually to populate the first drift
+   status: Actions tab -> Run workflow -> leave inputs blank. If
+   the first run finds 0 rows in the log (no burst-test has run
+   yet), it will open the `drift-unverifiable` issue (this is
+   correct behavior; close it manually once the first burst-test
+   row lands).
+4. Triage cadence: every Monday, check open `drift-detected` +
+   `drift-unverifiable` issues. The `drift-detected` body has
+   direct links to Sentry + the offending rows.
+```
+
+**Real-time vs. weekly comparison**: the v1.4.6 Sentry alert fires
+per-request (<30s latency, real-time page); the v1.5.1 weekly
+drift detector fires on long-tail patterns (slow degradation,
+intermittent Sentry outages, CI runner drift). The 2 layers are
+complementary — Sentry is the per-request canary, drift detection
+is the weekly digest. You only need to wire the Sentry alert to
+get real-time coverage; the weekly detector works out of the box
+the moment the v1.5.1 commit lands.
 
 **Real-time prod alert (v1.4.6)**: the rateLimit helper now emits
 `Sentry.captureException` on the Upstash-unreachable fallback

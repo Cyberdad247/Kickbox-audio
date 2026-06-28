@@ -1,0 +1,341 @@
+name: Burst drift check (v1.5.1)
+
+# v1.5.1: weekly drift detection for the v1.4.4 burst regression cron.
+# Closes the v1.4.5 RUNBOOK forward-reference ("Drift detection pattern
+# (optional, v1.4.6 candidate)"): wraps the VERIFICATION_LOG.md read in
+# a weekly cron that alerts on `fallback_warnings > 0` OR
+# `Sentry_503s > 0` OR `runner_min > 5`.
+#
+# Schedule: Mondays 09:00 UTC. Captures the full Mon-Sun baseline of
+# 7 nightly burst-test rows (the cron fires 03:00 UTC daily, so any
+# 7-day window captures ~7 rows). The 6h headroom after the Monday
+# 03:00 UTC burst-test gives the chained burst-log workflow time to
+# complete + append its row.
+#
+# Manual trigger via workflow_dispatch lets the operator:
+#   - Run an ad-hoc check after wiring VERCEL_TOKEN
+#   - Override the thresholds (e.g. tune runner_min threshold to 10
+#     during a noisy week)
+#
+# Idempotency: looks for an open issue with the `drift-detected`
+# label (not title-match, which breaks if an operator renames the
+# issue). If found, adds a comment; if not, creates a new issue.
+# When no drift is found AND an open issue exists, adds a "resolved"
+# comment + closes the issue (auto-resolution).
+#
+# Required permissions (granted via the permissions block):
+#   - contents: read  (read VERIFICATION_LOG.md via gh api)
+#   - issues:   write (open / update / close the drift issue)
+# No new repo secrets needed (uses secrets.GITHUB_TOKEN).
+#
+# Operator handoff: see PRODUCTION_RUNBOOK section 6.8 v1.5.1 for
+# the issue body format + threshold override semantics.
+
+on:
+  schedule:
+    # Mondays 09:00 UTC. 6h headroom after the Monday 03:00 UTC
+    # burst-test + chained burst-log append.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      fallback_threshold:
+        description: 'Drift threshold for fallback_warnings (default 0; > N triggers drift)'
+        required: false
+        type: string
+        default: '0'
+      sentry_threshold:
+        description: 'Drift threshold for Sentry_503s (default 0; > N triggers drift)'
+        required: false
+        type: string
+        default: '0'
+      runner_min_threshold:
+        description: 'Drift threshold for runner_min (default 5; > N triggers drift)'
+        required: false
+        type: string
+        default: '5'
+
+permissions:
+  contents: read
+  issues: write
+
+# Serialize the weekly cron + any manual dispatches so 2 racing
+# runs don't both try to open/update the same issue. Matches the
+# burst-log.yml concurrency pattern. cancel-in-progress: false
+# means a slow drift check won't be killed by a manual dispatch.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Weekly drift check
+    runs-on: ubuntu-latest
+    # 3 min safety budget: gh api ~3s + awk ~1s + gh issue ops ~5s
+    # (worst case = comment + close on an existing issue). Cached
+    # runs finish in ~10s. Bump to 5 if you add a Sentry/Datadog
+    # post step.
+    timeout-minutes: 3
+    env:
+      # `inputs.X` is only set on workflow_dispatch; on schedule, the
+      # expression falls through to the default. The `||` works on
+      # both null AND empty string in GitHub Actions expression
+      # syntax. This ensures the schedule path always has a value.
+      FALLBACK_T: ${{ inputs.fallback_threshold || '0' }}
+      SENTRY_T: ${{ inputs.sentry_threshold || '0' }}
+      RUNNER_T: ${{ inputs.runner_min_threshold || '5' }}
+    steps:
+      - name: Compute the 7-day cutoff
+        id: cutoff
+        run: |
+          set -e
+          # Use GNU date syntax (works on the ubuntu-latest runner).
+          # 7 days = 168 hours = 604800 seconds. We compare on the
+          # date column (ISO 8601 UTC), so a simple `date -u -d
+          # '7 days ago'` gives the right cutoff.
+          CUTOFF=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          echo "cutoff=$CUTOFF" >> $GITHUB_OUTPUT
+          echo "now=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Fetch VERIFICATION_LOG.md via GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Fetch the file metadata + content (base64-encoded).
+          FILE_JSON=$(gh api repos/${{ github.repository }}/contents/docs/VERIFICATION_LOG.md)
+          CONTENT=$(echo "$FILE_JSON" | jq -r .content)
+          if [ "$CONTENT" = "null" ] || [ -z "$CONTENT" ]; then
+            echo "VERIFICATION_LOG.md not found or empty"
+            exit 0
+          fi
+          echo "$CONTENT" | base64 -d > /tmp/verification_log.md
+          echo "fetched $(wc -l < /tmp/verification_log.md) lines"
+
+      - name: Filter rows to the last 7 days (valid ISO 8601 dates only)
+        # v1.5.1 (round 2): explicitly filter for valid ISO 8601
+        # dates in column 2 — the schema's placeholder row
+        # (`_first successful run will appear here_`) does NOT
+        # match, so it's correctly excluded. Without this filter,
+        # the `date < CUTOFF` string comparison would treat
+        # `_first successful run...` as "older than the cutoff"
+        # and the row would still be excluded, but the column-2
+        # string would propagate into downstream awk passes and
+        # corrupt the numeric comparisons.
+        run: |
+          set -e
+          awk -F'|' -v CUTOFF="${{ steps.cutoff.outputs.cutoff }}" '
+            BEGIN { in_rows = 0 }
+            /^## Rows/ { in_rows = 1; next }
+            in_rows == 0 { next }
+            /^\| date \| commit \|/ { next }
+            in_rows == 1 && /^\|/ {
+              date = $2
+              gsub(/^ +| +$/, "", date)
+              # Valid ISO 8601: YYYY-MM-DDTHH:MM:SSZ
+              if (date !~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}T/) next
+              if (date < CUTOFF) next
+              print
+            }
+          ' /tmp/verification_log.md > /tmp/recent_rows.txt
+          echo "rows in last 7 days: $(wc -l < /tmp/recent_rows.txt)"
+
+      - name: Detect drift + TBD-only weeks (TWO awk passes)
+        id: detect
+        run: |
+          set -e
+          # Pass 1: count rows where BOTH fallback_warnings and
+          # Sentry_503s are TBD (i.e. VERCEL_TOKEN is unset and
+          # the drift check is operating blind). If the entire 7-day
+          # window is TBD, that's a separate drift signal — the
+          # operator must add VERCEL_TOKEN to enable real drift
+          # detection. Per the thinker round 2 B ⚠️: ignoring TBDs
+          # indefinitely causes a dropped VERCEL_TOKEN to fail
+          # silently.
+          TBD_COUNT=$(awk -F'|' '
+            {
+              fb = $6; sent = $8
+              gsub(/^ +| +$/, "", fb)
+              gsub(/^ +| +$/, "", sent)
+              if (fb == "TBD" && sent == "TBD") c++
+            }
+            END { print c+0 }
+          ' /tmp/recent_rows.txt)
+          TOTAL=$(wc -l < /tmp/recent_rows.txt)
+
+          # Pass 2: detect actual drift (TBD is NOT drift per the
+          # user spec — a TBD means "we don't know", not "we
+          # detected a breach"). Emit offending rows to
+          # /tmp/drift_rows.txt (one per line, pipe-delimited).
+          awk -F'|' \
+              -v FALLBACK_T="$FALLBACK_T" \
+              -v SENTRY_T="$SENTRY_T" \
+              -v RUNNER_T="$RUNNER_T" '
+            {
+              fb = $6; sent = $8; run = $9
+              gsub(/^ +| +$/, "", fb)
+              gsub(/^ +| +$/, "", sent)
+              gsub(/^ +| +$/, "", run)
+              d = 0
+              if (fb != "TBD" && fb+0 > FALLBACK_T+0) d = 1
+              if (sent != "TBD" && sent+0 > SENTRY_T+0) d = 1
+              if (run != "TBD" && run+0 > RUNNER_T+0) d = 1
+              if (d) print
+            }
+          ' /tmp/recent_rows.txt > /tmp/drift_rows.txt
+          DRIFT_COUNT=$(wc -l < /tmp/drift_rows.txt)
+
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "tbd_count=$TBD_COUNT" >> $GITHUB_OUTPUT
+          echo "drift_count=$DRIFT_COUNT" >> $GITHUB_OUTPUT
+          echo "fallback_threshold=$FALLBACK_T" >> $GITHUB_OUTPUT
+          echo "sentry_threshold=$SENTRY_T" >> $GITHUB_OUTPUT
+          echo "runner_min_threshold=$RUNNER_T" >> $GITHUB_OUTPUT
+
+      - name: Open or update the drift issue
+        if: ${{ steps.detect.outputs.drift_count > 0 || (steps.detect.outputs.total > 0 && steps.detect.outputs.tbd_count == steps.detect.outputs.total) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Idempotency: lookup by LABEL (not title). If an operator
+        # renames the issue, the next run will still find it. The
+        # label `drift-detected` is the canonical anchor.
+        run: |
+          set -e
+          DRIFT_COUNT=${{ steps.detect.outputs.drift_count }}
+          TBD_COUNT=${{ steps.detect.outputs.tbd_count }}
+          TOTAL=${{ steps.detect.outputs.total }}
+          FALLBACK_T=${{ steps.detect.outputs.fallback_threshold }}
+          SENTRY_T=${{ steps.detect.outputs.sentry_threshold }}
+          RUNNER_T=${{ steps.detect.outputs.runner_min_threshold }}
+          NOW=${{ steps.cutoff.outputs.now }}
+
+          # Idempotency: lookup by LABEL (not title). Real-drift
+          # issues use the `drift-detected` label; TBD-only issues
+          # use the `drift-unverifiable` label. Looking up BOTH
+          # labels up-front ensures a real-drift run does NOT
+          # clobber an open TBD-only issue (and vice versa) —
+          # the two cases have different remediation paths and
+          # must stay in separate issues.
+          DRIFT_EXISTING=$(gh issue list --label drift-detected --state open --json number --jq '.[0].number // empty')
+          UNVER_EXISTING=$(gh issue list --label drift-unverifiable --state open --json number --jq '.[0].number // empty')
+
+          # Determine the issue title + label + body for the current run
+          if [ "$DRIFT_COUNT" -gt 0 ]; then
+            TITLE="Burst regression drift detected"
+            LABEL="drift-detected"
+            EXISTING="$DRIFT_EXISTING"
+            # Build a markdown table from the offending rows
+            OFFENDING_TABLE=$(awk -F'|' '{ printf "| %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6, $7, $8 }' /tmp/drift_rows.txt)
+            BODY=$(cat <<EOF
+## Burst regression drift detected
+
+**${DRIFT_COUNT} row(s)** in the last 7 days match a drift threshold. Total rows scanned: **${TOTAL}**.
+
+### Thresholds
+- \`fallback_warnings > ${FALLBACK_T}\` (Upstash unreachable events in Vercel logs)
+- \`Sentry_503s > ${SENTRY_T}\` (Sentry outage events in Vercel logs)
+- \`runner_min > ${RUNNER_T}\` (slow build regression)
+
+### Offending rows
+| date | commit | tests passed | 429 count | fallback warnings | HMAC errors | Sentry 503s | runner-min |
+| ---- | ------ | ------------ | --------- | ----------------- | ----------- | ----------- | ---------- |
+${OFFENDING_TABLE}
+
+### TBD note
+${TBD_COUNT} of ${TOTAL} rows in the window have TBD Vercel-logs columns. Add \`VERCEL_TOKEN\` to repo secrets to enable full drift detection on those columns.
+
+### Quick links
+- [Sentry (kickbox-audio)](https://sentry.io/organizations/cyberdad247/issues/?query=tags%5Balert.upstash_degraded%5D%3Atrue%20OR%20tags%5Brate_limit.daily_circuit_breached%5D%3Atrue) — filter by the v1.4.6 / v1.5.0 alert tags
+- [Doppler (kickbox-audio/prd)](https://dashboard.doppler.com/workplace/projects/kickbox-audio/configs/prd) — Upstash + Vercel + Sentry secrets
+- [Burst test runs (GitHub Actions)](https://github.com/${{ github.repository }}/actions/workflows/burst-test.yml) — click into a failing run to see the HTML report
+- [VERIFICATION_LOG.md](../blob/main/docs/VERIFICATION_LOG.md) — full history
+
+### Remediation
+- \`fallback_warnings > 0\`: Upstash is degraded. See PRODUCTION_RUNBOOK §6.8 v1.4.6 alert response procedure.
+- \`Sentry_503s > 0\`: Sentry outage. Check sentry.io status + the project's SENTRY_DSN.
+- \`runner_min > 5\`: Burst-test is taking too long. Check Vercel deploy status + the HTML report artifact on the latest run.
+
+---
+This issue is auto-generated by \`.github/workflows/burst-drift-check.yml\` (v1.5.1). Closed automatically when the drift resolves on the next weekly run. Scan time: ${NOW}.
+EOF
+)
+          else
+            # TBD-only week: drift check is operating blind
+            TITLE="Burst regression drift detection: VERCEL_TOKEN missing"
+            LABEL="drift-unverifiable"
+            EXISTING="$UNVER_EXISTING"
+            BODY=$(cat <<EOF
+## Burst regression drift detection operating blind
+
+All **${TOTAL} rows** in the last 7 days have TBD Vercel-logs columns (\`fallback_warnings=TBD\`, \`Sentry_503s=TBD\`, \`hmac_errors=TBD\`). This means the burst-log workflow cannot scan Vercel logs for the 3 failure signatures, and the drift check is operating blind on 2 of the 3 drift columns.
+
+### Fix
+Add \`VERCEL_TOKEN\` to the repo secrets (one-time, Settings -> Secrets and variables -> Actions). Mint a free Vercel account token at https://vercel.com/account/tokens (scope = the \`pwa\` project, no expiry). The next burst-test run (and the next burst-drift-check on Monday 09:00 UTC) will populate the 3 columns with real values instead of TBD.
+
+### Threshold semantics when VERCEL_TOKEN is unset
+- \`fallback_warnings=TBD\`: not counted as drift (treated as "we don't know")
+- \`Sentry_503s=TBD\`: not counted as drift
+- \`runner_min\`: ALWAYS counted (it comes from the burst-test workflow, not Vercel logs)
+
+If \`runner_min > ${RUNNER_T}\` is observed, the drift check WILL open this issue even with TBD Vercel-logs columns.
+
+### Quick links
+- [VERIFICATION_LOG.md](../blob/main/docs/VERIFICATION_LOG.md) — full history (all TBD)
+- [Doppler (kickbox-audio/prd)](https://dashboard.doppler.com/workplace/projects/kickbox-audio/configs/prd) — secrets
+- [Burst test runs (GitHub Actions)](https://github.com/${{ github.repository }}/actions/workflows/burst-test.yml)
+
+---
+This issue is auto-generated by \`.github/workflows/burst-drift-check.yml\` (v1.5.1). Closed automatically when the drift resolves (e.g. when \`VERCEL_TOKEN\` is added and the TBDs are replaced with real values). Scan time: ${NOW}.
+EOF
+)
+          fi
+
+          if [ -n "$EXISTING" ]; then
+            # Update the existing open issue
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "Updated existing issue #$EXISTING"
+          else
+            # Create a new issue with the case-specific label
+            gh issue create \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --label "$LABEL"
+            echo "Created new issue with label $LABEL"
+          fi
+
+      - name: Auto-close the drift issue when no drift is found
+        if: ${{ steps.detect.outputs.drift_count == 0 && (steps.detect.outputs.tbd_count != steps.detect.outputs.total || steps.detect.outputs.total == 0) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # If an open issue with EITHER the drift-detected OR
+        # drift-unverifiable label exists AND the current run
+        # found no drift AND it wasn't a TBD-only week (which
+        # would have opened/updated the issue above), add a
+        # "resolved" comment and close the issue. Closes BOTH
+        # labels because a previous TBD-only week's issue becomes
+        # stale the moment real values appear (e.g. VERCEL_TOKEN
+        # gets added — the TBD columns become real numbers and
+        # the next week's unverifiable check is moot).
+        run: |
+          set -e
+          NOW=${{ steps.cutoff.outputs.now }}
+          TOTAL=${{ steps.detect.outputs.total }}
+          TBD_COUNT=${{ steps.detect.outputs.tbd_count }}
+          for LABEL in drift-detected drift-unverifiable; do
+            EXISTING=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')
+            if [ -z "$EXISTING" ]; then
+              echo "No open $LABEL issue to close"
+              continue
+            fi
+            gh issue comment "$EXISTING" --body "Drift resolved on next weekly run (${NOW}). No offending rows in the last 7 days (scanned ${TOTAL} rows; ${TBD_COUNT} TBD). Auto-closing this issue."
+            gh issue close "$EXISTING"
+            echo "Closed $LABEL issue #$EXISTING"
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## v1.5.1 weekly drift check summary"
+          echo "- Scanned: ${{ steps.detect.outputs.total }} rows in the last 7 days"
+          echo "- Drift rows: ${{ steps.detect.outputs.drift_count }}"
+          echo "- TBD-only rows: ${{ steps.detect.outputs.tbd_count }}"
+          echo "- Thresholds: fallback_warnings > ${{ steps.detect.outputs.fallback_threshold }} OR Sentry_503s > ${{ steps.detect.outputs.sentry_threshold }} OR runner_min > ${{ steps.detect.outputs.runner_min_threshold }}"
