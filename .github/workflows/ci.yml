@@ -16,14 +16,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        # 2026-06-28 production-readiness: bumped to Node 22 LTS to match
+        # kba-smoke.yml and the engines field in package.json
+        # (Node >=20, but @prisma/client 5.22.0 + transitive deps require
+        # >=22.22.0 per the v1.0.0 CHANGELOG entry). Closes the Node
+        # version drift between ci.yml (20) and kba-smoke.yml (22).
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Generate Prisma client
         run: npm run db:generate
       - name: Lint (Biome)
         run: npm run lint
+      - name: Dependency audit (npm audit --omit=dev)
+        # 2026-06-28 production-readiness: fail CI on production-bundle
+        # vulnerabilities. Dev-only vulnerabilities are ignored to avoid
+        # noise from dev tooling (Biome, Turbo, Vitest) that the project
+        # does not control. Use `npm audit` (without --omit=dev) locally
+        # to see all advisories.
+        run: npm audit --omit=dev --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests (Vitest)

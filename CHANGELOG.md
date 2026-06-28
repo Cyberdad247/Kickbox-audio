@@ -5,6 +5,144 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-28
+
+The v1.1.0 production-readiness hardening release. 18 items across Tier 1
+(release-blocking production gaps) + Tier 2 (defense-in-depth improvements)
+on branch `feat/production-readiness-v1.1.0` (not yet merged to main). Closes
+the pre-existing gaps in licensing, security disclosure, container build hygiene,
+env-var documentation, liveness/readiness probes, structured logging, error
+boundaries, automated accessibility checks, security headers, and dependency
+audit gating.
+
+### Added — Repository Hygiene (Tier 1.1–1.5)
+
+- **`.nvmrc`** — pins Node 22 LTS for local dev consistency (matches `kba-smoke.yml`
+  and the `engines` field in `package.json`).
+- **`LICENSE`** — MIT license, copyright 2026 Cyberdad247. Closes the GitHub
+  "no license detected" warning.
+- **`SECURITY.md`** — vulnerability disclosure policy + supported versions table
+  + security posture summary (HMAC envelopes, rate limiting, secrets handling).
+- **`.dockerignore`** — excludes `node_modules`, `.next`, `dist`, `.env*`, `.git`,
+  `.turbo`, `.vercel`, `coverage`, `e2e` from container builds. Reduces image
+  size + prevents secret leakage.
+- **`.env.example`** — full env-var template documenting `DATABASE_URL`,
+  `WEBHOOK_SECRET`, `ACTION_SECRET`, `PORT`, `HOST`, `ACTION_ID`, `REMOTE_MCP_URL`,
+  `ROUTE_BUDGET_MS`, `LOG_LEVEL`, `ISSUE_RATE_LIMIT_MAX`,
+  `ISSUE_RATE_LIMIT_WINDOW_MS`, `HITL_RATE_LIMIT_MAX`, `HITL_RATE_LIMIT_WINDOW_MS`,
+  `NEXT_PUBLIC_SITE_URL`, and the `ENABLE_*` feature flags.
+
+### Added — Observability (Tier 1.6–1.8)
+
+- **`apps/pwa/src/app/api/health/route.ts`** — Next.js App Router `GET /api/health`
+  endpoint. Returns 200 OK with `{ status, service, timestamp, uptime, version }`.
+  Caching disabled (`Cache-Control: no-store, no-cache, must-revalidate`).
+  Intentionally does NOT check the database (PWA surface, not gateway) — the
+  Bifrost gateway has its own `/health` endpoint with client count.
+- **`apps/bifrost/src/logger.ts`** — Pino structured logger. JSON output to
+  stdout. Level via `LOG_LEVEL` env var (default `info`). Base fields include
+  `service: 'bifrost'`, `version`, `env`. ISO timestamps. Migration path from
+  `console.*` documented inline (`console.log('x')` → `logger.info('x')`,
+  `console.error('y', err)` → `logger.error({ err }, 'y')`).
+- **`apps/pwa/src/components/ErrorBoundary.tsx`** — class component wrapping
+  the PWA subtree. Uses `getDerivedStateFromError` + `componentDidCatch` (the
+  React team has stated error boundaries cannot be implemented as functional
+  components as of React 18). Fallback UI uses Tailwind semantic tokens
+  (obsidian/foreground/muted/font-display) added to `tailwind.config.ts`.
+  Optional `onError` prop for future Sentry integration (v1.2.0 candidate).
+
+### Added — Accessibility (Tier 1.9)
+
+- **`apps/pwa/e2e/axe-smoke.spec.ts`** — axe-core + Playwright a11y smoke test.
+  Scans the home page for WCAG 2.0/2.1 A + AA violations. Fails on any violation.
+  Run via `npm run test:e2e --workspace=@sovereign/pwa`.
+
+### Changed — Security Headers (Tier 1.10)
+
+- **`vercel.json`** — added 6 production security headers applied to all routes:
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY` (replaces the missing `frame-ancestors` in CSP)
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: camera=(), microphone=(self), geolocation=(), interest-cohort=()`
+    (note: `microphone=(self)` allows the Bifrost voice flow)
+  - `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; ... frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
+    (`unsafe-eval` is required for Next.js production builds; can be tightened in v1.2.0)
+
+### Changed — Quality Gates (Tier 1.11–1.13)
+
+- **`biome.json`** — `noExplicitAny` raised from `off` to `warn`. Per AGENTS.md
+  Rule 2, `as any` / `: any` should be avoided; `warn` (not `error`) allows
+  narrow escapes (e.g., the Prisma 5.x `JsArgs` opaque generic in
+  `ledgerValidator.ts`) with a `// biome-ignore` justification.
+- **`.github/workflows/ci.yml`** — Node 20 → 22 LTS (closes the version drift
+  between `ci.yml` and `kba-smoke.yml`); added `npm audit --omit=dev --audit-level=high`
+  step that fails CI on production-bundle vulnerabilities. Dev-only advisories
+  (Biome, Turbo, Vitest) are ignored to avoid noise from tooling the project
+  does not control.
+- **`vitest.config.ts`** — added v8 coverage config (provider + reporter list
+  + includes + excludes). Reports emitted on every `npm run test` (text + HTML
+  + LCOV for CI ingestion). Thresholds NOT enforced yet — deferred to v1.1.1
+  after baseline coverage is measured.
+
+### Changed — Build Pipeline (Tier 1.14)
+
+- **`turbo.json`** — added `bundle-size` task placeholder (depends on `^build`,
+  outputs `bundle-report.json`). The implementation (size budget enforcement)
+  is a v1.2.0 candidate; the task scaffolding is in place so the pipeline
+  config doesn't churn when the budget logic lands.
+
+### Changed — Bifrost Rate Limiter Externalization (Tier 2.17)
+
+- **`apps/bifrost/src/server.ts`** — 3 rate limiters (`issueLimiter`, `hitlLimiter`,
+  `webhookLimiter`) now read `ISSUE_RATE_LIMIT_MAX`, `ISSUE_RATE_LIMIT_WINDOW_MS`,
+  `HITL_RATE_LIMIT_MAX`, `HITL_RATE_LIMIT_WINDOW_MS` env vars with safe defaults
+  matching the prior hardcoded values (30/min for issue, 60/min for HITL/webhook,
+  60s windows). Replaced 9 `console.log`/`console.error` calls with structured
+  `logger.info`/`logger.error` calls preserving the call-site context as
+  structured fields (e.g., `{ err, taskId, action }`).
+
+### Changed — PWA Error Boundary (Tier 2.18)
+
+- **`apps/pwa/src/app/layout.tsx`** — wrapped the app in `<ErrorBoundary>` around
+  `<KoARealmProvider>`. Unexpected render errors in the subtree now surface a
+  fallback UI (heading + message + reload button) instead of crashing the whole PWA.
+
+### Changed — Tailwind Config (Tier 2.15)
+
+- **`apps/pwa/tailwind.config.ts`** — added 5 semantic tokens used by the
+  ErrorBoundary fallback UI: `obsidian: #050507` (matches `themeColor` in
+  `layout.tsx`), `foreground: #FFFFFF`, `background: #000000`, `muted.DEFAULT:
+  #1A1A1F`, `muted.foreground: #A0A0A0`, and `fontFamily.display: [var(--font-source-serif), ...]`.
+
+### Changed — DB Type Safety (Tier 2.16)
+
+- **`packages/db/src/ledgerValidator.ts`** — moved the `// biome-ignore
+  lint/suspicious/noExplicitAny` comment to be directly above the function
+  declaration (was on a continuation line, treated as unused suppression).
+  Rationale unchanged: Prisma 5.x Client Extensions type the query callback's
+  `args` as opaque generic `JsArgs` that structurally has no properties in
+  common with `{ data?: any }`. See the "CI fail-loop closed (7th iteration)"
+  Fixed section in v1.0.0 for the full root-cause analysis.
+
+### Dependencies
+
+- **Added** `pino@^10.3.1` to `apps/bifrost` (production dep for the structured logger)
+- **Added** `@vitest/coverage-v8` at root (dev dep for v8 coverage provider)
+- **Added** `@axe-core/playwright` at root (dev dep for the a11y smoke test)
+
+### Migration notes
+
+- If your local checkout has the old hardcoded rate limit values in
+  `apps/bifrost/src/server.ts`, pull this branch — the env-var defaults
+  match the prior behavior, so no action is required.
+- The new `/api/health` route requires no env var to be set (returns 200 always).
+- The `biome-ignore` on `validateTransactionBatchBalance` in `packages/db` is
+  the only `any` suppression in the codebase; do not remove it without
+  reading the v1.0.0 "CI fail-loop closed" Fixed section.
+- v1.0.0 migration notes (the `scripts/ci/` → `scripts/ops/` rename + the
+  `npm run db:generate` step) still apply.
+
 ## [1.0.0] - 2026-06-28
 
 The v1.0.0 architecture baseline. Closes a 7-iteration CI fail-loop on the

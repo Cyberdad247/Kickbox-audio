@@ -44,10 +44,14 @@ audit-kickbox-audio/
 │   │   ├── src/
 │   │   │   ├── app/
 │   │   │   │   ├── layout.tsx
-│   │   │   │   └── page.tsx
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── api/
+│   │   │   │       └── health/
+│   │   │   │           └── route.ts     # v1.1.0: GET /api/health liveness probe
 │   │   │   ├── components/
 │   │   │   │   ├── Dashboard.tsx
-│   │   │   │   ├── LakishaHUD.tsx        # voice HUD + tap-to-connect autoplay-gate
+│   │   │   │   ├── ErrorBoundary.tsx    # v1.1.0: class error boundary (React 18)
+│   │   │   │   ├── LakishaHUD.tsx       # voice HUD + tap-to-connect autoplay-gate
 │   │   │   │   ├── Sparkline.tsx
 │   │   │   │   ├── 3d/
 │   │   │   │   │   ├── KineticBackground.tsx
@@ -55,13 +59,20 @@ audit-kickbox-audio/
 │   │   │   │   └── hud/
 │   │   │   │       └── LakishaEnclave.tsx
 │   │   │   ├── context/
-│   │   │   │   └── BifrostContext.tsx     # WebRTC state + audio bridge
+│   │   │   │   └── BifrostContext.tsx   # WebRTC state + audio bridge
 │   │   │   └── ...
+│   │   ├── e2e/                # v1.1.0: Playwright + axe-core a11y tests
+│   │   │   ├── axe-smoke.spec.ts        # v1.1.0: WCAG 2.0/2.1 A+AA smoke
+│   │   │   └── tab-swap.spec.ts
 │   │   ├── tailwind.config.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
-│   ├── bifrost/                  # Node.js WebSocket & Express Gateway
-│   └── mcp-query/                # Tailscale remote MCP guard
+│   ├── bifrost/                # Node.js WebSocket & Express Gateway
+│   │   └── src/
+│   │       ├── server.ts                 # v1.1.0: env-externalized rate limiters + pino logger
+│   │       ├── logger.ts                 # v1.1.0: Pino structured logger
+│   │       └── ...
+│   └── mcp-query/              # Tailscale remote MCP guard
 ├── core/                        # monorepo-shared core (Rust/TS)
 ├── packages/                    # monorepo-shared packages
 │   ├── db/                      # Prisma ORM Schema & PostgreSQL Client
@@ -89,9 +100,14 @@ audit-kickbox-audio/
 ├── turbo.json                   # Turborepo pipeline
 ├── biome.json
 ├── vitest.config.ts
-├── vercel.json
+├── vercel.json                  # v1.1.0: 6 security headers added
+├── .nvmrc                       # v1.1.0: Node 22 LTS pin
+├── .dockerignore                # v1.1.0: container build hygiene
+├── .env.example                 # v1.1.0: env-var template
 ├── .gitignore
 ├── .gitattributes
+├── LICENSE                      # v1.1.0: MIT
+├── SECURITY.md                  # v1.1.0: vuln disclosure + posture
 ├── HELIO_PATCH.json             # auto-generated perf audit artifact
 └── AGENTS.md                    # THIS FILE
 ```
