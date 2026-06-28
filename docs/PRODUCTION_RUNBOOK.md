@@ -490,6 +490,50 @@ Frequency: **on personnel change** or every 180 days.
 4. Verify: SELECT 1 from the app (or check the /health WS count > 0)
 ```
 
+### 6.8 Upstash Redis provisioning (v1.4.0)
+
+The `/api/diagnostics/replay-coverage` rate-limit is backed by Upstash
+Redis (free tier: 10K commands/day). Provision once per environment, then
+mirror the env vars on the PWA (Vercel + Doppler).
+
+```text
+1. Sign in to https://console.upstash.com
+2. Create a Redis database:
+     - Name: kickbox-pwa-ratelimit
+     - Region: us-east-1 (matches Vercel default)
+     - TLS: enabled (default)
+3. From the database detail page, copy:
+     - UPSTASH_REDIS_REST_URL   (REST API endpoint, https://*.upstash.io)
+     - UPSTASH_REDIS_REST_TOKEN (the read-write token)
+4. Set both in Doppler:
+     doppler secrets set --project kickbox-audio --config prd \
+       UPSTASH_REDIS_REST_URL=https://<id>.upstash.io \
+       UPSTASH_REDIS_REST_TOKEN=<token>
+   And mirror in Vercel Project Settings > Environment Variables
+   (Production + Preview).
+5. Verify on prod with a 61-request burst:
+     for i in $(seq 1 61); do
+       curl -sS -o /dev/null -w "%{http_code}\n" \
+         -H "Authorization: Bearer $ADMIN_TOKEN" \
+         https://<vercel-domain>/api/diagnostics/replay-coverage?since=24h
+     done
+     # Expected: 60 lines of "200" then 1 line of "429"
+6. If Upstash is unreachable, the route falls back to the in-memory
+   Map (single-instance). The degradation surfaces in Vercel logs as
+   `[rateLimit] Upstash unreachable, falling back to in-memory: ...`.
+   No Sentry capture (the PWA server-side Sentry is not wired for
+   route-level warnings; the ErrorBoundary only catches render errors).
+```
+
+**Cost guardrail:** the daily hard-circuit (1000 req / IP / 24 h) keeps a
+single runaway scrape loop from exhausting the free tier. To bump it,
+edit `DAILY_HARD_CIRCUIT_MAX` in `apps/pwa/src/lib/rateLimit.ts`.
+
+**Token rotation:** Upstash tokens are not auto-rotated. Roll on
+operator offboard via the Upstash console → Database → Tokens → Roll.
+Set the new value in Doppler + Vercel. The helper re-probes env vars
+on the first call after a process restart (no SIGHUP needed).
+
 ---
 
 ## 7. Incident triage
@@ -558,11 +602,14 @@ replaysSessionSampleRate=0.1). Verification drill:
 #         https://<vercel-domain>/api/diagnostics/replay-coverage?since=24h
 #    Expected JSON (200):
 #      { sessionCount: <int>, errorCaptureRate: <float>, p75ReplayBytes: <int> }
-#    Rate-limit contract (v1.3.1): 60 req / IP / 60 s, 429 + Retry-After
-#      header on exceedance. In-memory is single-instance only; for
-#      multi-region accuracy lift to Vercel Edge KV (v1.4.0 ticket).
-#      The limiter is wired AFTER ADMIN_TOKEN auth, so unauth callers
-#      never pollute the rate-limit state.
+#    Rate-limit contract (v1.4.0): 60 req / IP / 60 s sliding window PLUS
+#      1000 req / IP / 24 h daily hard-circuit; 429 + `Retry-After: N` on
+#      exceedance. Backed by Upstash Redis (multi-region accurate; free
+#      tier 10K commands/day). IP is `sha256`-hashed before storage (no
+#      raw PII in a third-party DB). Limiter wired AFTER ADMIN_TOKEN auth,
+#      so unauth callers never pollute the rate-limit state. In-memory
+#      fallback for dev/CI (fail-open + console.warn on Upstash outage).
+#      Provisioning drill in §6.8.
 #
 # 5. Report-bug UI (sanity check):
 #    Click the floating "Report bug" button in the lower-right of the

@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-28
+
+The v1.4.0 multi-region rate-limit lift. Closes the v1.4.0 ticket
+flagged in `THREAT_MODEL` §4 A2 + §5 item 7: the in-memory `Map<ip, number[]>`
+rate-limit introduced in v1.3.1 was per-Vercel-instance only (an attacker
+behind a single NAT could send 60 req/min × N regions). v1.4.0 lifts
+the rate-limit to Upstash Redis so the ceiling is shared across all
+edge regions. All additive — no breaking change for existing
+deployments; in-memory fallback preserved for dev/CI when Upstash
+env vars are unset.
+
+### Added
+
+- **`apps/pwa/src/lib/rateLimit.ts`** (NEW) — extracted rate-limit
+  helper. Backed by `@upstash/ratelimit` + `@upstash/redis`. Chain:
+  `Ratelimit.slidingWindow(60, "60 s")` AND
+  `Ratelimit.fixedWindow(1000, "24 h")` — both must pass. Identifier
+  is `sha256(ip)` (no raw PII stored in the third-party DB). Fail-open
+  fallback to the in-memory sliding-window logic when `UPSTASH_*` env
+  vars are unset OR the Upstash call throws; surfaces a `console.warn`
+  so the operator can see the degradation in Vercel logs. The result
+  includes a `backend: 'upstash' | 'memory'` discriminator for
+  observability. Module-level `cachedEnabled` flag suppresses
+  re-probe noise on the no-Upstash path.
+
+- **`apps/pwa/src/lib/rateLimit.test.ts`** (NEW) — 9 vitest cases
+  covering: in-memory sliding window (60/IP/60s, blocks 61st with
+  `scope: 'minute'`); per-IP isolation; sliding window release
+  (advances 61s of fake time, the next call passes); daily hard-circuit
+  (1000/IP/24h, blocks 1001st with `scope: 'day'`); IP hashing
+  (raw IP never appears in the storage key, hex-64 shape); IP hashing
+  determinism (same input → same hash, different input → different
+  hash); Upstash backend success (`backend: 'upstash'`, `ok: true`);
+  Upstash backend 429-shape (`retryAfterSec` derived from `reset`);
+  Upstash backend throw → fallback to in-memory (`backend: 'memory'`,
+  `console.warn` fires with the error message). Uses `vi.doMock` to
+  isolate the mocked Redis client from real network egress.
+
+- **`apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts`** —
+  refactored to import the new helper. Removed the inline
+  `RATE_LIMIT_MAX_REQS` / `RATE_LIMIT_WINDOW_MS` / `rateLimitLog` /
+  `checkRateLimit` definitions (now in the helper). 429 response gains
+  an additive `scope: 'minute' | 'day' | null` field so the operator
+  can tell whether they hit the sliding window vs the daily circuit
+  (existing `error` + `retryAfterSec` fields unchanged).
+
+- **`apps/pwa/package.json`** — added `@upstash/ratelimit@^2.0.8` and
+  `@upstash/redis@^1.38.0` (HTTP-based REST clients; edge-compatible
+  in either runtime).
+
+- **`.env.example`** — added an `Upstash Redis (v1.4.0, multi-region
+  rate-limit)` block documenting `UPSTASH_REDIS_REST_URL` +
+  `UPSTASH_REDIS_REST_TOKEN`, the free-tier 10K commands/day limit,
+  the fail-open fallback, and the Doppler vault key naming.
+
+- **`docs/PRODUCTION_RUNBOOK.md` §6.8** (NEW) — full Upstash
+  provisioning drill: console sign-in → database creation → Doppler
+  `secrets set` → Vercel env mirror → 61-request burst verification →
+  degradation log signature. Includes the cost-guardrail explanation
+  and the operator-offboard token-rotation procedure.
+
+- **`docs/PRODUCTION_RUNBOOK.md` §10** — updated the rate-limit
+  contract sub-bullet from v1.3.1 (60/IP/60s, in-memory) to v1.4.0
+  (60/IP/60s + 1000/IP/24h, Upstash-backed, sha256 IP, fail-open
+  fallback, §6.8 provisioning reference).
+
+- **`docs/THREAT_MODEL.md` §4 A2** — updated the DoS row's mitigation
+  cell from in-memory to Upstash-Redis-backed, with the daily
+  hard-circuit, sha256 hashing, fail-open fallback, and multi-region
+  accuracy noted.
+
+- **`docs/THREAT_MODEL.md` §5 item 7** — added a `v1.4.0 (DONE,
+  2026-06-28)` sub-bullet to the existing v1.3.1 row documenting
+  the lift: extracted helper location, 60/60s + 1000/24h chain,
+  sha256 IP, in-memory fallback, 9 vitest cases.
+
+### Migration notes
+
+- **No breaking change.** Existing v1.3.1 deployments continue to
+  work — the in-memory path is preserved as the Upstash-unconfigured
+  fallback. The 429 response gains an additive `scope` field; the
+  `error` + `retryAfterSec` fields are unchanged.
+- **Operator action required (one-time, per env).** Provision an
+  Upstash Redis database (free tier) and set `UPSTASH_REDIS_REST_URL`
+  + `UPSTASH_REDIS_REST_TOKEN` in Doppler + Vercel. Without these,
+  the route continues to work via the in-memory fallback (single-
+  instance; rate-limit accuracy is per-Vercel-region only).
+  See `PRODUCTION_RUNBOOK §6.8` for the full drill.
+- **Cost guardrail.** The 1000 req / IP / 24 h daily hard-circuit
+  keeps a single runaway scrape loop from exhausting the Upstash
+  free tier (10K commands/day). To bump it, edit
+  `DAILY_HARD_CIRCUIT_MAX` in `apps/pwa/src/lib/rateLimit.ts`.
+
 ## [1.3.0] - 2026-06-28
 
 The v1.3.0 Tier 4 documentation release. 3 governance-grade docs

@@ -16,41 +16,23 @@
  * Returns 200 with normalized stats: sessionCount, errorCaptureRate,
  * p75ReplayBytes. Returns 503 if SENTRY_AUTH_TOKEN is unset (the operator
  * needs to wire it before relying on this endpoint).
+ *
+ * Rate limit (v1.4.0): 60 req / IP / 60 s sliding-window + 1000 req / IP
+ * / 24 h daily hard-circuit, backed by Upstash Redis (multi-region
+ * accurate). The IP is `sha256`-hashed before storage. In-memory fallback
+ * when UPSTASH_* env vars are unset (dev/CI). The limiter is wired AFTER
+ * `ADMIN_TOKEN` auth, so unauth callers never pollute the rate-limit
+ * state. Full contract: PRODUCTION_RUNBOOK §10.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { checkRateLimit } from '../../../../lib/rateLimit';
 import { getSecret } from '../../../../lib/secrets';
 
 interface SentryReplayStats {
   sessionCount: number;
   errorCaptureRate: number;
   p75ReplayBytes: number;
-}
-
-// v1.3.1 follow-up: in-memory rate limit (60 req/IP/60 s). The endpoint
-// is already admin-gated by ADMIN_TOKEN, but a leaked token in a tight
-// loop would hammer Sentry without bound. Note: in-memory only — for
-// multi-region Vercel instances, lift to Vercel Edge KV (v1.4.0 ticket).
-const RATE_LIMIT_MAX_REQS = 60;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const rateLimitLog = new Map<string, number[]>();
-
-function checkRateLimit(ip: string): { ok: boolean; retryAfterSec: number } {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_WINDOW_MS;
-  const recent = (rateLimitLog.get(ip) ?? []).filter((t) => t > cutoff);
-  if (recent.length >= RATE_LIMIT_MAX_REQS) {
-    const oldestInWindow = recent[0];
-    const retryAfterSec = Math.max(
-      1,
-      Math.ceil((oldestInWindow + RATE_LIMIT_WINDOW_MS - now) / 1000),
-    );
-    rateLimitLog.set(ip, recent);
-    return { ok: false, retryAfterSec };
-  }
-  recent.push(now);
-  rateLimitLog.set(ip, recent);
-  return { ok: true, retryAfterSec: 0 };
 }
 
 export const dynamic = 'force-dynamic';
@@ -65,10 +47,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
     req.headers.get('x-real-ip') ??
     'unknown';
-  const rl = checkRateLimit(ip);
+  const rl = await checkRateLimit(ip);
   if (!rl.ok) {
     return NextResponse.json(
-      { error: 'RATE_LIMIT_EXCEEDED', retryAfterSec: rl.retryAfterSec },
+      { error: 'RATE_LIMIT_EXCEEDED', retryAfterSec: rl.retryAfterSec, scope: rl.scope },
       { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
     );
   }
