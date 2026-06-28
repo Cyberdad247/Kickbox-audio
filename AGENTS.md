@@ -44,10 +44,14 @@ audit-kickbox-audio/
 │   │   ├── src/
 │   │   │   ├── app/
 │   │   │   │   ├── layout.tsx
-│   │   │   │   └── page.tsx
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── api/
+│   │   │   │       └── health/
+│   │   │   │           └── route.ts     # v1.1.0: GET /api/health liveness probe
 │   │   │   ├── components/
 │   │   │   │   ├── Dashboard.tsx
-│   │   │   │   ├── LakishaHUD.tsx        # voice HUD + tap-to-connect autoplay-gate
+│   │   │   │   ├── ErrorBoundary.tsx    # v1.1.0: class error boundary (React 18); v1.2.0: Sentry hook
+│   │   │   │   ├── LakishaHUD.tsx       # voice HUD + tap-to-connect autoplay-gate
 │   │   │   │   ├── Sparkline.tsx
 │   │   │   │   ├── 3d/
 │   │   │   │   │   ├── KineticBackground.tsx
@@ -55,13 +59,33 @@ audit-kickbox-audio/
 │   │   │   │   └── hud/
 │   │   │   │       └── LakishaEnclave.tsx
 │   │   │   ├── context/
-│   │   │   │   └── BifrostContext.tsx     # WebRTC state + audio bridge
+│   │   │   │   └── BifrostContext.tsx   # WebRTC state + audio bridge
+│   │   │   ├── instrumentation.ts       # v1.2.0 T3.3: PWA OTel browser tracing init
 │   │   │   └── ...
+│   │   ├── e2e/                # v1.1.0: Playwright + axe-core a11y tests
+│   │   │   ├── axe-smoke.spec.ts        # v1.1.0: WCAG 2.0/2.1 A+AA smoke; v1.1.1: deterministic wait
+│   │   │   └── tab-swap.spec.ts
+│   │   ├── sentry.client.config.ts      # v1.2.0 T3.2: PWA Sentry browser init
+│   │   ├── sentry.server.config.ts      # v1.2.0 T3.2: PWA Sentry server init
 │   │   ├── tailwind.config.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
-│   ├── bifrost/                  # Node.js WebSocket & Express Gateway
-│   └── mcp-query/                # Tailscale remote MCP guard
+│   ├── bifrost/                # Node.js WebSocket & Express Gateway
+│   │   └── src/
+│   │       ├── server.ts                 # v1.1.0: env-externalized rate limiters + pino logger; v1.2.0: Sentry + OTel + RBAC + secrets
+│   │       ├── logger.ts                 # v1.1.0: Pino structured logger; v1.1.1: 16 redact paths
+│   │       ├── auth.ts                   # v1.2.0 T3.6: RBAC middleware (JWT HS256)
+│   │       ├── auth.test.ts              # v1.2.0 T3.6: 9 RBAC vitest cases
+│   │       ├── secrets.ts                # v1.2.0 T3.4: Doppler vault wrapper with env fallback
+│   │       ├── sentry.ts                 # v1.2.0 T3.2: Bifrost Sentry init (lazy SDK)
+│   │       ├── telemetry.ts              # v1.2.0 T3.3: Bifrost OTel SDK init
+│   │       └── ...
+│   └── mcp-query/              # Tailscale remote MCP guard
+│       └── src/
+│           ├── server.ts                 # v1.2.0 T3.5: HTTPS wrap via mtls.ts
+│           ├── mtls.ts                   # v1.2.0 T3.5: mTLS termination (HTTPS server with cert validation)
+│           ├── query.ts
+│           └── ...
 ├── core/                        # monorepo-shared core (Rust/TS)
 ├── packages/                    # monorepo-shared packages
 │   ├── db/                      # Prisma ORM Schema & PostgreSQL Client
@@ -69,8 +93,10 @@ audit-kickbox-audio/
 ├── scripts/
 │   ├── ops/                     # operational / laptop scripts (formerly scripts/ci/)
 │   │   ├── apply-branch-protection.sh
+│   │   ├── bundle-size.mjs               # v1.2.0 T3.1: bundle-size budget enforcement
 │   │   ├── check-helio-dry.sh
 │   │   ├── fixture-hitl.mjs
+│   │   ├── generate-mtls-certs.sh        # v1.2.0 T3.5: openssl CA + server + client cert gen
 │   │   ├── live-anya-probe.mjs
 │   │   ├── protect-branch.json
 │   │   ├── secrets-audit.mjs
@@ -86,12 +112,17 @@ audit-kickbox-audio/
 │   └── verification.md          # signed-off iron gates
 ├── node_modules/                # monorepo deps
 ├── package.json                 # workspace root
-├── turbo.json                   # Turborepo pipeline
+├── turbo.json                   # Turborepo pipeline; v1.2.0: bundle-size task added back
 ├── biome.json
 ├── vitest.config.ts
-├── vercel.json
+├── vercel.json                  # v1.1.0: 6 security headers added
+├── .nvmrc                       # v1.1.0: Node 22 LTS pin
+├── .dockerignore                # v1.1.0: container build hygiene
+├── .env.example                 # v1.1.0: env-var template; v1.2.0: 12 new Tier 3 vars
 ├── .gitignore
 ├── .gitattributes
+├── LICENSE                      # v1.1.0: MIT
+├── SECURITY.md                  # v1.1.0: vuln disclosure + posture
 ├── HELIO_PATCH.json             # auto-generated perf audit artifact
 └── AGENTS.md                    # THIS FILE
 ```

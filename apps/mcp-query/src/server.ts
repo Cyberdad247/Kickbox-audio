@@ -4,6 +4,7 @@
 
 import http from 'node:http';
 import { answerQuery } from './query';
+import { createSecureServer, loadTlsConfig } from './mtls';
 
 const PORT = Number(process.env.PORT) || 7800;
 const MULTIVOICE_URL = process.env.MULTIVOICE_URL;
@@ -63,7 +64,10 @@ export async function handleRpc(body: RpcRequest): Promise<object> {
   }
 }
 
-export const server = http.createServer((req, res) => {
+// v1.2.0 T3.5: wrap the HTTP handler in HTTPS if MTLS_ENABLED=true.
+const tlsConfig = loadTlsConfig();
+
+function requestListener(req: http.IncomingMessage, res: http.ServerResponse): void {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(
@@ -104,13 +108,21 @@ export const server = http.createServer((req, res) => {
       res.end(JSON.stringify(rpcError(body?.id ?? null, -32603, (err as Error).message)));
     }
   });
-});
+}
+
+// v1.2.0 T3.5: create the server (HTTP or HTTPS depending on MTLS_ENABLED).
+// Hold the full createSecureServer result so we can read `protocol` from
+// the boot log without a throwaway `_server` rename — the underscore-
+// prefixed alias was a needless indirection that the code-reviewer
+// flagged in the v1.2.0 final pass.
+const secure = createSecureServer(requestListener, tlsConfig);
+export const server = secure.server;
 
 // Bind all interfaces so the Tailscale IP is reachable.
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
-      `mcp-query server on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'})`,
+      `mcp-query server (${secure.protocol}) on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'}, mtls=${tlsConfig.enabled ? 'on' : 'off'})`,
     );
   });
 }

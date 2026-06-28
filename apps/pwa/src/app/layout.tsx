@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Source_Serif_4 } from 'next/font/google';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { KoARealmProvider } from '../context/KoARealmProvider';
 import '../styles/globals.css';
 
@@ -57,8 +58,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${serif.variable}`}>
-      <body>
-        <KoARealmProvider>{children}</KoARealmProvider>
+      <body data-testid="app-ready">
+        {/* 2026-06-28 production-readiness: wrap the app in an ErrorBoundary
+            so unexpected render errors surface a fallback UI instead of
+            crashing the whole PWA. See apps/pwa/src/components/ErrorBoundary.tsx
+            for rationale (React has no hook equivalent for
+            getDerivedStateFromError / componentDidCatch as of React 18). */}
+        <ErrorBoundary>
+          <KoARealmProvider>{children}</KoARealmProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

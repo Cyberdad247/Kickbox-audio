@@ -36,10 +36,24 @@ const config: Config = {
         kinetic: {
           500: '#9D4EDD',
         },
+        // 2026-06-28 production-readiness: semantic tokens used by
+        // ErrorBoundary.tsx fallback UI. obsidian matches themeColor
+        // #050507 in layout.tsx. Keep these in sync if the brand
+        // surface changes.
+        obsidian: '#050507',
+        foreground: '#FFFFFF',
+        background: '#000000',
+        muted: {
+          DEFAULT: '#1A1A1F',
+          foreground: '#A0A0A0',
+        },
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
         serif: ['var(--font-source-serif)', 'Source Serif 4', 'Georgia', 'serif'],
+        // 2026-06-28 production-readiness: display family used by
+        // ErrorBoundary.tsx fallback UI heading.
+        display: ['var(--font-source-serif)', 'Source Serif 4', 'Georgia', 'serif'],
       },
       boxShadow: {
         kinetic: '0 0 12px rgba(157, 78, 221, 0.9)',
