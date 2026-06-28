@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-28
+
+The v1.3.0 Tier 4 documentation release. 3 governance-grade docs
+codifying the production posture built up across v1.1.0 / v1.1.1 /
+v1.2.0. No code or runtime changes — only operator-facing artifacts.
+
+### Added — Tier 4 production-readiness docs (3 items)
+
+- **`docs/PRODUCTION_RUNBOOK.md`** — operators' playbook covering
+  topology (3 services + DB + edge), env-var matrix per surface,
+  cold-start deploy (mTLS cert generation, Doppler vault bootstrap,
+  Vercel + Tailscale deploy, smoke checks), routine deploy workflow,
+  rollback (Vercel instant rollback, Tailscale git-pin, DB
+  forward-fix), secret rotation (HMAC / JWT / mTLS / DB password on
+  90-day / 180-day cadences), incident triage (SEV-1–4 ladder +
+  first-responder checklist + common failure modes), observability
+  dashboards, backup + DR, and a top-12 common operational commands
+  one-liner. Sets the on-call join-the-doc baseline.
+- **`docs/THREAT_MODEL.md`** — STRIDE-style threat model covering 9
+  assets (Bifrost, PWA, mcp-query, Doppler vault, Managed PG,
+  Sentry/OTel observability, mTLS cert bundle, Vercel edge, CI
+  runners) with explicit trust-boundary diagram, severity-tagged
+  mitigations, residual risk table, and a prioritized mitigation
+  backlog (6 items; 2 target v1.3.0, 2 target v1.4.0). Quarterly
+  review cadence defined.
+- **`docs/SLO_BUDGETS.md`** — 10 user-facing SLOs (SLO-1 through
+  SLO-10) + latency budgets per route (p75/p95/p99 + driver tag) +
+  multi-window error-budget policy (Google SRE workbook style) +
+  burn-rate alerts (fast / slow / budgeted-out / latency breach) +
+  per-route SLAs (PWA / Bifrost / mcp-query) + alert wiring recipes
+  (Sentry + OTel Honeycomb/Datadog + Vercel Analytics) + monthly +
+  quarterly review cadence.
+
+### Changed
+
+- **`AGENTS.md`** — Repository Layout code block expanded to list
+  the 3 new docs with v1.3.0-versioned notes.
+
+### Migration notes
+
+- No runtime changes. Operators should read `PRODUCTION_RUNBOOK.md`
+  before their first on-call shift. Security reviewers should treat
+  `THREAT_MODEL.md` as the canonical source when reviewing new
+  trust-boundary introductions. SRE / dashboard owners should
+  implement the burn-rate alerts in §6 of `SLO_BUDGETS.md`.
+
 ## [1.2.0] - 2026-06-28
 
 The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget

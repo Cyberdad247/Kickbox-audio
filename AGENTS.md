@@ -109,7 +109,10 @@ audit-kickbox-audio/
 │   ├── blueprint.md             # system logic
 │   ├── design.md                # aesthetic law
 │   ├── task.md                  # PHASE 1–4 execution DAG
-│   └── verification.md          # signed-off iron gates
+│   ├── verification.md          # signed-off iron gates
+│   ├── PRODUCTION_RUNBOOK.md    # v1.3.0 Tier 4: operators' playbook (deploy / rollback / SEV response / secret rotation)
+│   ├── THREAT_MODEL.md          # v1.3.0 Tier 4: STRIDE threat model (9 assets, trust boundaries, mitigations, residuals)
+│   └── SLO_BUDGETS.md           # v1.3.0 Tier 4: 10 SLOs + per-route latency budgets + error budget + burn-rate alerts
 ├── node_modules/                # monorepo deps
 ├── package.json                 # workspace root
 ├── turbo.json                   # Turborepo pipeline; v1.2.0: bundle-size task added back
