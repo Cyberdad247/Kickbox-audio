@@ -1,11 +1,14 @@
 /**
- * v1.4.0: unit tests for the distributed rate-limit helper.
+ * v1.4.0 + v1.4.3: unit tests for the distributed rate-limit helper.
  *
  * Covers:
  *   - In-memory sliding window (60/IP/60s)
  *   - In-memory daily hard-circuit (1000/IP/24h) via fake timers
  *   - Per-IP isolation
- *   - IP hashing (raw IP never stored)
+ *   - IP HMAC-hashing (v1.4.3: HMAC-SHA256 not plain sha256) — raw IP
+ *     never stored; output is 64-char hex; deterministic with the same
+ *     secret; different inputs produce different outputs
+ *   - HMAC fail-closed (v1.4.3): throws if RATE_LIMIT_HMAC_SECRET unset
  *   - Upstash backend: success → ok=true, backend='upstash'
  *   - Upstash backend: 429 → ok=false with retryAfterSec computed from reset
  *   - Upstash backend: throw → fallback to in-memory (console.warn)
@@ -13,19 +16,34 @@
  * Mocks use `vi.doMock` to avoid hoisting; the @upstash/ratelimit v2 mock
  * must include the static `slidingWindow` / `fixedWindow` methods (used by
  * the helper's `getLimiters()` to construct the per-algorithm instances).
+ *
+ * IMPORTANT (v1.4.3): any new describe block that calls `checkRateLimit`
+ * MUST set `process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET` in its
+ * `beforeEach` — the helper throws if the env var is unset (fail-closed).
+ * Both existing describes already do this; add it to any future block.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- In-memory tests (no Upstash env) ---------------------------------------
 
+const TEST_HMAC_SECRET = 'test-hmac-secret-do-not-use-in-prod-32-chars-min';
+
 describe('rateLimit (in-memory fallback)', () => {
   beforeEach(() => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET;
     vi.resetModules();
     vi.unmock('@upstash/ratelimit');
     vi.unmock('@upstash/redis');
+  });
+  // v1.4.3: defensive afterEach to re-set the HMAC env var after the
+  // "throws if RATE_LIMIT_HMAC_SECRET is unset" test deletes it. Without
+  // this, the Upstash describe's beforeEach (which didn't originally
+  // set the HMAC env var) would inherit the unset state and fail.
+  afterEach(() => {
+    process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET;
   });
 
   it('allows 60 calls in 60s and blocks the 61st with scope="minute"', async () => {
@@ -124,6 +142,16 @@ describe('rateLimit (in-memory fallback)', () => {
     expect(h1).toBe(h2);
     expect(h1).not.toBe(h3);
   });
+
+  it('throws if RATE_LIMIT_HMAC_SECRET is unset (fail-closed, v1.4.3)', async () => {
+    delete process.env.RATE_LIMIT_HMAC_SECRET;
+    vi.resetModules();
+    const { checkRateLimit, __test } = await import('./rateLimit');
+    // Direct getHmacSecret throw (no env read) — sharpest assertion.
+    expect(() => __test.getHmacSecret()).toThrow(/RATE_LIMIT_HMAC_SECRET/);
+    // Also confirm the public surface throws (caller-facing behavior).
+    await expect(checkRateLimit('1.1.1.1')).rejects.toThrow(/RATE_LIMIT_HMAC_SECRET/);
+  });
 });
 
 // --- Upstash backend (mocked) ----------------------------------------------
@@ -132,11 +160,17 @@ describe('rateLimit (Upstash backend)', () => {
   beforeEach(() => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
     process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    // v1.4.3: the helper requires RATE_LIMIT_HMAC_SECRET for every
+    // checkRateLimit() call (even when Upstash is wired). Set it here
+    // so the 4 Upstash tests don't inherit the unset state from the
+    // in-memory "throws" test (which deletes the env var in its body).
+    process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET;
     vi.resetModules();
   });
   afterEach(() => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.RATE_LIMIT_HMAC_SECRET;
     vi.resetModules();
     vi.unmock('@upstash/ratelimit');
     vi.unmock('@upstash/redis');

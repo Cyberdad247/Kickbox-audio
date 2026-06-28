@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-06-28
+
+The v1.4.3 unlinkable IP hashing hardening. Closes the v1.4.0
+code-reviewer B ⚠️ minor (plain `sha256(ip)` was rainbow-table-trivial
+for the IPv4 space — anyone with the hash could brute-force the raw
+IP in microseconds because the IPv4 space is only ~2^32). v1.4.3
+switches to `HMAC-SHA256(ip, RATE_LIMIT_HMAC_SECRET)` so the hash is
+unlinkable without the secret (same posture as the IdP private key in
+§RBAC RS256).
+
+### Changed
+
+- **`apps/pwa/src/lib/rateLimit.ts`** — replaced
+  `createHash('sha256').update(ip).digest('hex')` with
+  `createHmac('sha256', secret).update(ip).digest('hex')` where the
+  secret is read from `process.env.RATE_LIMIT_HMAC_SECRET` (cached
+  on first call via a module-level `cachedHmacSecret` + `hmacSecretProbed`
+  tri-state to avoid re-reading the env var on every request). Added a
+  `getHmacSecret()` helper that throws a clear error (names the env
+  var, the Doppler vault key, the Vercel scope, the provisioning drill
+  reference, and the `openssl rand -hex 32` generation command) if the
+  secret is unset. Fail-closed by design: the helper does NOT fall
+  back to plain sha256 (loses unlinkability) or to a hardcoded dev
+  secret (brute-forceable from the source). The 1-line top docstring
+  was rewritten to document the v1.4.3 semantics + the fail-closed
+  rationale.
+
+- **`apps/pwa/src/lib/rateLimit.test.ts`** — added a new in-memory
+  test: `throws if RATE_LIMIT_HMAC_SECRET is unset (fail-closed,
+  v1.4.3)`. Asserts both `__test.getHmacSecret()` throws
+  (`/RATE_LIMIT_HMAC_SECRET/`) AND `checkRateLimit(ip)` rejects
+  (caller-facing behavior). The in-memory `beforeEach` now sets
+  `RATE_LIMIT_HMAC_SECRET = 'test-hmac-secret-do-not-use-in-prod-...'`
+  so the other 9 in-memory cases work unchanged. The hash-shape
+  assertion (`/^[a-f0-9]{64}$/`) still holds because HMAC-SHA256 hex
+  is also 64 chars; the determinism test still holds because HMAC
+  with the same key is deterministic.
+
+- **`apps/pwa/src/lib/rateLimit.test.ts`** — top docstring updated
+  to mention the v1.4.3 HMAC change + the new "throws if unset" test.
+
+- **`.env.example`** — new "Rate-limit HMAC secret (v1.4.3, unlinkable
+  IP hashing)" block documenting `RATE_LIMIT_HMAC_SECRET`, the
+  Doppler vault key (`pwa/rate-limit-hmac-secret`), the generation
+  command (`openssl rand -hex 32`), the fail-closed behavior, and
+  the rotation cadence (180 days, or on suspected compromise — note
+  that rotation invalidates all existing rate-limit counters since
+  the HMAC output IS the Redis key).
+
+- **`docs/THREAT_MODEL.md` §4 A2** — DoS row mitigation cell updated
+  from "IP is `sha256`-hashed before storage" to "IP is
+  `HMAC-SHA256`-hashed with a vault-stored key
+  (`RATE_LIMIT_HMAC_SECRET`) before storage — unlinkable, not just
+  string-scrubbed (v1.4.3)".
+
+- **`docs/THREAT_MODEL.md` §5 item 7** — added a `v1.4.3 (DONE,
+  2026-06-28)` sub-bullet to the existing v1.4.0 row documenting
+  the HMAC switch, the fail-closed behavior, the new env var, the
+  new test, and the closed code-reviewer B ⚠️ minor.
+
+- **`docs/PRODUCTION_RUNBOOK.md` §6.8** — new "HMAC secret (v1.4.3,
+  unlinkable IP hashing)" sub-bullet with the full provisioning drill
+  (generate + Doppler + Vercel + verify), the rotation cadence (180
+  days), the rotation impact note (invalidates all existing
+  rate-limit counters), and the tier-1 secret posture (same as the
+  RS256 private key in §6.2).
+
+### Migration notes
+
+- **Breaking change for deployments that haven't set
+  `RATE_LIMIT_HMAC_SECRET` yet.** The route's `checkRateLimit(ip)` call
+  will THROW if the env var is unset, and the route returns 500 (no
+  graceful degradation). This is deliberate — the v1.4.0 code-reviewer
+  flagged plain sha256 as insufficient, and the only safe upgrade path
+  is to require the HMAC key in all environments. The error message
+  names the env var + Doppler vault key + provisioning drill so the
+  fix is a 5-minute copy-paste.
+
+- **Operator action required (one-time per env):** generate the
+  secret with `openssl rand -hex 32`, set it in Doppler (vault key
+  `pwa/rate-limit-hmac-secret`, prd config), and mirror to Vercel
+  (Production + Preview). See `PRODUCTION_RUNBOOK §6.8` for the
+  full drill.
+
+- **What about existing rate-limit state?** The HMAC output IS the
+  Redis key. Changing the secret changes every key, so all existing
+  counters become orphaned (Upstash naturally expires them via TTL
+  on the rate-limit library's sliding-window cleanup). In practice,
+  this is a non-issue for a low-traffic admin-gated endpoint (the
+  burst test's RFC 5737 IPs are already random per run, so a secret
+  rotation is indistinguishable from natural expiration). If you
+  rotate mid-burst, the new IP's window starts fresh — same as
+  before.
+
 ## [1.4.2] - 2026-06-28
 
 The v1.4.2 fail-fast probe. Closes the v1.4.1 code-reviewer F ⚠️ minor

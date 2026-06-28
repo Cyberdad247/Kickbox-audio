@@ -1,22 +1,34 @@
 /**
- * v1.4.0: distributed rate-limit (Upstash-backed sliding window + daily
- * hard-circuit) with in-memory fallback when UPSTASH_* env vars are unset.
+ * v1.4.0 + v1.4.3: distributed rate-limit (Upstash-backed sliding window
+ * + daily hard-circuit) with in-memory fallback when UPSTASH_* env vars
+ * are unset; unlinkable IP hashing via HMAC-SHA256 with a vault-stored
+ * key.
  *
  * v1.3.1 used an in-memory `Map<ip, number[]>` in the route file; v1.4.0
  * lifts to Upstash Redis so the 60 req / IP / 60 s ceiling is shared across
  * all Vercel edge regions (closes the v1.4.0 ticket in THREAT_MODEL §4 A2
  * + §5 item 7).
  *
- * Identifier: `sha256(ip)`. Hashing the IP prevents storing raw network PII
- * in a third-party managed DB. The dev fallback (in-memory Map) also uses
- * the hashed IP for consistency.
+ * Identifier (v1.4.3): `HMAC-SHA256(ip, RATE_LIMIT_HMAC_SECRET)`. HMAC is
+ * unlinkable — without the secret, the hash cannot be reversed even by a
+ * rainbow table (the IPv4 space is ~2^32 and brute-forcing a HMAC key
+ * requires the secret). Plain `sha256(ip)` was vulnerable to rainbow-table
+ * attacks (closes the v1.4.0 code-reviewer B ⚠️ minor). The HMAC key is
+ * stored in Doppler (vault key `pwa/rate-limit-hmac-secret`) + Vercel env.
  *
- * Fail-open: when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are
- * unset OR the Upstash call throws, the helper falls back to the in-memory
- * sliding-window logic (single-instance only). This mirrors the existing
- * pattern in `apps/pwa/src/lib/secrets.ts` (Doppler → env → throw) and
- * `apps/bifrost/src/sentry.ts` (no-op when DSN unset). A `console.warn`
- * surfaces the degradation so the operator can investigate.
+ * Fail-open (Upstash only): when `UPSTASH_REDIS_REST_URL` /
+ * `UPSTASH_REDIS_REST_TOKEN` are unset OR the Upstash call throws, the
+ * helper falls back to the in-memory sliding-window logic (single-
+ * instance only). A `console.warn` surfaces the degradation. Mirrors
+ * the existing pattern in `apps/pwa/src/lib/secrets.ts` (Doppler → env
+ * → throw) and `apps/bifrost/src/sentry.ts` (no-op when DSN unset).
+ *
+ * Fail-closed (HMAC, v1.4.3): if `RATE_LIMIT_HMAC_SECRET` is unset, the
+ * helper THROWS on first use. We deliberately do NOT fall back to plain
+ * `sha256(ip)` (loses unlinkability) or to a hardcoded dev secret
+ * (brute-forceable from the source). The route propagates the throw as
+ * a 500; the operator sees the clear error in Vercel logs and must set
+ * the env var. See PRODUCTION_RUNBOOK §6.8 for the provisioning drill.
  *
  * Implementation note: @upstash/ratelimit v2 removed the `Ratelimit.chain`
  * helper. We use two separate `Ratelimit` instances (one per algorithm)
@@ -26,7 +38,7 @@
  * exhausted.
  */
 
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
@@ -55,6 +67,15 @@ let cachedLimiters: UpstashLimiters | null = null;
 // `null` = not yet probed. `false` = env vars confirmed unset, skip the
 // env-var lookup on every subsequent call. `true` = Upstash is wired.
 let cachedEnabled: boolean | null = null;
+
+// HMAC secret cache (v1.4.3). `null` could mean "not yet probed" OR
+// "probed and unset"; `hmacSecretProbed` disambiguates. The secret is
+// read once on first call and cached; subsequent calls skip the env
+// var lookup. If the secret is unset, getHmacSecret() throws on every
+// call (the error message names the env var + Doppler vault key +
+// provisioning drill so the operator can fix it).
+let cachedHmacSecret: string | null = null;
+let hmacSecretProbed = false;
 
 function getLimiters(): UpstashLimiters | null {
   if (cachedEnabled === false) return null;
@@ -119,8 +140,45 @@ function checkMemory(
   return { ok: true, retryAfterSec: 0, scope: null };
 }
 
+/**
+ * v1.4.3: HMAC-SHA256 the IP with the vault-stored secret. The output is
+ * unlinkable (cannot be reversed to the raw IP without the secret). Throws
+ * if `RATE_LIMIT_HMAC_SECRET` is unset (fail-closed) — see the file
+ * docstring for the rationale.
+ */
+function getHmacSecret(): string {
+  if (hmacSecretProbed) {
+    if (cachedHmacSecret) return cachedHmacSecret;
+    throw new Error(
+      'RATE_LIMIT_HMAC_SECRET is not set. The rate-limit helper requires ' +
+      'this env var to HMAC IP addresses before storing them in Upstash ' +
+      '(or the in-memory fallback). Without it, the IP would be stored ' +
+      'in plaintext, defeating the unlinkability posture. Set the env ' +
+      'var in Vercel (Production + Preview); Doppler vault key is ' +
+      'pwa/rate-limit-hmac-secret (prd config). See PRODUCTION_RUNBOOK ' +
+      '§6.8 for the provisioning drill. Generate with: openssl rand -hex 32',
+    );
+  }
+  hmacSecretProbed = true;
+  const secret = process.env.RATE_LIMIT_HMAC_SECRET;
+  if (!secret) {
+    throw new Error(
+      'RATE_LIMIT_HMAC_SECRET is not set. The rate-limit helper requires ' +
+      'this env var to HMAC IP addresses before storing them in Upstash ' +
+      '(or the in-memory fallback). Without it, the IP would be stored ' +
+      'in plaintext, defeating the unlinkability posture. Set the env ' +
+      'var in Vercel (Production + Preview); Doppler vault key is ' +
+      'pwa/rate-limit-hmac-secret (prd config). See PRODUCTION_RUNBOOK ' +
+      '§6.8 for the provisioning drill. Generate with: openssl rand -hex 32',
+    );
+  }
+  cachedHmacSecret = secret;
+  return secret;
+}
+
 function hashIp(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex');
+  const secret = getHmacSecret();
+  return createHmac('sha256', secret).update(ip).digest('hex');
 }
 
 export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
@@ -158,6 +216,7 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
 // Test exports (not part of the public API).
 export const __test = {
   checkMemory,
+  getHmacSecret,
   getLimiters,
   hashIp,
   memoryMinuteLog,

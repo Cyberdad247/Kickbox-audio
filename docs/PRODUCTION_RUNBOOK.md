@@ -553,6 +553,32 @@ status sequence, and the 2 main tests are skipped. This catches the
 letting it surface as a confusing `expected 60 pass, got 61` test
 failure.
 
+**HMAC secret (v1.4.3, unlinkable IP hashing):** the rate-limit helper
+HMAC-SHA256s the IP with `RATE_LIMIT_HMAC_SECRET` before storage (plain
+`sha256(ip)` was rainbow-table-trivial for the IPv4 space). Provision
+the secret:
+
+```text
+1. Generate the secret:
+     openssl rand -hex 32
+2. Doppler dashboard → kickbox-audio/prd → Add Secret:
+     pwa/rate-limit-hmac-secret  ← contents of openssl output
+3. Vercel Project Settings → Environment Variables:
+     RATE_LIMIT_HMAC_TOKEN  (Production + Preview)
+   OR mirror the Doppler value through the Vercel ↔ Doppler integration.
+4. Verify on prod: hit the replay-coverage endpoint and check Vercel
+   logs for zero `[rateLimit] RATE_LIMIT_HMAC_SECRET is not set` errors.
+```
+
+**Rotation cadence:** every 180 days, or on suspected compromise.
+**Note:** rotating the HMAC key changes every existing rate-limit
+counter (because the HMAC output is the Redis key). After rotation,
+all IPs get a fresh 60/60s budget — acceptable for a low-traffic
+admin-gated endpoint. Treat the secret as tier-1 (same posture as
+the RS256 private key in §6.2). The helper is fail-closed: if the
+env var is unset, `checkRateLimit` throws and the route returns 500
+(operator sees the clear error in Vercel logs).
+
 ---
 
 ## 7. Incident triage
