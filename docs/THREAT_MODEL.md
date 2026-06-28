@@ -209,7 +209,7 @@ Items not yet implemented, sorted by severity × effort.
 | 4 | A5    | 30-day PG audit-log retention (instead of 7-day default)         | M        | 1 h    | v1.4.0   |
 | 5 | A5    | DPIA per PII field; current state: no PII fields                 | L        | 0.5 d  | v1.4.0   |
 | 6 | A1    | Sweep `apps/bifrost/src/state.ts` `snapshot()` PII fields quarterly | M        | 0.5 d  | ongoing  |
-| 7 | A2    | **v1.3.1 (DONE, 2026-06-28):** `apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts` now rate-limits at 60 req / IP / 60 s (in-memory sliding-window; 429 + `Retry-After: N` header). Closes the standing F ⚠️ minor from the v1.3.0 code-review (replay-coverage rate-limit gap). Multi-region accuracy lift to Vercel Edge KV is a v1.4.0 ticket. | M | 0.5 d | done |
+| 7 | A2    | **v1.3.1 (DONE, 2026-06-28):** `apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts` now rate-limits at 60 req / IP / 60 s (in-memory sliding-window; 429 + `Retry-After: N` header). Closes the standing F ⚠️ minor from the v1.3.0 code-review (replay-coverage rate-limit gap). Multi-region accuracy lift to Vercel Edge KV is a v1.4.0 ticket. | — | — | — |
 
 ---
 
