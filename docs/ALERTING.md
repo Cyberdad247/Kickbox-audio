@@ -1,21 +1,29 @@
-# Alerting — Real-time prod observability (v1.4.6)
+# Alerting — Real-time prod observability (v1.4.6 + v1.5.0)
 
-> **Scope**: Real-time prod detection of the rateLimit helper's
-> Upstash-unreachable fallback. Catches the same failure mode as the
-> v1.4.2 CI probe, but in real-time prod (within seconds-to-minutes
-> instead of nightly).
+> **Scope**: Real-time prod detection of two failure modes in the
+> `rateLimit` helper (`apps/pwa/src/lib/rateLimit.ts`):
 >
-> **The failure mode**: when Upstash Redis is unreachable, the
-> rateLimit helper logs `[rateLimit] Upstash unreachable, falling
-> back to in-memory:` and serves from a per-Vercel-instance
-> `Map<ip, number[]>` instead. The rate-limit ceiling (60 req / IP /
-> 60s) is no longer shared across edge regions. Attackers behind a
-> single NAT can effectively bypass the rate-limit by spreading
-> requests across regions. This is the v1.4.0 failure mode we're
-> defending against.
+> 1. **Upstash-unreachable fallback (v1.4.6)** — when Upstash Redis
+>    is unreachable, the helper falls back to per-Vercel-instance
+>    in-memory state. The 60 req / IP / 60 s ceiling is no longer
+>    shared across edge regions; attackers behind a single NAT can
+>    spread requests across regions and bypass the limit. Catches the
+>    same failure mode as the v1.4.2 CI probe, but in real-time prod
+>    (within seconds-to-minutes instead of nightly).
 >
-> **Closes**: THREAT_MODEL §4 A2 observability gap (the rate-limit
-> is wired, but a fallback to in-memory is silent without an alert).
+> 2. **Per-IP daily hard-circuit breach (v1.5.0)** — when an IP hits
+>    the 1000 req / 24 h ceiling (a deliberate cost guardrail for the
+>    Upstash free tier of 10K commands/day), the helper returns 429
+>    with `scope: 'day'`. Previously the 429 was silent — no real-time
+>    operator signal. v1.5.0 fires a Sentry event so the operator can
+>    decide whether to bump `DAILY_HARD_CIRCUIT_MAX` (legitimate
+>    client) or block (misbehaving scraper / attacker).
+>
+> **Closes**:
+> - THREAT_MODEL §4 A2.1 — Upstash fallback observability gap
+>   (v1.4.6 closure; real-time detection was missing)
+> - THREAT_MODEL §4 A2.2 — Daily hard-circuit invisibility gap
+>   (v1.5.0 closure; the cost guardrail was silent)
 
 ## 2-Layer architecture
 
@@ -61,23 +69,29 @@ provider is set up, the Sentry alert still catches it.
 
 ## Layer 1: Sentry alert (PRIMARY, real-time, ~5 min setup)
 
-**How it works**: the v1.4.6 code change in
-`apps/pwa/src/lib/rateLimit.ts` adds a `Sentry.captureException`
-call right after the `console.warn` (lazy import + try/catch so it
-no-ops when Sentry is unconfigured). The captured exception has
-`level: 'warning'` and
-`tags: { 'alert.upstash_degraded': 'true', 'rate_limit.backend':
-'memory' }`. A Sentry alert rule fires on the tag.
+**How it works**: the v1.4.6 + v1.5.0 code changes in
+`apps/pwa/src/lib/rateLimit.ts` add `Sentry.captureException`
+calls (lazy import + try/catch so they no-op when Sentry is
+unconfigured). The v1.4.6 + v1.5.0 calls are SEPARATE events
+with DIFFERENT tags — operators wire 2 Sentry alert rules (or 1
+rule matching either tag).
+
+| Event                  | Tag(s)                                                                  | When fires                                                                              | Level    |
+| ---------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------- |
+| `alert.upstash_degraded` (v1.4.6) | `alert.upstash_degraded: 'true'`, `rate_limit.backend: 'memory'`   | Upstash call throws (degradation — fail-open to in-memory). Real production issue.     | warning  |
+| `rate_limit.daily_circuit_breached` (v1.5.0) | `rate_limit.daily_circuit_breached: 'true'`, `rate_limit.backend: 'upstash' \| 'memory'` | An IP hits 1000 req / 24 h (cost guardrail, working as designed). Operational signal. | warning  |
 
 **Prerequisites**:
 - Sentry DSN must be wired on the PWA (env: `SENTRY_DSN` for
   server, `NEXT_PUBLIC_SENTRY_DSN` for client). See
   PRODUCTION_RUNBOOK §10 for the Sentry provisioning drill.
-- The v1.4.6 code change is already shipped (commit
-  `$(git rev-parse HEAD)` on `main`). The Sentry captureException
-  fires automatically once Sentry is configured.
+- The v1.4.6 + v1.5.0 code changes are already shipped. The
+  Sentry captureException calls fire automatically once Sentry
+  is configured.
 
-**Operator handoff (5 min)**:
+**Operator handoff (5 min, wire both alert rules)**:
+
+**Rule 1 — Upstash degraded (v1.4.6, real production issue)**:
 1. Open `sentry.io` -> kickbox-audio project -> Alerts -> Create
    Alert -> "Issues" alert type.
 2. Set the filter: `tags[alert.upstash_degraded]: true` AND
@@ -88,11 +102,26 @@ no-ops when Sentry is unconfigured). The captured exception has
    (`#ops-alerts` channel webhook, if the project has one).
 5. Save. The alert is live immediately; no deploy needed.
 
-**Cost**: 0 (Sentry free tier is 5K errors/month; this alert
-fires at most a few times per day on real degradation, well within
-the free tier).
+**Rule 2 — Daily hard-circuit breach (v1.5.0, operational signal)**:
+1. Open `sentry.io` -> kickbox-audio project -> Alerts -> Create
+   Alert -> "Issues" alert type.
+2. Set the filter: `tags[rate_limit.daily_circuit_breached]: true`
+   AND `level: warning`.
+3. Set the action interval: 30 minutes (longer than Rule 1's
+   5 minutes — daily-breach is working as designed, so we want
+   fewer pages; the operator reviews during business hours).
+4. Set the notification target: email only (no Slack page — the
+   issue may be a legitimate client at the ceiling, not an
+   incident). Add a separate Slack channel like
+   `#rate-limit-ops` for low-priority batching.
+5. Save.
 
-**What the alert email/Slack message looks like**:
+**Cost**: 0 (Sentry free tier is 5K errors/month; the combined
+alert volume from both rules is well within the free tier —
+expected ≤ 10 events/day on a healthy prod, ≤ 100 events/day
+during a real incident or burst scrape).
+
+**What the alert email/Slack message looks like (Rule 1)**:
 ```
 [Upstash degraded] Rate-limit fallback in prod
 Error: Upstash 503 Service Unavailable
@@ -100,6 +129,22 @@ Error: Upstash 503 Service Unavailable
   ...
 Tags: alert.upstash_degraded=true, rate_limit.backend=memory
 ```
+
+**What the alert email/Slack message looks like (Rule 2)**:
+```
+[Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=4200s]
+Error: Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=4200s
+  at checkRateLimit (apps/pwa/src/lib/rateLimit.ts:296)
+  ...
+Tags: rate_limit.daily_circuit_breached=true, rate_limit.backend=upstash
+```
+
+**Filtering by backend in Rule 2** (optional refinement): if
+you want to separate alerts for the Upstash path (normal) from
+the in-memory path (degraded), add `tags[rate_limit.backend]:
+upstash` or `tags[rate_limit.backend]: memory` to the filter.
+Useful when you're investigating whether a daily breach is
+related to an Upstash degradation.
 
 ## Layer 2: Vercel log-drain (SECONDARY, real-time, ~15 min setup)
 
@@ -153,6 +198,8 @@ alert is free-riding on existing log infrastructure.
 
 ## Alert response procedure (what to do when the alert fires)
 
+### For Rule 1 (Upstash degraded, v1.4.6)
+
 1. **Acknowledge the alert** in Sentry / Datadog / Honeycomb (or
    PagerDuty if it's loud). This silences repeat pages.
 2. **Check the v1.4.4 nightly cron** (the burst regression test).
@@ -177,6 +224,47 @@ alert is free-riding on existing log infrastructure.
 6. **Document the incident** in the runbook's "Incident triage"
    section (PRODUCTION_RUNBOOK §7) or in Sentry's incident
    tracking.
+
+### For Rule 2 (Daily hard-circuit breach, v1.5.0)
+
+The daily circuit firing is **working as designed** — it's the
+cost guardrail, not a failure. The response is investigative,
+not reactive:
+
+1. **Acknowledge the alert** in Sentry. The issue is grouped by
+   the daily-breach tag + the Error fingerprint, so multiple
+   breaches from the same IP collapse into one issue with an
+   event count.
+2. **Identify the offending IP hash**. The Sentry event payload
+   includes the stack trace but NOT the IP (we don't log PII in
+   Sentry). If you need the IP, check the route's audit log
+   (the route logs the `scope: 'day'` 429 responses with the
+   HMAC'd IP hash, not the raw IP).
+3. **Decide: legitimate or misbehaving?**
+   - **Legitimate client at the ceiling** (e.g. a heavy
+     integration test, an admin bulk-export tool, an end user on
+     a corporate NAT sharing with many users): consider bumping
+     `DAILY_HARD_CIRCUIT_MAX` in
+     `apps/pwa/src/lib/rateLimit.ts` (see PRODUCTION_RUNBOOK §6.8
+     "Daily hard-circuit visibility (v1.5.0)" for the procedure).
+     Bump from 1000 to e.g. 5000 if the workload is genuinely
+     high; redeploy.
+   - **Misbehaving scraper / attacker**: the 1000/24h ceiling
+     is the right number. Do NOT bump the guardrail. Instead,
+     consider adding the IP hash to a Vercel edge deny-list, or
+     tightening the per-minute window from 60 to 30 (forces the
+     attacker to spread their requests more, which is detectable).
+   - **Single misconfigured integration** (e.g. a retry loop with
+     exponential backoff that's still under the 60/min ceiling
+     but hits 1000/24h by accident): contact the integrator,
+     suggest a lower retry rate, do NOT bump the guardrail.
+4. **Track the trend**: if daily breaches are climbing week-over-
+   week, the guardrail is at risk of becoming a UX problem for
+   legitimate users — consider bumping. If daily breaches are
+   stable at 1-2 IPs/week, the guardrail is doing its job.
+5. **Document** in PRODUCTION_RUNBOOK §7 (or Sentry's incident
+   tracking) if the bump was applied (so the next operator
+   understands the change).
 
 ## Testing the alert (synthetic fallback, 5 min)
 
@@ -229,6 +317,11 @@ above) and verify the alert rule / log-drain is configured.
   this alert. The v1.4.4 nightly cron + the v1.4.5 per-run
   observability catch the slow-drift case (e.g., Upstash free-tier
   exhaustion over weeks).
+- **Per-`retryAfterSec` alerting** is NOT in this alert. If you
+  want a different rule for "this breach will reset in 1 hour"
+  vs "this breach will reset in 23 hours", parse the
+  `retryAfter=N` substring from the Error message in a Sentry
+  custom alert rule. Out of scope for v1.5.0.
 
 ## Migration notes
 
@@ -246,4 +339,11 @@ above) and verify the alert rule / log-drain is configured.
   `falls back to in-memory when Upstash throws` test (in
   `apps/pwa/src/lib/rateLimit.test.ts`) still passes — the Sentry
   call is additive, the `console.warn` is still called with the
-  same 2-arg format.
+  same 2-arg format. The v1.5.0 release adds 2 new tests
+  (`emits Sentry.captureException on in-memory daily circuit
+  breach` and `emits Sentry.captureException on Upstash daily
+  circuit breach`) that mock `@sentry/nextjs` with a `vi.fn()` and
+  assert the call shape (Error + level=warning + the 2 new tags).
+  The in-memory beforeEach now does `vi.unmock('@sentry/nextjs')`
+  for parity with the existing ratelimit/redis unmocks, so the
+  per-test mock cannot leak across tests.

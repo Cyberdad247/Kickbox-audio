@@ -5,6 +5,173 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-06-28
+
+The v1.5.0 per-IP daily hard-circuit observability closure. Closes
+the standing THREAT_MODEL §4 A2.2 observability gap: the v1.4.0
+Upstash-backed rate-limit has a 1000 req / IP / 24 h daily ceiling
+(introduced as a cost guardrail for the Upstash free tier, 10K
+commands/day), but the daily ceiling was previously INVISIBLE to
+operators — when an IP hit the 1000/24 h mark, the route returned
+429 with `scope: 'day'` silently. v1.5.0 closes the gap with a
+Sentry event that fires on every daily breach (BOTH the Upstash
+path and the in-memory fallback path), tagged
+`rate_limit.daily_circuit_breached: 'true'`. The event is a
+distinct signal from the v1.4.6 `alert.upstash_degraded` event:
+v1.4.6 fires on degradation (Upstash unreachable), v1.5.0 fires
+on working-as-designed cost guardrail hits (IP at the daily
+ceiling). Operators wire 2 Sentry alert rules (or 1 rule
+matching either tag) per the Layer 1 handoff in
+`docs/ALERTING.md`.
+
+### Added
+
+- **`apps/pwa/src/lib/rateLimit.ts`** - 2 new
+  `Sentry.captureException` calls fire when the daily hard-circuit
+  fires:
+  1. **Upstash path** (after `!day.success`): lazy
+     `await import('@sentry/nextjs')` + try/catch, no-ops when
+     Sentry is unconfigured. Captures with `level: 'warning'`
+     and `tags: { 'rate_limit.daily_circuit_breached': 'true',
+     'rate_limit.backend': 'upstash' }`. The captured Error
+     message is self-describing: `Daily hard-circuit breached
+     (1000 req / IP / 24 h); retryAfter=N` (where N is the
+     seconds until the IP's oldest timestamp falls outside the
+     24 h window), so the Sentry Issue title tells the operator
+     exactly when the window resets without opening the full
+     event payload. Comment block documents the operator handoff
+     path (sentry.io -> kickbox-audio -> Alerts -> filter on the
+     new tag).
+  2. **In-memory caller** (in `checkRateLimit`, when
+     `mem.scope === 'day'`): same pattern, same error message
+     shape, but with `rate_limit.backend: 'memory'` to
+     distinguish from the Upstash-path event. Operators can filter
+     on the backend tag in the Sentry alert rule if they want
+     separate alerts for the degraded vs normal paths.
+- **`apps/pwa/src/lib/rateLimit.ts`** - top docstring updated to
+  document the v1.5.0 semantics (separate event + tag from
+  v1.4.6; operator handoff path; rationale for the second Sentry
+  call in the in-memory path).
+- **`apps/pwa/src/lib/rateLimit.test.ts`** - 2 new vitest cases
+  assert the new Sentry call shape:
+  1. `emits Sentry.captureException on in-memory daily circuit
+     breach (v1.5.0)` - mocks `@sentry/nextjs` with a `vi.fn()`,
+     fills the day log to 1000 (same pattern as the existing
+     daily-breach test), triggers the 1001st call, asserts
+     `captureException` was called once with the expected shape
+     (`Error`, `level: 'warning'`, the 2 new tags) AND that the
+     Error message matches `/Daily hard-circuit breached/` and
+     `/retryAfter=\d+s/`.
+  2. `emits Sentry.captureException on Upstash daily circuit
+     breach (v1.5.0)` - mocks `@sentry/nextjs` and
+     `@upstash/ratelimit` (same pattern as the existing Upstash
+     tests), returns `day.success: false` + `minute.success:
+     true`, asserts the same Sentry call shape with
+     `rate_limit.backend: 'upstash'`.
+- **`apps/pwa/src/lib/rateLimit.test.ts`** - the in-memory
+  beforeEach now does `vi.unmock('@sentry/nextjs')` (parity with
+  the existing ratelimit/redis unmocks), so the per-test
+  `vi.doMock('@sentry/nextjs')` cannot leak across tests. The
+  Upstash describe's afterEach also unmocks `@sentry/nextjs`.
+  Test count is now **11 in-memory + 5 Upstash = 16** (was 11 + 4
+  = 15).
+- **`docs/ALERTING.md`** - extended to cover BOTH the v1.4.6
+  Upstash-degraded alert AND the v1.5.0 daily-breach alert.
+  Title updated to "Real-time prod observability (v1.4.6 +
+  v1.5.0)". Scope blockquote extended to explain both failure
+  modes. Layer 1 Sentry section now has a table comparing the 2
+  events (different tags, different severities, different
+  response procedures) and a 2-rule operator handoff
+  (Rule 1 = Upstash degraded, 5-min interval, Slack page; Rule 2
+  = daily breach, 30-min interval, email only). Alert response
+  procedure section split into 2 sub-procedures (one per rule).
+  What's NOT covered section adds a note on per-retryAfter
+  alerting (out of scope for v1.5.0). Migration notes section
+  documents the 2 new vitest cases.
+- **`docs/PRODUCTION_RUNBOOK.md` §6.8** - new "Daily hard-circuit
+  visibility (v1.5.0)" sub-bullet at the end of the existing
+  v1.4.6 sub-bullet block. Explains the 1000/24 h cost guardrail
+  purpose, the Sentry alert tag + Error message format, the
+  Layer 1 Sentry handoff (5 min, 2-rule), AND a full
+  step-by-step procedure for **bumping `DAILY_HARD_CIRCUIT_MAX`**
+  when the guardrail is too aggressive for legitimate traffic
+  (edit the constant, commit, Vercel auto-deploys, re-trigger
+  burst test, document the bump in the runbook's Incident
+  triage section or in a new SOVEREIGNTY_LEDGER entry). Suggests
+  3 bump values (1000 -> 2500 low, 1000 -> 5000 medium, 1000 ->
+  10000 high) with the caveat that values above 10000 require
+  upgrading the Upstash plan. Closes with a "what this is NOT"
+  note: the daily circuit is NOT a soft cap (no graduated
+  throttling); that's a v1.6.0 candidate.
+- **`docs/THREAT_MODEL.md` §4 A2.2** - new sub-section
+  "PWA rate-limit daily hard-circuit observability (v1.5.0)"
+  documenting the observability gap (the cost guardrail was
+  silent), the rationale for real-time detection (legitimate
+  clients at the ceiling, misbehaving scrapers, free-tier
+  exhaustion risk), the v1.5.0 closure (2 Sentry calls, 1 per
+  path, lazy import + try/catch, self-describing Error
+  message), the cross-reference to `docs/ALERTING.md`, and the
+  explicit distinction from A2.1 (v1.4.6 fires on degradation;
+  v1.5.0 fires on working-as-designed cost guardrail hits).
+- **`docs/THREAT_MODEL.md` §5 item 7** - added a `v1.5.0 (DONE,
+  2026-06-28)` sub-bullet to the existing v1.4.0 / v1.4.3 row
+  documenting the 2 Sentry calls, the new tag, the 2 new vitest
+  cases, the A2.2 closure, and the cross-reference to ALERTING.md
+  + PRODUCTION_RUNBOOK §6.8.
+
+### Migration notes
+
+- **No breaking change.** The 2 new Sentry captureException calls
+  are lazy imports + try/catch; if `@sentry/nextjs` is not
+  installed (test env, dev builds without Sentry) or if
+  SENTRY_DSN is unset, the calls silently no-op. The existing
+  429 response shape (`{ error: 'RATE_LIMIT_EXCEEDED',
+  retryAfterSec, scope: 'day' }`) is unchanged. The existing
+  `console.warn` in the v1.4.6 Upstash-unreachable path is
+  preserved exactly.
+- **No new env vars required.** Sentry is already wired from
+  v1.3.0; the v1.5.0 code changes are dormant until SENTRY_DSN
+  is set, then fire automatically.
+- **No new dependencies.** `@sentry/nextjs` is already a
+  dependency of `apps/pwa` (added in v1.2.0 Tier 3.2).
+- **Operator action required (one-time, per environment)**:
+  1. (5 min) Set up the Sentry alert rule for the daily-breach
+     tag per the Layer 1 Rule 2 handoff in
+     PRODUCTION_RUNBOOK §6.8.
+  2. (Optional) Set up the Vercel log-drain for the daily-breach
+     substring per the Layer 2 handoff in `docs/ALERTING.md`
+     (defense-in-depth; 15 min).
+  3. (Optional) Run the v1.5.0 vitest cases locally
+     (`npx vitest run apps/pwa/src/lib/rateLimit.test.ts`) to
+     confirm the 2 new tests pass on the workstation.
+  4. (Optional) Trigger a synthetic daily breach on a preview
+     deploy to confirm the Sentry event fires end-to-end
+     (similar to the v1.4.6 testing playbook in
+     `docs/ALERTING.md` §"Testing the alert", but with the
+     new tag).
+- **What the alert looks like in practice**: an email titled
+  `Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=N`
+  with the error stack trace + the
+  `rate_limit.daily_circuit_breached` tag + a link to the
+  Sentry issue. Latency: <30s from the 429 firing to the alert
+  delivery.
+- **What happens on every breach**: the Sentry event fires
+  ONCE per 429 response (no dedup). If an attacker is at the
+  ceiling and keeps hammering, the operator will see 1000+ events
+  in the Sentry Issue (the Issue is grouped by the tag +
+  fingerprint, so all events from the same breach-period
+  collapse into one Issue with an event count). The operator
+  can decide to block the IP at the Vercel edge instead of
+  bumping the guardrail (which would benefit the attacker).
+- **Bumping the guardrail** is documented in detail in
+  PRODUCTION_RUNBOOK §6.8 §"Daily hard-circuit visibility
+  (v1.5.0)" §"When to bump `DAILY_HARD_CIRCUIT_MAX`". The
+  procedure is a 6-step drill: confirm legitimate IP -> edit
+  the constant -> commit + push -> re-trigger burst test ->
+  document in runbook / SOVEREIGNTY_LEDGER -> verify in Sentry.
+  No env-var indirection (the constant is in source); a redeploy
+  is required.
+
 ## [1.4.6] - 2026-06-28
 
 The v1.4.6 real-time prod observability closure. Closes the

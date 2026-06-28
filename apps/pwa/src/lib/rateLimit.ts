@@ -4,6 +4,21 @@
  * are unset; unlinkable IP hashing via HMAC-SHA256 with a vault-stored
  * key.
  *
+ * v1.5.0: per-IP daily hard-circuit observability. The 1000 req / IP /
+ * 24 h ceiling is a deliberate cost guardrail for the Upstash free tier
+ * (10K commands/day), but was previously INVISIBLE to operators: the
+ * route returned 429 + `Retry-After` + `scope: 'day'` silently. v1.5.0
+ * adds a `Sentry.captureException` call when the daily circuit fires
+ * (BOTH in the Upstash path and the in-memory fallback path), tagged
+ * `rate_limit.daily_circuit_breached: 'true'` so the operator can set
+ * up a Sentry alert rule on the tag and decide whether to bump
+ * `DAILY_HARD_CIRCUIT_MAX` if the guardrail is too aggressive for
+ * legitimate traffic. Mirrors the v1.4.6 alert pattern
+ * (`alert.upstash_degraded`); these are SEPARATE events with DIFFERENT
+ * tags — operators wire 2 Sentry alert rules (or 1 rule matching either
+ * tag). See PRODUCTION_RUNBOOK §6.8 + docs/ALERTING.md for the operator
+ * handoff.
+ *
  * v1.3.1 used an in-memory `Map<ip, number[]>` in the route file; v1.4.0
  * lifts to Upstash Redis so the 60 req / IP / 60 s ceiling is shared across
  * all Vercel edge regions (closes the v1.4.0 ticket in THREAT_MODEL §4 A2
@@ -196,6 +211,53 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
       }
       if (!day.success) {
         const retryAfterSec = Math.max(1, Math.ceil((day.reset - Date.now()) / 1000));
+        // v1.5.0: emit Sentry event for daily hard-circuit breach
+        // (Upstash path). The daily ceiling is a deliberate cost
+        // guardrail (Upstash free tier = 10K commands/day); when an
+        // IP hits it, the operator needs real-time visibility to
+        // decide whether to bump DAILY_HARD_CIRCUIT_MAX (legitimate
+        // client) or block (misbehaving scraper / attacker). The
+        // lazy import no-ops when @sentry/nextjs is not installed
+        // (test env, dev builds without Sentry) AND when SENTRY_DSN
+        // is unset (Sentry v8 silent no-op). Tagged with
+        // `rate_limit.daily_circuit_breached=true` so the operator
+        // can set up a Sentry alert rule that fires on this exact
+        // tag (sentry.io -> kickbox-audio -> Alerts -> New Alert ->
+        // Issues -> filter
+        // `tags[rate_limit.daily_circuit_breached]: true`). See
+        // PRODUCTION_RUNBOOK §6.8 + docs/ALERTING.md for the
+        // operator handoff. The retryAfterSec is included in the
+        // error message so the Sentry Issue's title is
+        // self-describing (e.g. "Daily hard-circuit breached
+        // (<DAILY_HARD_CIRCUIT_MAX> req / IP / 24 h);
+        // retryAfter=4200s" tells the operator exactly when the
+        // window resets; the constant is interpolated so the
+        // message stays accurate after a bump).
+        try {
+          const Sentry = await import('@sentry/nextjs');
+          Sentry.captureException(
+            new Error(
+              // Interpolate the constant so the message stays
+              // accurate after a bump (PRODUCTION_RUNBOOK §6.8
+              // "Daily hard-circuit visibility (v1.5.0)" §"When
+              // to bump `DAILY_HARD_CIRCUIT_MAX`"). A hardcoded
+              // "1000" would lie if the operator bumped the
+              // constant to e.g. 5000.
+              `Daily hard-circuit breached (${DAILY_HARD_CIRCUIT_MAX} req / IP / 24 h); retryAfter=${retryAfterSec}s`,
+            ),
+            {
+              level: 'warning',
+              tags: {
+                'rate_limit.daily_circuit_breached': 'true',
+                'rate_limit.backend': 'upstash',
+              },
+            },
+          );
+        } catch {
+          // Sentry not installed or not configured; the 429
+          // response is the fallback (visible to the client,
+          // surfaced in the route's audit log + Vercel logs).
+        }
         return { ok: false, retryAfterSec, scope: 'day', backend: 'upstash' };
       }
       return { ok: true, retryAfterSec: 0, scope: null, backend: 'upstash' };
@@ -233,6 +295,53 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
     }
   }
   const mem = checkMemory(hashedIp, Date.now());
+  // Emit a Sentry event when the daily hard-circuit fires in
+  // the in-memory fallback path. Same rationale as the Upstash
+  // path above: the daily ceiling is a cost guardrail, and the
+  // operator needs real-time visibility when an IP hits it. The
+  // in-memory path is the fail-open fallback (Upstash is down or
+  // env vars are unset), so this event also surfaces day-breach
+  // activity that the Upstash path would otherwise miss during a
+  // degradation. Tagged with `rate_limit.backend: memory` to
+  // distinguish from the Upstash-path events (operators can
+  // filter on backend in the Sentry alert rule if they want
+  // separate alerts for the degraded vs normal paths).
+  //
+  // Non-overlap with the v1.4.6 upstash_degraded event: the
+  // in-memory day log is ONLY written when the in-memory path
+  // is the primary path (Upstash env vars unset). If Upstash is
+  // wired and throws on a request, the catch block fires
+  // upstash_degraded but the in-memory day log is still empty
+  // for that IP (we never reached checkMemory), so this emit
+  // will not fire from the catch path. The only way to reach
+  // `mem.scope === 'day'` is via the primary in-memory path —
+  // a separate, persistent state, not the same request that
+  // triggered upstash_degraded. The 2 events are orthogonal in
+  // practice. If a future refactor ever changes this invariant,
+  // operators can filter on the `rate_limit.backend` tag in the
+  // Sentry alert rule to deduplicate.
+  if (mem.scope === 'day') {
+    try {
+      const Sentry = await import('@sentry/nextjs');
+      Sentry.captureException(
+        new Error(
+          // Interpolate the constant (see Upstash path comment
+          // for rationale).
+          `Daily hard-circuit breached (${DAILY_HARD_CIRCUIT_MAX} req / IP / 24 h); retryAfter=${mem.retryAfterSec}s`,
+        ),
+        {
+          level: 'warning',
+          tags: {
+            'rate_limit.daily_circuit_breached': 'true',
+            'rate_limit.backend': 'memory',
+          },
+        },
+      );
+    } catch {
+      // Sentry not installed or not configured; the 429
+      // response is the fallback.
+    }
+  }
   return { ...mem, backend: 'memory' };
 }
 

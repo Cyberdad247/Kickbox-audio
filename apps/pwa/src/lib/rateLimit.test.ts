@@ -12,6 +12,11 @@
  *   - Upstash backend: success → ok=true, backend='upstash'
  *   - Upstash backend: 429 → ok=false with retryAfterSec computed from reset
  *   - Upstash backend: throw → fallback to in-memory (console.warn)
+ *   - v1.4.6: Sentry.captureException on Upstash-unreachable fallback
+ *     (in-memory test verify path)
+ *   - v1.5.0: Sentry.captureException on daily hard-circuit breach
+ *     (BOTH in-memory and Upstash paths) with the new tag
+ *     `rate_limit.daily_circuit_breached=true`
  *
  * Mocks use `vi.doMock` to avoid hoisting; the @upstash/ratelimit v2 mock
  * must include the static `slidingWindow` / `fixedWindow` methods (used by
@@ -21,6 +26,11 @@
  * MUST set `process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET` in its
  * `beforeEach` — the helper throws if the env var is unset (fail-closed).
  * Both existing describes already do this; add it to any future block.
+ *
+ * IMPORTANT (v1.5.0): the in-memory beforeEach also does
+ * `vi.unmock('@sentry/nextjs')` so a per-test `vi.doMock('@sentry/nextjs')`
+ * (used to assert captureException calls) cannot leak across tests. The
+ * Upstash describe does the same.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +54,10 @@ describe('rateLimit (in-memory fallback)', () => {
     vi.resetModules();
     vi.unmock('@upstash/ratelimit');
     vi.unmock('@upstash/redis');
+    // v1.5.0: unmock @sentry/nextjs so a per-test vi.doMock (used to
+    // assert captureException calls) cannot leak across tests in this
+    // describe. Parity with the ratelimit/redis unmocks above.
+    vi.unmock('@sentry/nextjs');
   });
   // v1.4.3: defensive afterEach to re-set the HMAC env var after the
   // "throws if RATE_LIMIT_HMAC_SECRET is unset" test deletes it. Without
@@ -159,6 +173,63 @@ describe('rateLimit (in-memory fallback)', () => {
     // Also confirm the public surface throws (caller-facing behavior).
     await expect(checkRateLimit('1.1.1.1')).rejects.toThrow(/RATE_LIMIT_HMAC_SECRET/);
   });
+
+  // v1.5.0: daily hard-circuit breach fires Sentry.captureException
+  // (in-memory path). The 1001st call in a 24h window should emit
+  // a warning-level Sentry event tagged
+  // `rate_limit.daily_circuit_breached=true` + `rate_limit.backend=memory`.
+  it('emits Sentry.captureException on in-memory daily circuit breach (v1.5.0)', async () => {
+    vi.useFakeTimers();
+    try {
+      const base = 1_700_000_000_000;
+      vi.setSystemTime(base);
+      // Mock @sentry/nextjs so the dynamic import inside the helper
+      // resolves to a vi.fn() instead of the real SDK. This is the
+      // sharpest assertion: we capture the call directly, no SDK
+      // init / DSN / network involved.
+      const captureException = vi.fn();
+      vi.doMock('@sentry/nextjs', () => ({ captureException }));
+      const { checkRateLimit, __test } = await import('./rateLimit');
+      __test.memoryMinuteLog.clear();
+      __test.memoryDayLog.clear();
+      // Spread 1000 calls across ~17 minutes so the per-minute window
+      // does not block us (60 per 60s = ~17 min for 1000 calls).
+      // Same pattern as the existing daily-breach test above.
+      for (let i = 0; i < 1000; i++) {
+        vi.setSystemTime(base + i * 1100);
+        const r = await checkRateLimit('5.5.5.6');
+        expect(r.ok).toBe(true);
+      }
+      // 1001st call: within 24h, so daily circuit fires. Sentry
+      // captureException must be called exactly once with the
+      // expected shape.
+      vi.setSystemTime(base + 1000 * 1100 + 61_000);
+      const r = await checkRateLimit('5.5.5.6');
+      expect(r.ok).toBe(false);
+      expect(r.scope).toBe('day');
+      expect(captureException).toHaveBeenCalledTimes(1);
+      // Sharp shape assertion: Error (any), level=warning, tags
+      // include both expected keys.
+      expect(captureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          level: 'warning',
+          tags: expect.objectContaining({
+            'rate_limit.daily_circuit_breached': 'true',
+            'rate_limit.backend': 'memory',
+          }),
+        }),
+      );
+      // The Error message should self-describe the failure mode so
+      // the Sentry Issue title is actionable without opening the
+      // full event payload.
+      const capturedError = captureException.mock.calls[0]?.[0] as Error;
+      expect(capturedError.message).toMatch(/Daily hard-circuit breached/);
+      expect(capturedError.message).toMatch(/retryAfter=\d+s/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // --- Upstash backend (mocked) ----------------------------------------------
@@ -181,6 +252,11 @@ describe('rateLimit (Upstash backend)', () => {
     vi.resetModules();
     vi.unmock('@upstash/ratelimit');
     vi.unmock('@upstash/redis');
+    // v1.5.0: unmock @sentry/nextjs so the per-test vi.doMock
+    // (used to assert captureException calls in the new
+    // "emits Sentry.captureException on Upstash daily circuit
+    // breach" test) cannot leak across tests.
+    vi.unmock('@sentry/nextjs');
   });
 
   /** Build a complete @upstash/ratelimit v2 mock: constructor + the static
@@ -292,5 +368,53 @@ describe('rateLimit (Upstash backend)', () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  // v1.5.0: daily hard-circuit breach fires Sentry.captureException
+  // (Upstash path). When the day limiter returns success=false
+  // (and the minute limiter returned success=true), the helper
+  // should emit a warning-level Sentry event tagged
+  // `rate_limit.daily_circuit_breached=true` + `rate_limit.backend=upstash`.
+  it('emits Sentry.captureException on Upstash daily circuit breach (v1.5.0)', async () => {
+    const captureException = vi.fn();
+    vi.doMock('@sentry/nextjs', () => ({ captureException }));
+    const limitMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        limit: 60,
+        remaining: 59,
+        reset: Date.now() + 60_000,
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        limit: 1000,
+        remaining: 0,
+        reset: Date.now() + 12 * 60 * 60_000,
+      });
+    const { RatelimitMock } = buildRatelimitMock(limitMock);
+    vi.doMock('@upstash/redis', () => ({ Redis: vi.fn() }));
+    vi.doMock('@upstash/ratelimit', () => ({ Ratelimit: RatelimitMock }));
+    const { checkRateLimit } = await import('./rateLimit');
+    const r = await checkRateLimit('9.9.9.9');
+    expect(r.ok).toBe(false);
+    expect(r.backend).toBe('upstash');
+    expect(r.scope).toBe('day');
+    // Sharp shape assertion: same as the in-memory test, but
+    // the backend tag is `upstash` not `memory`.
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        level: 'warning',
+        tags: expect.objectContaining({
+          'rate_limit.daily_circuit_breached': 'true',
+          'rate_limit.backend': 'upstash',
+        }),
+      }),
+    );
+    const capturedError = captureException.mock.calls[0]?.[0] as Error;
+    expect(capturedError.message).toMatch(/Daily hard-circuit breached/);
+    expect(capturedError.message).toMatch(/retryAfter=\d+s/);
   });
 });

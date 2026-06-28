@@ -526,8 +526,10 @@ mirror the env vars on the PWA (Vercel + Doppler).
 ```
 
 **Cost guardrail:** the daily hard-circuit (1000 req / IP / 24 h) keeps a
-single runaway scrape loop from exhausting the free tier. To bump it,
-edit `DAILY_HARD_CIRCUIT_MAX` in `apps/pwa/src/lib/rateLimit.ts`.
+single runaway scrape loop from exhausting the free tier. See the
+"Daily hard-circuit visibility (v1.5.0)" sub-bullet below for the
+real-time Sentry alert on daily breaches + how to bump the constant
+if the guardrail is too aggressive for legitimate traffic.
 
 **Token rotation:** Upstash tokens are not auto-rotated. Roll on
 operator offboard via the Upstash console → Database → Tokens → Roll.
@@ -716,6 +718,91 @@ defense-in-depth. The alert response procedure (what to do when
 the alert fires) is in `docs/ALERTING.md` §"Alert response
 procedure" (check Upstash dashboard, rotate the API token, verify
 recovery with the burst test).
+
+**Daily hard-circuit visibility (v1.5.0):** the 1000 req / IP /
+24 h cost guardrail is a deliberate design choice (Upstash free
+tier is 10K commands/day; without a daily ceiling, a single
+runaway scrape loop from one IP could exhaust the budget in
+under 30 minutes). Before v1.5.0, when an IP hit the daily
+ceiling, the route returned 429 with `scope: 'day'` silently —
+the operator had no real-time signal that the guardrail was
+firing. v1.5.0 closes this gap with a Sentry event tagged
+`rate_limit.daily_circuit_breached: 'true'` (separate from the
+v1.4.6 `alert.upstash_degraded` tag). The captured Error
+message is self-describing:
+
+```text
+Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=4200s
+```
+
+where `retryAfter` is the seconds until the IP's oldest timestamp
+falls outside the 24 h window (i.e. when the limit naturally
+resets). The Sentry event fires in BOTH paths (Upstash + the
+in-memory fallback); the `rate_limit.backend` tag distinguishes
+which path was active. Operator handoff:
+
+```text
+1. sentry.io -> kickbox-audio -> Alerts -> Create Alert
+2. Type: "Issues", filter: tags[rate_limit.daily_circuit_breached]=true + level=warning
+3. Action interval: 30 minutes (longer than the v1.4.6 5-min
+   interval — the daily breach is working as designed, not an
+   incident; we want fewer pages and business-hours review)
+4. Notify: email only (no Slack page; a daily breach may be a
+   legitimate client, not an incident). Optional: route to
+   `#rate-limit-ops` Slack channel for batching.
+5. Save. Live immediately; no deploy needed.
+```
+
+**When to bump `DAILY_HARD_CIRCUIT_MAX`:** the 1000/24h number
+is calibrated against the Upstash free tier (10K commands/day).
+If the daily breach Sentry alert is firing repeatedly for the
+SAME IP hash week-over-week and the IP is a LEGITIMATE client
+(e.g. a heavy integration test, an admin bulk-export tool, an
+end user on a corporate NAT sharing with many users), the
+guardrail is too aggressive for that workload. The bump
+procedure is:
+
+```text
+1. Confirm the IP is legitimate (not a scraper / attacker):
+   - Check the route's audit log for the 429 responses
+     (the IP hash is logged, not the raw IP, per v1.4.3
+     unlinkability posture).
+   - Check the request User-Agent / X-Forwarded-For chain in
+     Vercel logs.
+   - Check Sentry's event payload for the stack trace (the
+     1001st call site is in checkRateLimit).
+2. If legitimate: bump the constant.
+   - Edit apps/pwa/src/lib/rateLimit.ts:
+       const DAILY_HARD_CIRCUIT_MAX = <new_value>;
+   - Suggested bumps: 1000 -> 2500 (low-aggression; covers
+     most integration tests), 1000 -> 5000 (medium; covers
+     heavy admin tooling), 1000 -> 10000 (high; only for
+     paying tenants or known high-volume integrations).
+   - Do NOT bump above 10000 unless you've also upgraded the
+     Upstash plan (free tier quota would be exhausted faster).
+3. Commit + push; Vercel auto-deploys in ~2 min.
+4. Re-trigger the burst test
+   (gh workflow run burst-test.yml); the 2 main tests should
+   still pass (they only exercise the 60/min minute window,
+   not the daily circuit).
+5. Document the bump in the runbook's "Incident triage" section
+   (PRODUCTION_RUNBOOK §7) or in a new SOVEREIGNTY_LEDGER entry
+   (parent repo, NOT inside this one) with: the old value, the
+   new value, the operator who bumped it, the IP hash that
+   triggered the bump (no raw IP — the HMAC is the IP), and
+   the rationale.
+6. Verify in Sentry: the daily-breach alert should stop firing
+   for that IP within 24 h (the next time the IP hits the new
+   ceiling, the new tag value still applies; the alert
+   continues to fire but the threshold is higher).
+```
+
+**What this is NOT:** the daily circuit is NOT a soft cap. The
+helper returns 429 with `scope: 'day'` regardless of how
+aggressive the bump was — the bump just changes the trigger
+threshold. There is no "soft warning" tier. If you want
+graduated throttling (e.g. "warn at 800, throttle at 1000"),
+that's a v1.6.0 candidate.
 
 ---
 

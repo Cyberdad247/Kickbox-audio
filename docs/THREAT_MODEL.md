@@ -157,6 +157,71 @@ it nightly, the v1.4.4 cron + v1.4.5 per-run log caught it within
 24h, but real-time prod detection was missing. After v1.4.6: gap
 closes to seconds.
 
+### A2.2 — PWA rate-limit daily hard-circuit observability (v1.5.0)
+
+The v1.4.0 rate-limit lift has a SECOND observability gap beyond
+the silent fallback in A2.1: the **1000 req / IP / 24 h daily
+hard-circuit** is a deliberate design choice (a cost guardrail
+for the Upstash free tier, which is 10K commands/day) but was
+previously INVISIBLE to operators. When an IP hits the daily
+ceiling, the helper returns
+`{ ok: false, scope: 'day', backend: 'upstash' | 'memory' }`, the
+route returns 429 with `Retry-After: N`, and the request is
+served correctly — but the operator has no real-time signal
+that the guardrail is firing.
+
+**Why this matters**:
+- **Legitimate clients at the ceiling**: a heavy integration
+  test, an admin bulk-export tool, or an end user on a corporate
+  NAT sharing with many users can hit 1000/24h. The operator
+  needs to know this is happening so they can decide whether
+  to bump `DAILY_HARD_CIRCUIT_MAX` (legitimate UX issue) or block
+  the IP (misconfiguration).
+- **Misbehaving scrapers / attackers**: a single attacker
+  hammering the endpoint should fire the daily circuit. The
+  operator needs to know this is happening so they can decide
+  whether to block at the Vercel edge (instead of bumping the
+  guardrail, which would benefit the attacker).
+- **Free-tier exhaustion risk**: a single runaway loop from one
+  IP could exhaust the 10K commands/day Upstash quota in <30
+  min if the daily circuit didn't exist. The guardrail is
+  load-bearing for cost control; the operator needs visibility
+  into how often it fires to validate the cost model.
+
+**Real-time detection (v1.5.0)**: 2 new `Sentry.captureException`
+calls in `apps/pwa/src/lib/rateLimit.ts` (lazy import + try/catch
+so they no-op when Sentry is unconfigured), one in the Upstash
+path and one in the in-memory caller. Both fire when the daily
+circuit fires, with `level: 'warning'` and the tag
+`rate_limit.daily_circuit_breached: 'true'` (plus
+`rate_limit.backend: 'upstash' | 'memory'` to distinguish the
+path). The captured Error message is self-describing:
+`Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=N`,
+so the Sentry Issue title tells the operator exactly when the
+window resets without opening the full event payload.
+
+**Closes**: the standing observability gap where the v1.4.0
+cost guardrail was silent. Before v1.5.0: the daily circuit
+firing was only visible in the route's 429 response (client-side)
+and the Vercel logs (no dedicated log monitor). After v1.5.0:
+the operator gets a Sentry event in real-time (seconds), can set
+up a dedicated Sentry alert rule on the tag, and can decide
+whether to bump the guardrail or block the IP. Layer 1 (Sentry)
++ Layer 2 (Vercel log-drain) architecture documented in
+`docs/ALERTING.md`. The full response procedure (acknowledge ->
+identify the IP hash -> decide legitimate vs misbehaving ->
+bump or block -> document) is in `docs/ALERTING.md` §"Alert
+response procedure" §"For Rule 2 (Daily hard-circuit breach,
+v1.5.0)".
+
+**Distinct from A2.1**: the v1.4.6 `alert.upstash_degraded` tag
+fires on Upstash failures (a degradation). The v1.5.0
+`rate_limit.daily_circuit_breached` tag fires on working-as-
+designed cost guardrail hits (an operational signal). They are
+SEPARATE events with different severity, different response
+procedure, and different Sentry alert rules. Operators wire
+2 Sentry alert rules (or 1 rule matching either tag).
+
 ### A3 — Tailscale MCP guard (apps/mcp-query)
 
 | STRIDE   | Threat                                                                | Severity | Mitigation                                                                                            | Residual |
@@ -240,7 +305,7 @@ Items not yet implemented, sorted by severity × effort.
 | 4 | A5    | 30-day PG audit-log retention (instead of 7-day default)         | M        | 1 h    | v1.4.0   |
 | 5 | A5    | DPIA per PII field; current state: no PII fields                 | L        | 0.5 d  | v1.4.0   |
 | 6 | A1    | Sweep `apps/bifrost/src/state.ts` `snapshot()` PII fields quarterly | M        | 0.5 d  | ongoing  |
-| 7 | A2    | **v1.3.1 (DONE, 2026-06-28):** `apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts` now rate-limits at 60 req / IP / 60 s (in-memory sliding-window; 429 + `Retry-After: N` header). Closes the standing F ⚠️ minor from the v1.3.0 code-review (replay-coverage rate-limit gap). **v1.4.0 (DONE, 2026-06-28):** lifted to Upstash Redis via `apps/pwa/src/lib/rateLimit.ts` (extracted helper) for multi-region accuracy; same 60 / 60 s ceiling PLUS a 1000 req / IP / 24 h daily hard-circuit as a free-tier cost guardrail; IP is `sha256`-hashed before storage (no raw PII in a third-party DB); in-memory fallback preserved for dev/CI (fail-open + `console.warn` on Upstash outage); 9 vitest cases cover in-memory (sliding window, isolation, sliding-release, day circuit, hashing) + Upstash (success, 429-shape, throw → fallback). Closes the v1.4.0 ticket in §4 A2 above. **v1.4.3 (DONE, 2026-06-28):** IP hashing switched from plain `sha256(ip)` to `HMAC-SHA256(ip, RATE_LIMIT_HMAC_SECRET)` for unlinkable storage in Upstash. The HMAC key is stored in Doppler (vault key `pwa/rate-limit-hmac-secret`) + Vercel env; fail-closed if unset (helper throws on first use — the route returns 500). 1 new vitest case covers the throw. Closes the v1.4.0 code-reviewer B ⚠️ minor (sha256 was rainbow-table-trivial for the IPv4 space). | — | — | — |
+| 7 | A2    | **v1.3.1 (DONE, 2026-06-28):** `apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts` now rate-limits at 60 req / IP / 60 s (in-memory sliding-window; 429 + `Retry-After: N` header). Closes the standing F ⚠️ minor from the v1.3.0 code-review (replay-coverage rate-limit gap). **v1.4.0 (DONE, 2026-06-28):** lifted to Upstash Redis via `apps/pwa/src/lib/rateLimit.ts` (extracted helper) for multi-region accuracy; same 60 / 60 s ceiling PLUS a 1000 req / IP / 24 h daily hard-circuit as a free-tier cost guardrail; IP is `sha256`-hashed before storage (no raw PII in a third-party DB); in-memory fallback preserved for dev/CI (fail-open + `console.warn` on Upstash outage); 9 vitest cases cover in-memory (sliding window, isolation, sliding-release, day circuit, hashing) + Upstash (success, 429-shape, throw → fallback). Closes the v1.4.0 ticket in §4 A2 above. **v1.4.3 (DONE, 2026-06-28):** IP hashing switched from plain `sha256(ip)` to `HMAC-SHA256(ip, RATE_LIMIT_HMAC_SECRET)` for unlinkable storage in Upstash. The HMAC key is stored in Doppler (vault key `pwa/rate-limit-hmac-secret`) + Vercel env; fail-closed if unset (helper throws on first use — the route returns 500). 1 new vitest case covers the throw. Closes the v1.4.0 code-reviewer B ⚠️ minor (sha256 was rainbow-table-trivial for the IPv4 space). **v1.5.0 (DONE, 2026-06-28):** added per-IP daily hard-circuit observability. 2 new `Sentry.captureException` calls in `apps/pwa/src/lib/rateLimit.ts` (one in the Upstash path, one in the in-memory caller) fire when the 1000 req / IP / 24 h ceiling is hit, tagged `rate_limit.daily_circuit_breached=true` + `rate_limit.backend=upstash\|memory`, level `warning`. Lazy import + try/catch so the call no-ops when Sentry is unconfigured. 2 new vitest cases (in-memory + Upstash) mock `@sentry/nextjs` and assert the call shape (Error + level=warning + the 2 new tags). The captured Error message is self-describing: `Daily hard-circuit breached (1000 req / IP / 24 h); retryAfter=N`, so the Sentry Issue title tells the operator exactly when the window resets. Closes the A2.2 observability gap (the cost guardrail was previously silent). | — | — | — |
 
 ---
 
