@@ -16,14 +16,13 @@ security, secrets, HUMAN_GATE, and provenance rules, defer to the parent.
   `origin/main`, NOT pushed; rebase of upstream #15/#16 complete)
 - **Stack:** Next.js 14 App Router · React 18 · TypeScript strict · Tailwind
 - **Top-level laws (governance):**
-  - `blueprint.md` — system logic (Singularity Lattice + Bifrost Bridge +
+  - `docs/blueprint.md` — system logic (Singularity Lattice + Bifrost Bridge +
     MiniMax-Manus Mix + Hit-Gate governance)
-  - `design.md` — Luxury Minimalist Brutalism (color/typography/HUD tokens)
-  - `verification.md` — signed-off iron-gate numerics (FCP, RSS, bundle, VAD,
-    Playwright)
+  - `docs/design.md` — Luxury Minimalist Brutalism (color/typography/HUD tokens)  - `docs/verification.md` — signed-off iron-gate numerics (FCP, RSS, bundle, VAD,
+  Playwright)
   - `HELIO_PATCH.json` — runtime perf-conformance audit artifact (re-generated;
     do not hand-edit)
-  - `task.md` — PHASE 1–4 execution DAG
+  - `docs/task.md` — PHASE 1–4 execution DAG
 
 ---
 
@@ -35,37 +34,64 @@ See `turbo.json` for the pipeline; lint/format/audit scripts under `scripts/`._
 
 ```
 audit-kickbox-audio/
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml
+│   │   └── kba-smoke.yml
+│   └── CODEOWNERS
 ├── apps/
-│   └── pwa/                     # Next.js 14 App Router PWA — primary surface
-│       ├── src/
-│       │   ├── app/
-│       │   │   ├── layout.tsx   # Root: wraps <BifrostProvider>
-│       │   │   └── page.tsx     # Home: <KineticCanvas /> + <LakishaHUD />
-│       │   ├── components/
-│       │   │   ├── Dashboard.tsx
-│       │   │   ├── LakishaHUD.tsx        # voice HUD + tap-to-connect autoplay-gate
-│       │   │   ├── Sparkline.tsx
-│       │   │   ├── 3d/
-│       │   │   │   ├── KineticBackground.tsx
-│       │   │   │   └── KineticCanvas.tsx
-│       │   │   └── hud/
-│       │   │       └── LakishaEnclave.tsx    # upstream's voice enclave (currently unmounted)
-│       │   ├── context/
-│       │   │   └── BifrostContext.tsx     # WebRTC state + audio bridge
-│       │   └── ...
-│       ├── tailwind.config.ts    # source of truth for design tokens
-│       ├── tsconfig.json         # `@/*` alias → `./src/*` enabled
-│       └── package.json
+│   ├── pwa/                     # Next.js 14 App Router PWA — primary surface
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   │   ├── layout.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── components/
+│   │   │   │   ├── Dashboard.tsx
+│   │   │   │   ├── LakishaHUD.tsx        # voice HUD + tap-to-connect autoplay-gate
+│   │   │   │   ├── Sparkline.tsx
+│   │   │   │   ├── 3d/
+│   │   │   │   │   ├── KineticBackground.tsx
+│   │   │   │   │   └── KineticCanvas.tsx
+│   │   │   │   └── hud/
+│   │   │   │       └── LakishaEnclave.tsx
+│   │   │   ├── context/
+│   │   │   │   └── BifrostContext.tsx     # WebRTC state + audio bridge
+│   │   │   └── ...
+│   │   ├── tailwind.config.ts
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   ├── bifrost/                  # Node.js WebSocket & Express Gateway
+│   └── mcp-query/                # Tailscale remote MCP guard
 ├── core/                        # monorepo-shared core (Rust/TS)
 ├── packages/                    # monorepo-shared packages
-├── scripts/                     # build / audit / verification scripts
-├── node_modules/                # monorepo deps (pnpm)
+│   ├── db/                      # Prisma ORM Schema & PostgreSQL Client
+│   └── benchmark/               # Green Computing & Latency Test suite
+├── scripts/
+│   ├── ops/                     # operational / laptop scripts (formerly scripts/ci/)
+│   │   ├── apply-branch-protection.sh
+│   │   ├── check-helio-dry.sh
+│   │   ├── fixture-hitl.mjs
+│   │   ├── live-anya-probe.mjs
+│   │   ├── protect-branch.json
+│   │   ├── secrets-audit.mjs
+│   │   ├── start-bifrost.sh
+│   │   └── stop-bifrost.sh
+│   ├── laptop-server/
+│   ├── regen-helio-patch.mjs
+│   └── sync-memory-md.mjs
+├── docs/                        # governance + architecture
+│   ├── blueprint.md             # system logic
+│   ├── design.md                # aesthetic law
+│   ├── task.md                  # PHASE 1–4 execution DAG
+│   └── verification.md          # signed-off iron gates
+├── node_modules/                # monorepo deps
 ├── package.json                 # workspace root
 ├── turbo.json                   # Turborepo pipeline
-├── design.md                    # aesthetic law
-├── blueprint.md                 # system logic
-├── task.md                      # 72-hour execution DAG
-├── verification.md              # signed-off iron gates
+├── biome.json
+├── vitest.config.ts
+├── vercel.json
+├── .gitignore
+├── .gitattributes
 ├── HELIO_PATCH.json             # auto-generated perf audit artifact
 └── AGENTS.md                    # THIS FILE
 ```
@@ -84,7 +110,7 @@ appear in the rendered tree, not the runic router.
 
 | Agent | Role | Primary model | Surface(s) |
 | --- | --- | --- | --- |
-| **SIR_CODEX** | Lead kinetic implementer; rebase + autoplay-gate author | GPT-5 (codex) | `apps/pwa/**`, `design.md` |
+| **SIR_CODEX** | Lead kinetic implementer; rebase + autoplay-gate author | GPT-5 (codex) | `apps/pwa/**`, `docs/design.md` |
 | **MERLIN_OMEGA** | Architect — rebase-conflict adjudication | Gemini | `page.tsx`, top-level laws |
 | **SIR_SENTINEL** | Security — `BifrostContext` mTLS gate review | Gemini | `BifrostContext.tsx` |
 | **SIR_BORIS** | Architect — DRO critiques on token drift | Gemini | `tailwind.config.ts` |

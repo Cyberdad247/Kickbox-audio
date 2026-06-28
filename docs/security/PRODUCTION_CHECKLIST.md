@@ -17,8 +17,8 @@ Observability → Incident Response → Cross-cutting**.
 - [x] PR #21 OPEN, head `4060612`, **not** draft
 - [x] `.github/CODEOWNERS` — pins KBA surface to `@Cyberdad247` + `@sovereign/kba-authority`
 - [x] `.github/workflows/kba-smoke.yml` — exercises HMAC handshake end-to-end on every push to `feat/**`
-- [x] **Secrets hygiene** — `node scripts/ci/secrets-audit.mjs` returns RC=0, zero hits in tracked source
-- [ ] **`scripts/ci/apply-branch-protection.sh feat/kba-cartridge-v1000`** applied — requires `hitl-handshake` CI check + 1 CODEOWNERS approval + linear history + no force-push
+- [x] **Secrets hygiene** — `node scripts/ops/secrets-audit.mjs` returns RC=0, zero hits in tracked source
+- [ ] **`scripts/ops/apply-branch-protection.sh feat/kba-cartridge-v1000`** applied — requires `hitl-handshake` CI check + 1 CODEOWNERS approval + linear history + no force-push
 - [ ] **KBA Smoke workflow green** — currently 3 recent runs all `conclusion: failure` (RUN 28297865280, 28298083572, 28298084341). Run is the gate. Diagnose + fix in the next sprint (see Followups).
 
 ## Deploy
@@ -28,7 +28,7 @@ Observability → Incident Response → Cross-cutting**.
 - [ ] Bifrost binds `0.0.0.0:3017`; helmet headers set upstream (CDN / load balancer)
 - [ ] `apps/pwa` production build (`next build` → `.next/`) deployed to CDN
 - [ ] Database (`@sovereign/db` workspace) migrated via `prisma migrate deploy`- [ ] WebSocket load balancer configured for long-lived `?upgrade=ws` connections
-- [ ] Vercel Preview URL captured at PR open time becomes the production smoke target. Re-run `node scripts/ci/fixture-hitl.mjs HOST=$VercelHost PORT=443` post-deploy to confirm `/api/bifrost/hitl` handshake under TLS.
+- [ ] Vercel Preview URL captured at PR open time becomes the production smoke target. Re-run `node scripts/ops/fixture-hitl.mjs HOST=$VercelHost PORT=443` post-deploy to confirm `/api/bifrost/hitl` handshake under TLS.
 - [ ] `apps/bifrost/package.json` exact-version pin (no `^`/`~`) on @prisma/client, express, express-rate-limit, ws, zod — reproducible build, no surprise minor updates.
 
 ## Post-Deploy
@@ -45,7 +45,7 @@ Observability → Incident Response → Cross-cutting**.
 - [x] `/api/bifrost/hitl` rate-limited to **60/min** (`hitlLimiter`)
 - [x] Freshness: past 60 s default; future 30 s default; 1 s hard-expiry grace (`assertFresh({ timestamp, expiresAt }, opts)`)
 - [x] CODEOWNERS review required by branch protection (once applied)
-- [ ] Support mutation gate token per `blueprint.md` — BifrostSpeak / XSForge must prove token before router mutation
+- [ ] Support mutation gate token per `docs/blueprint.md` — BifrostSpeak / XSForge must prove token before router mutation
 - [ ] Knight hot-swap verified per `AGENTS.md` runic commands (`//EXECUTE_BUILD`, `//TDD_AUDIT`, `//REZERO_CODE`)
 
 ## Reproducibility
@@ -53,7 +53,7 @@ Observability → Incident Response → Cross-cutting**.
 - [x] `package-lock.json` present at repo root + per app
 - [x] `.env.example` placeholders only (`apps/bifrost/.env.example`, `apps/pwa/.env.example`, `packages/db/.env.example`)
 - [x] Deterministic vitest (35 cases, 636 ms, 0 flakes on Windows + Linux)
-- [x] Smoke fixture — `scripts/ci/fixture-hitl.mjs` exercises all 8 KBA verbs
+- [x] Smoke fixture — `scripts/ops/fixture-hitl.mjs` exercises all 8 KBA verbs
 - [x] Regen gate — `scripts/regen-helio-patch.mjs` (writes gated via `HELIO_DRY_RUN=1`)
 - [ ] `npm ci` succeeds from cold clone — verified in CI
 
@@ -98,9 +98,9 @@ When ALL boxes above are checked, run:
 
 ```bash
 gh pr view 21 --json state,headRefName,url       # confirm OPEN, head 4060612
-node scripts/ci/secrets-audit.mjs                  # expect RC=0
-ls scripts/ci/protect-branch.json                  # existence OK
-scripts/ci/apply-branch-protection.sh feat/kba-cartridge-v1000   # POST successful
+node scripts/ops/secrets-audit.mjs                  # expect RC=0
+ls scripts/ops/protect-branch.json                  # existence OK
+scripts/ops/apply-branch-protection.sh feat/kba-cartridge-v1000   # POST successful
 ```
 
 Capture this verification as a `## Promotion Receipt` section in the

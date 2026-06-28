@@ -65,20 +65,26 @@ jobs:
         run: npm run build --workspace=@sovereign/db
 
       - name: Boot Bifrost dev server
-        run: bash scripts/ci/start-bifrost.sh
+        run: bash scripts/ops/start-bifrost.sh
 
-      - name: Verify security.ts / state.ts typecheck
-        run: npm --prefix apps/bifrost run typecheck && npm --prefix apps/pwa run typecheck
+      - name: Verify typecheck across all workspaces
+        # 2026-06-27 promotion: unify the typecheck step to `npx turbo run
+        # typecheck` to remove the mixed `--prefix` / `--workspace` smell
+        # that caused the 6-iteration CI fail-loop on c1461e9. The build
+        # step already uses `--workspace`; the typecheck step was the
+        # only remaining `--prefix` caller. `turbo run typecheck` depends
+        # on `^build` so @sovereign/db is already built by this point.
+        run: npx turbo run typecheck
 
       - name: Vitest — security/issuance/nlp/state
         run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
 
       - name: Issue signed KBA action via fixture
-        run: node scripts/ci/fixture-hitl.mjs
+        run: node scripts/ops/fixture-hitl.mjs
 
       - name: Dry-run HELIO_PATCH regen gate
-        run: bash scripts/ci/check-helio-dry.sh
+        run: bash scripts/ops/check-helio-dry.sh
 
       - name: Tear down Bifrost + dump logs
         if: always()
-        run: bash scripts/ci/stop-bifrost.sh
+        run: bash scripts/ops/stop-bifrost.sh
