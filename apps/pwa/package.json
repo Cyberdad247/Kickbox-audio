@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "pretest:e2e": "next build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:burst": "playwright test --config=playwright.burst.config.ts"
   },
   "dependencies": {
     "@agent-native/core": "^0.79.20",

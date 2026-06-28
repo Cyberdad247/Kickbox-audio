@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-06-28
+
+The v1.4.1 e2e regression test for the v1.4.0 rate-limit lift. Closes
+the standing follow-up from the v1.4.0 code-review (R: the v1.4.0
+contract — 60 req / IP / 60 s + 429 + Retry-After — was only covered by
+in-process vitest cases; the in-process helper does not exercise the
+real Vercel edge + Upstash integration). The e2e test fires 61 requests
+at the live prod URL and asserts the contract end-to-end.
+
+### Added
+
+- **`apps/pwa/e2e/rate-limit-burst.spec.ts`** (NEW) — 2 Playwright
+  e2e cases: (1) `61-request burst returns 60 pass + 1 × 429` (asserts
+  exactly 60 calls return 200/503 and exactly 1 returns 429), (2)
+  `429 response carries a numeric Retry-After header (1..60) and a
+  structured body` (asserts `Retry-After` parses to an integer in
+  `[1, 60]`, and the JSON body has `{ error: 'RATE_LIMIT_EXCEEDED',
+  retryAfterSec, scope: 'minute' }`). The test injects a unique
+  `X-Forwarded-For` per run from RFC 5737 TEST-NET-1 (`192.0.2.0/24`)
+  so successive CI runs from the same egress IP don't collide in the
+  Upstash sliding window. The test **self-skips** if `E2E_BASE_URL` or
+  `E2E_ADMIN_TOKEN` is unset (dev + PR CI without Doppler secrets are
+  no-ops rather than failures).
+
+- **`apps/pwa/playwright.burst.config.ts`** (NEW) — separate
+  Playwright config for the burst test. Extends the base config but
+  **omits the `webServer`** (no local `next start` on port 3100) and
+  **omits the `next build` prerequisite** — the burst test hits a
+  remote URL, so spinning up a local build would be wasted. Run via
+  `npx playwright test --config=playwright.burst.config.ts`.
+
+- **`apps/pwa/package.json`** — added `test:e2e:burst` script
+  (`playwright test --config=playwright.burst.config.ts`).
+
+### Migration notes
+
+- **No breaking change.** No production code touched. The test is
+  gated on `E2E_BASE_URL` + `E2E_ADMIN_TOKEN`; absent env vars
+  produce a `test.skip(...)` with a clear message.
+- **To run on prod** (one-time per CI environment):
+  ```bash
+  E2E_BASE_URL=https://pwa-eight-gamma.vercel.app \
+  E2E_ADMIN_TOKEN=$(doppler secrets get --project kickbox-audio \
+    --config prd bifrost/admin-token --plain) \
+  npm run test:e2e:burst --workspace=apps/pwa
+  ```
+  Or via GitHub Actions: add `E2E_BASE_URL` + `E2E_ADMIN_TOKEN` to
+  the repo secrets and wire the command into a scheduled job or
+  `workflow_dispatch` (the existing `kba-smoke.yml` is feat-branch
+  only; the burst test is a prod-environment test, not a PR gate).
+
 ## [1.4.0] - 2026-06-28
 
 The v1.4.0 multi-region rate-limit lift. Closes the v1.4.0 ticket
