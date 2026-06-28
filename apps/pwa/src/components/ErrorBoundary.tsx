@@ -1,6 +1,7 @@
 'use client';
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 interface Props {
   children: ReactNode;
@@ -49,6 +50,10 @@ export class ErrorBoundary extends Component<Props, State> {
      */
     // eslint-disable-next-line no-console
     console.error('[ErrorBoundary] caught render error', error, errorInfo);
+    // v1.2.0 T3.2: ship the caught render error to Sentry with the
+    // React component stack as context. No-op if Sentry is not configured
+    // (NEXT_PUBLIC_SENTRY_DSN unset).
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
     this.props.onError?.(error, errorInfo);
   }
 

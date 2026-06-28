@@ -32,6 +32,11 @@ export const logger = pino({
   // webhook header would emit the secret verbatim. Paths use Pino's
   // bracket notation for nested fields. See the v1.1.0 production-readiness
   // PR review (2026-06-28) for the full code-reviewer finding.
+  // v1.1.1: extended with common secret-bearing key names (key, apiKey,
+  // bearer, privateKey, credential, hmac) per the code-reviewer's
+  // defense-in-depth recommendation. The wildcards `*.password` and
+  // `*.secret` don't catch `*.privateKey` etc., so explicit paths are
+  // required.
   redact: {
     paths: [
       '*.password',
@@ -39,6 +44,12 @@ export const logger = pino({
       '*.token',
       '*.signature',
       '*.rawBody',
+      '*.key',
+      '*.apiKey',
+      '*.bearer',
+      '*.privateKey',
+      '*.credential',
+      '*.hmac',
       'req.headers.authorization',
       'req.headers["x-webhook-signature"]',
       'req.headers["x-webhook-action"]',

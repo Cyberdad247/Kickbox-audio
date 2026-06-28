@@ -5,6 +5,132 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-28
+
+The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget
+enforcement, Sentry error tracking, OpenTelemetry tracing, secrets vault
+integration, mTLS for the Tailscale MCP guard, and RBAC for the Bifrost
+`/api/bifrost/*` routes. All 6 items are implemented with env-var
+placeholders for external service credentials (Sentry DSN, OTel endpoint,
+Doppler token, mTLS cert paths) so the project can be deployed to staging
+without configuration. Production cutover requires setting the env vars in
+the deployment manifest.
+
+### Added — Tier 3 production-readiness (6 items)
+
+- **T3.1: Bundle-size budget enforcement** — `scripts/ops/bundle-size.mjs`
+  walks `apps/pwa/.next/static/chunks/pages/*.js` after `next build`,
+  measures each route's first-load JS total, and fails CI if any route
+  exceeds `BUNDLE_SIZE_BUDGET_BYTES` (default 153600 = 150KB, matching the
+  v1.0.0 Green Computing ceiling). The `bundle-size` turbo task is
+  reintroduced in `turbo.json` (removed in v1.1.0 post-review; now
+  implemented). Run with `npx turbo run bundle-size` after a build.
+- **T3.2: Sentry integration** — `apps/bifrost/src/sentry.ts` initializes
+  `@sentry/node` (no-op if `SENTRY_DSN` is unset). `apps/pwa/sentry.client.config.ts`
+  + `sentry.server.config.ts` initialize `@sentry/nextjs` (no-op if
+  `NEXT_PUBLIC_SENTRY_DSN` is unset). `ErrorBoundary.componentDidCatch` in
+  `apps/pwa/src/components/ErrorBoundary.tsx` now calls
+  `Sentry.captureException(error, { extra: { componentStack } })`. New
+  env vars: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ENVIRONMENT`,
+  `SENTRY_TRACES_SAMPLE_RATE`.
+- **T3.3: OpenTelemetry tracing** — `apps/bifrost/src/telemetry.ts`
+  initializes `@opentelemetry/sdk-node` with auto-instrumentation for http,
+  express, and ws (no-op if `OTEL_EXPORTER_OTLP_ENDPOINT` is unset).
+  `apps/pwa/src/instrumentation.ts` registers the `@vercel/otel` browser
+  SDK for fetch + WebSocket tracing. `initTelemetry()` must be called
+  FIRST in `apps/bifrost/src/server.ts` so the SDK can monkey-patch
+  instrumented modules at require time. New env vars:
+  `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`.
+- **T3.4: Secrets vault integration** — `apps/bifrost/src/secrets.ts`
+  reads secrets from Doppler (https://doppler.com) if `DOPPLER_TOKEN` is
+  set, otherwise falls back to `process.env`. Secrets are cached for 5 min
+  to support vault rotation. `server.ts` calls `loadBifrostSecrets()` on
+  boot to load `WEBHOOK_SECRET` + `ACTION_SECRET`. New env vars:
+  `DOPPLER_TOKEN`, `DOPPLER_PROJECT`, `DOPPLER_CONFIG`,
+  `WEBHOOK_SECRET_VAULT_KEY`, `ACTION_SECRET_VAULT_KEY`.
+- **T3.5: mTLS for Tailscale MCP guard** — `apps/mcp-query/src/mtls.ts`
+  wraps the HTTP request handler in HTTPS if `MTLS_ENABLED=true`. Client
+  cert verification is enforced if `MTLS_REQUIRE_CLIENT_CERT=true`.
+  `scripts/ops/generate-mtls-certs.sh` generates a self-signed CA +
+  server cert + client cert via openssl (output in `./certs/`). New env
+  vars: `MTLS_ENABLED`, `MTLS_CA_CERT_PATH`, `MTLS_SERVER_CERT_PATH`,
+  `MTLS_SERVER_KEY_PATH`, `MTLS_REQUIRE_CLIENT_CERT`.
+- **T3.6: RBAC for Bifrost `/api/bifrost/*` routes** —
+  `apps/bifrost/src/auth.ts` defines 3 roles (admin, operator, viewer) and
+  a `requireRole(minRole)` Express middleware. JWTs are HS256-signed with
+  `WEBHOOK_SECRET` (reuse existing secret for v1.2.0; v1.3.0 migrates to
+  RS256 with OIDC + vault-stored keys). Routes are protected as follows:
+  `POST /api/bifrost/issue` requires operator, `POST /api/bifrost/hitl`
+  requires operator, `POST /webhook/sms` is exempt (HMAC body signature
+  is the auth), `GET /health` is exempt (liveness probe). Set
+  `RBAC_ENABLED=false` to disable RBAC in dev/CI. New env vars:
+  `RBAC_ENABLED`, `RBAC_JWT_ALGORITHM`, `RBAC_ADMIN_ROLES`,
+  `RBAC_OPERATOR_ROLES`, `RBAC_VIEWER_ROLES`.
+
+### Added — Tests (v1.2.0)
+
+- **`apps/bifrost/src/auth.test.ts`** — 9 vitest cases for the RBAC
+  middleware covering: valid token, invalid signature, expired token,
+  invalid role claim, empty token, round-trip via issueToken, RBAC
+  disabled, missing Bearer header, insufficient role, sufficient role.
+
+### Dependencies (optional, loaded lazily)
+
+The Tier 3 modules are written so the heavy SDKs are optional. If
+the env var is unset, the module is a no-op and the SDK is never
+imported. Install the optional SDKs as needed:
+
+- `@sentry/node` (apps/bifrost) for T3.2 Bifrost Sentry
+- `@sentry/nextjs` (apps/pwa) for T3.2 PWA Sentry
+- `@opentelemetry/sdk-node` + `@opentelemetry/auto-instrumentations-node`
+  (apps/bifrost) for T3.3 Bifrost OTel
+- `@vercel/otel` (apps/pwa) for T3.3 PWA browser OTel
+- `jsonwebtoken` + `@types/jsonwebtoken` (apps/bifrost) for T3.6 JWT
+
+Install with:
+```
+npm install @sentry/node @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node jsonwebtoken --workspace=apps/bifrost --legacy-peer-deps
+npm install @sentry/nextjs @vercel/otel --workspace=apps/pwa --legacy-peer-deps
+npm install --save-dev @types/jsonwebtoken --workspace=apps/bifrost --legacy-peer-deps
+```
+
+### Migration notes
+
+- **RBAC breaking change**: `POST /api/bifrost/issue` and
+  `POST /api/bifrost/hitl` now require `Authorization: Bearer <jwt>` with
+  a valid HS256 token (role must be `operator` or `admin`). The PWA
+  receives the JWT from `/api/bifrost/issue` and re-presents it on
+  `/api/bifrost/hitl`. Local dev / CI can set `RBAC_ENABLED=false` to
+  bypass. The `kba-smoke.yml` workflow must mint a JWT before invoking
+  the HMAC handshake (added in a follow-on PR).
+- **mTLS breaking change**: if `MTLS_ENABLED=true`, the mcp-query
+  server requires HTTPS. Bifrost → MCP calls must use the `https://`
+  scheme and present the client cert.
+- **Sentry / OTel / Doppler / Vault**: opt-in via env var. No breaking
+  changes for deployments that don't set the env var.
+
+## [1.1.1] - 2026-06-28
+
+The v1.1.1 hardening release. 2 items addressing code-reviewer findings
+from the v1.1.0 work. Branch: `feat/production-readiness-v1.1.0` (continuation).
+
+### Added
+
+- **Pino redact paths extended** — `apps/bifrost/src/logger.ts` redact
+  config now covers 16 paths (was 10). Added `*.key`, `*.apiKey`,
+  `*.bearer`, `*.privateKey`, `*.credential`, `*.hmac` to catch the
+  common secret-bearing field names that the v1.1.0 wildcards missed.
+
+### Changed
+
+- **axe-smoke test determinism** — `apps/pwa/e2e/axe-smoke.spec.ts` no
+  longer uses `waitForLoadState('networkidle')` (flaky on PWA surfaces
+  with persistent WebSocket connections like the Bifrost WS). Replaced
+  with `waitForSelector('[data-testid="app-ready"]', { timeout: 10_000 })`.
+  The `data-testid="app-ready"` attribute is on the `<body>` element in
+  `apps/pwa/src/app/layout.tsx` and is present as soon as the React
+  tree has mounted.
+
 ## [1.1.0] - 2026-06-28
 
 The v1.1.0 production-readiness hardening release. 18 items across Tier 1

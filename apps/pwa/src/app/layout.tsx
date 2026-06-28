@@ -58,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${serif.variable}`}>
-      <body>
+      <body data-testid="app-ready">
         {/* 2026-06-28 production-readiness: wrap the app in an ErrorBoundary
             so unexpected render errors surface a fallback UI instead of
             crashing the whole PWA. See apps/pwa/src/components/ErrorBoundary.tsx

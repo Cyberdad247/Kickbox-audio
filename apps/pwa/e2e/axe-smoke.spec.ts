@@ -14,11 +14,14 @@ import AxeBuilder from '@axe-core/playwright';
 test('home page has no critical axe violations', async ({ page }) => {
   await page.goto('/');
   /**
-   * Wait for the BifrostProvider to mount and the LakishaHUD to
-   * register; without this, axe might run before the autoplay-gate
-   * has finished hydrating.
+   * v1.1.1 hardening: replaced `waitForLoadState('networkidle')` with
+   * `waitForSelector('[data-testid="app-ready"]')` because the Bifrost
+   * WebSocket connection stays open indefinitely, so `networkidle` may
+   * never fire. The `data-testid="app-ready"` attribute is on the
+   * `<body>` element in `layout.tsx` and is present as soon as the
+   * React tree has mounted.
    */
-  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('[data-testid="app-ready"]', { timeout: 10_000 });
 
   const accessibilityScanResults = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

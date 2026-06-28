@@ -15,6 +15,10 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
+    },
+    "bundle-size": {
+      "dependsOn": ["^build"],
+      "outputs": ["bundle-report.json"]
     }
   }
 }

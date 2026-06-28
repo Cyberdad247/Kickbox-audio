@@ -1,6 +1,12 @@
+// v1.2.0 T3.3: MUST be the first import so the OTel SDK can monkey-patch
+// http/express/ws BEFORE those modules are loaded by subsequent imports.
+// v1.2.0 T3.2: Sentry init at module load time.
+import './instrumentation';
+import './sentry-init';
+
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
-import express, { type Request } from 'express';
+import express, { type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MicrocubicMatrix } from './microcubic';
@@ -10,6 +16,11 @@ import { SignatureError, verifyActionSignature, verifyWebhookSignature } from '.
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
 import { issueSignedAction } from './issuance';
 import { logger } from './logger';
+import { requireRole } from './auth';
+import { loadBifrostSecrets } from './secrets';
+// initSentry is still imported (re-exported from sentry-init) for callers
+// that want to capture exceptions from non-server-entry points.
+import { captureException } from './sentry';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -22,13 +33,52 @@ interface RawBodyRequest extends Request {
 }
 
 const PORT = Number(process.env.PORT) || 3001;
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
+
+// v1.2.0 T3.4: load secrets from vault with fail-fast. WEBHOOK_SECRET
+// starts empty; loadBifrostSecrets() resolves before the server starts
+// accepting requests (we await it before server.listen below).
+// The ensureSecretsLoaded middleware returns 503 if a request somehow
+// lands before secrets resolve (defense in depth).
+let WEBHOOK_SECRET = '';
+loadBifrostSecrets()
+  .then((s) => {
+    WEBHOOK_SECRET = s.webhookSecret;
+    logger.info('[secrets] vault-loaded WEBHOOK_SECRET');
+  })
+  .catch((err) => {
+    // Fall back to env if vault is unconfigured or fails. Logged as warn
+    // (not error) because env-only is a valid dev/CI mode.
+    logger.warn({ err: (err as Error).message }, '[secrets] vault load failed; using env');
+    WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
+  });
+
+// v1.2.0 T3.4 race-window fix: reject requests with 503 until secrets
+// are loaded. Applied globally so /api/bifrost/* never handles a request
+// with a partial/stale secret. /health is EXEMPT so liveness probes work
+// during boot (Kubernetes/load-balancers would otherwise mark the service
+// unhealthy before secrets resolve).
+function ensureSecretsLoaded(req: Request, res: Response, next: () => void): void {
+  if (req.path === '/health') {
+    next();
+    return;
+  }
+  if (!WEBHOOK_SECRET) {
+    res.status(503).json({ error: 'STARTING_UP', message: 'Secrets are still loading' });
+    return;
+  }
+  next();
+}
 
 // Cap inbound frame size (16 KB) — commands are tiny; reject oversized payloads
 // at the protocol layer to avoid unbounded JSON.parse work.
 const MAX_WS_PAYLOAD = 16 * 1024;
 
 const app = express();
+// v1.2.0 T3.4: apply the secrets-loaded guard AFTER app is created so
+// /api/bifrost/* never handles a request with a partial/stale secret.
+// /health is EXEMPT (see ensureSecretsLoaded body) so liveness probes
+// work during boot.
+app.use(ensureSecretsLoaded);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, maxPayload: MAX_WS_PAYLOAD });
 
@@ -149,7 +199,7 @@ const IssueBodySchema = z.object({
     ),
 });
 
-app.post('/api/bifrost/issue', issueLimiter, async (req, res) => {
+app.post('/api/bifrost/issue', requireRole('operator'), issueLimiter, async (req, res) => {
   const parsed = IssueBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
@@ -164,7 +214,7 @@ app.post('/api/bifrost/issue', issueLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/bifrost/hitl', hitlLimiter, async (req, res) => {
+app.post('/api/bifrost/hitl', requireRole('operator'), hitlLimiter, async (req, res) => {
   const actionId = req.header('x-webhook-action');
   const signature = req.header('x-webhook-signature');
   const expiresAtRaw = req.header('x-webhook-expires-at');
