@@ -5,8 +5,10 @@ import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MicrocubicMatrix } from './microcubic';
 import { type RouteOutcome, route } from './router';
-import { verifyWebhookSignature } from './security';
+import { z } from 'zod';
+import { SignatureError, verifyActionSignature, verifyWebhookSignature } from './security';
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
+import { issueSignedAction } from './issuance';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -99,6 +101,103 @@ async function handleUtterance(raw: string): Promise<RouteOutcome> {
 
 // ── Task 2.4 — SMS/webhook ingress (Telnyx/Bandwidth), HMAC-signed + rate-limited ──
 const webhookLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true });
+
+// ── KBA Cartridge: HMAC issuance + HITL dispatch ──
+const issueLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const hitlLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const IssueBodySchema = z.object({
+  actionId: z
+    .string()
+    .min(8, 'actionId too short')
+    .max(64, 'actionId too long')
+    .regex(
+      /^KBA_(SYNC|AUDIT|REROUTE|REZERO|HEAL|NANO|SCAN|FORGE)_[A-Z0-9]{2,16}$/,
+      'actionId must match KBA_<DOMAIN>_<UPPER_ALNUM>',
+    ),
+});
+
+app.post('/api/bifrost/issue', issueLimiter, async (req, res) => {
+  const parsed = IssueBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+  }
+  const { actionId } = parsed.data;
+  try {
+    const signed = issueSignedAction(actionId, WEBHOOK_SECRET);
+    res.status(200).json(signed);
+  } catch (err) {
+    console.error('[Bifrost/issue] issuance failed:', err);
+    res.status(500).json({ error: 'ISSUANCE_FAILED' });
+  }
+});
+
+app.post('/api/bifrost/hitl', hitlLimiter, async (req, res) => {
+  const actionId = req.header('x-webhook-action');
+  const signature = req.header('x-webhook-signature');
+  const expiresAtRaw = req.header('x-webhook-expires-at');
+  const timestampRaw = req.header('x-webhook-timestamp');
+
+  if (!actionId || !signature || !expiresAtRaw || !timestampRaw) {
+    return res.status(400).json({ error: 'MISSING_HEADER' });
+  }
+  const timestamp = Number(timestampRaw);
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(expiresAt)) {
+    return res.status(400).json({ error: 'MALFORMED_HEADER' });
+  }
+
+  try {
+    verifyActionSignature({ actionId, timestamp, signature, expiresAt, secret: WEBHOOK_SECRET });
+  } catch (err) {
+    if (err instanceof SignatureError) {
+      return res.status(401).json({ error: err.code, message: err.message });
+    }
+    return res.status(401).json({ error: 'UNKNOWN_SIG_ERROR' });
+  }
+
+  // Wire HITL to the Bifrost router. The verified signature authorizes the
+  // action; we treat `kba ${actionId}` as a parseable utterance and feed it
+  // through the existing `route()` so KBA actions flow through the same
+  // //ROUTE + //REZERO governance as /webhook/sms. The router.ts NLP classifier
+  // will land known KBA verbs on LOCAL_TOOLS and unknown verbs on REMOTE_MCP
+  // bypass (Tailscale-guarded by the caller setup at process boot).
+  const utterance = `kba ${actionId}`;
+  const outcome = await route(utterance, {
+    remoteMcpUrl: REMOTE_MCP_URL,
+    budgetMs: ROUTE_BUDGET_MS,
+  });
+  applyCommand(outcome.command);
+  setRouteTelemetry({
+    response: outcome.response,
+    lane: outcome.lane,
+    latencyMs: outcome.latencyMs,
+    rezeroed: outcome.rezeroed,
+  });
+  broadcastState();
+  console.log(
+    `[Bifrost/hitl] routed action=${actionId} lane=${outcome.lane} ` +
+      `latency=${outcome.latencyMs}ms rezeroed=${outcome.rezeroed}`,
+  );
+  res.status(200).json({
+    status: outcome.command.action === 'unknown' ? 'NO_LOCAL_HANDLER' : 'LOCKED_AND_ROUTED',
+    actionId,
+    timestamp,
+    lane: outcome.lane,
+    rezeroed: outcome.rezeroed,
+  });
+});
 
 app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
   const signature = req.header('x-webhook-signature');

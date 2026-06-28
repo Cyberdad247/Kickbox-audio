@@ -1,8 +1,12 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
-export const ledgerValidator: Prisma.Middleware = async (params, next) => {
-  if (params.model === 'Transaction' && params.action === 'createMany') {
-    const transactions = params.args.data as Prisma.TransactionCreateManyInput[];
+// Pure validation helper — unit-testable without a Prisma context.
+// Splits Responsibility: Extension glue lives in `ledgerValidator` below;
+// invariant logic lives here so the test layer doesn't need to mock the
+// Prisma runtime.
+export function validateTransactionBatchBalance(args: any) {
+  if (args.data) {
+    const transactions = (Array.isArray(args.data) ? args.data : [args.data]) as Prisma.TransactionCreateManyInput[];
     let totalDebit = 0;
     let totalCredit = 0;
 
@@ -15,5 +19,19 @@ export const ledgerValidator: Prisma.Middleware = async (params, next) => {
       throw new Error('LE_01_UNBALANCED: Transaction batch is unbalanced.');
     }
   }
-  return next(params);
-};
+}
+
+// Prisma 5.x Client Extension: intercepts `transaction.createMany`.
+// Structural isolation: any other model or operation is unaffected by design
+// because the query slot is scoped to `transaction.createMany` only.
+export const ledgerValidator = Prisma.defineExtension({
+  name: 'ledgerValidator',
+  query: {
+    transaction: {
+      async createMany({ args, query }) {
+        validateTransactionBatchBalance(args);
+        return query(args);
+      },
+    },
+  },
+});

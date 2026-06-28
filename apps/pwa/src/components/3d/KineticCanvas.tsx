@@ -1,28 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
-import { shouldDownscaleOnMemoryPressure } from '../../lib/portalBridge';
+import { Canvas } from '@react-three/fiber';
 
-type KineticCanvasProps = {
-  className?: string;
-};
-
-export default function KineticCanvas({ className = '' }: KineticCanvasProps) {
-  useEffect(() => {
-    // Forward-compatibility hook: once a Three.js Gaussian-splat loader lands,
-    // gate its upload path on this. Today the canvas is a CSS gradient shell;
-    // the probe runs once on mount and emits a no-op debug line so future
-    // loaders can LOD-downscale on memory pressure.
-    if (shouldDownscaleOnMemoryPressure()) {
-      // eslint-disable-next-line no-console
-      console.debug('[kinetic] memory pressure detected — future loader would LOD-downscale here');
-    }
-  }, []);
-
+/**
+ * KineticCanvas — the persistent WebGL substrate behind the UI.
+ *
+ * Per `blueprint.md` §1 Dynamic Substrate: volumetric gold light at Day/Clear,
+ * deep obsidian void with Electric Violet `#9D4EDD` particle rain at
+ * Night/Rain. Cleveland, OH weather + local time binding is layered in by
+ * follow-up PRs; this file is the foundational mount so `next/dynamic(
+ * { ssr: false })` keeps FCP < 1.2 s per HELIO_PATCH performance WARN.
+ */
+export default function KineticCanvas() {
   return (
-    <div
-      aria-hidden="true"
-      className={`${className} pointer-events-none bg-[radial-gradient(circle_at_50%_10%,rgba(157,78,221,0.18),transparent_24%),radial-gradient(circle_at_80%_80%,rgba(212,175,55,0.12),transparent_28%),linear-gradient(180deg,#0D0D11_0%,#050505_100%)]`}
-    />
+    <Canvas
+      camera={{ position: [0, 0, 5], fov: 60 }}
+      style={{ background: '#0D0D11' }}
+    >
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 5, 5]} intensity={0.4} color="#FFD700" />
+    </Canvas>
   );
 }
