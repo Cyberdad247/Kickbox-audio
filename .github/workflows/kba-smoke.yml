@@ -1,0 +1,102 @@
+name: KBA Smoke
+
+# Per AGENTS.md governance rules, this workflow exercises the
+# /api/bifrost/hitl handshake end-to-end on every push to a feat branch
+# and on every PR targeting a feat branch. The workflow mints a real
+# HMAC-signed KBA bundle (canonical actionId:timestamp) and asserts that
+# the gated acknowledgement comes back. It also gates the read-only
+# HELIO_PATCH.json dry-run to prove the regen script stays hygienic.
+
+on:
+  push:
+    branches: ['feat/**']
+  pull_request:
+    branches: ['feat/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  hitl-handshake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      WEBHOOK_SECRET: kba-smoke-secret
+      ACTION_SECRET: kba-smoke-secret
+      HOST: http://localhost
+      PORT: '3017'
+      ACTION_ID: KBA_SYNC_001
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        # 2026-06-27 promotion: bump to Node 22 LTS — current LTS since
+        # 2024-10-29. Resolves the EBADENGINE warnings on @prisma/client
+        # 5.22.0 + transitive deps that demand >=22.22.0. node-version is
+        # a plain YAML scalar (not quoted) so it parses cleanly.
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install monorepo deps
+        # Prisma postinstall must run so @prisma/client + @sovereign/db
+        # workspace links generate their client outputs.
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        # 2026-06-27 promotion: explicitly run `prisma generate` against
+        # `packages/db/schema.prisma` so the generated client is populated
+        # with the Transaction model (debit / credit / journal). Without
+        # this step, the @prisma/client postinstall runs from the monorepo
+        # ROOT where no schema.prisma exists, producing an empty client
+        # that makes `Prisma.TransactionCreateManyInput` undefined → tsc
+        # emits TS2694 at `ledgerValidator.ts:9`. The root package.json
+        # wires `db:generate` to `npm run generate --workspace=@sovereign/db`,
+        # which sets CWD=packages/db and finds the schema correctly.
+        run: npm run db:generate
+
+      - name: Build @sovereign/db workspace
+        # 2026-06-27 fix: switched from `npm --prefix packages/db run
+        # build` to `npm run build --workspace=@sovereign/db`. In npm
+        # 10.x/11.x, `--prefix` is unreliable for `npm run` (it does
+        # NOT change the script's CWD), so the inner `tsc` invocation
+        # walked up from the monorepo root looking for a tsconfig.json,
+        # found none, and fell back to TS defaults (declaration=false)
+        # → no .d.ts emitted → bifrost typecheck identifies the same
+        # TS2307 error against @sovereign/db downstream.
+        # The --workspace flag uses the workspaces field in the root
+        # package.json to correctly set CWD=packages/db, where its
+        # tsconfig.json emits dist/index.{js,d.ts} deterministically.
+        run: npm run build --workspace=@sovereign/db
+
+      - name: Boot Bifrost dev server
+        run: bash scripts/ops/start-bifrost.sh
+
+      - name: Verify typecheck across all workspaces
+        # 2026-06-27 promotion: unify the typecheck step to `npx turbo run
+        # typecheck` to remove the mixed `--prefix` / `--workspace` smell
+        # that caused the 6-iteration CI fail-loop on c1461e9. The build
+        # step already uses `--workspace`; the typecheck step was the
+        # only remaining `--prefix` caller. `turbo run typecheck` depends
+        # on `^build` so @sovereign/db is already built by this point.
+        run: npx turbo run typecheck
+
+      - name: Vitest — security/issuance/nlp/state
+        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
+
+      - name: Issue signed KBA action via fixture
+        run: node scripts/ops/fixture-hitl.mjs
+
+      - name: Dry-run HELIO_PATCH regen gate
+        run: bash scripts/ops/check-helio-dry.sh
+
+      - name: Tear down Bifrost + dump logs
+        if: always()
+        run: bash scripts/ops/stop-bifrost.sh

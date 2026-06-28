@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background: #050505;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: #050505;
+}
+
+body {
+  color: #ffffff;
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #9D4EDD;
+  color: #ffffff;
+}

@@ -1,0 +1,36 @@
+# CODEOWNERS — kickbox-audio
+# Per AGENTS.md Rule 6 (Runic Authority Defense), merge power for the KBA
+# authority surface flows through CODEOWNERS, not through pasted runic tokens.
+# Reviewers = @Cyberdad247 @sovereign/kba-authority
+
+# Default owners for the audit-kickbox-audio repo as a whole
+*       @Cyberdad247 @sovereign/kba-authority
+
+# KBA authority surface (highest scrutiny)
+/apps/bifrost/src/issuance.ts              @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/issuance.test.ts         @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/security.ts              @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/security.test.ts         @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/server.ts                @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/nlp.ts                   @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/nlp.test.ts              @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/state.ts                 @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/state.test.ts            @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/router.ts                @Cyberdad247 @sovereign/kba-authority
+/apps/bifrost/src/microcubic.ts            @Cyberdad247 @sovereign/kba-authority
+
+# KBA UX surface
+/apps/pwa/src/components/kba/              @Cyberdad247 @sovereign/kba-authority
+/apps/pwa/src/app/kba/                     @Cyberdad247 @sovereign/kba-authority
+
+# CI surface
+/.github/workflows/kba-smoke.yml          @Cyberdad247 @sovereign/kba-authority
+/scripts/ci/fixture-hitl.mjs               @Cyberdad247 @sovereign/kba-authority
+/scripts/regen-helio-patch.mjs             @Cyberdad247 @sovereign/kba-authority
+
+# Audit regen output is auto-generated (AGENTS.md Rule 5)
+/HELIO_PATCH.json                          @Cyberdad247 @sovereign/kba-authority
+
+# Governance — AGENTS.md + CODEOWNERS themselves
+/AGENTS.md                                @Cyberdad247 @sovereign/kba-authority
+/.github/CODEOWNERS                       @Cyberdad247 @sovereign/kba-authority
