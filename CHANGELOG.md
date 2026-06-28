@@ -121,6 +121,61 @@ to consume RS256 JWTs from an external OIDC IdP; end-to-end OIDC dance
   (acquire_token + refresh, error display, telemetry) lands in
   a follow-on release.
 
+### Added — Tier 4.2 CSP per-request nonce + remove unsafe-eval (2026-06-28)
+
+Closes the M-severity item in THREAT_MODEL section 5 row 2 for the
+PWA (A2). Drops 'unsafe-eval' from script-src in prod (XSS blast-radius
+reduction), adds 'nonce-{NONCE}' + 'strict-dynamic' so verifiably-tagged
+scripts can load transitively, and tightens the per-source-list (X-Frame
+'DENY' is subsumed by frame-ancestors 'none' in CSP).
+
+- **`apps/pwa/src/middleware.ts`** — new Edge-runtime middleware
+  (per the canonical Vercel pattern). Generates a fresh base64-encoded
+  nonce per request, sets the `Content-Security-Policy` response header
+  + mirrors onto the request header so Next.js can extract the nonce
+  and stamp it onto hydration scripts. Dev keeps `'unsafe-eval'`
+  (webpack/HMR); prod drops it. Exports `buildCspHeader(nonce, isDev)`
+  for vitest unit testing (no edge runtime needed for that surface).
+  Matcher excludes `_next/static`, `_next/image`, `favicon.ico`,
+  `icon.svg`, `manifest.webmanifest`, and `api/health` (Vercel marks
+  the deploy unhealthy if `/api/health` is gated).
+- **`apps/pwa/src/app/layout.tsx`** — added `export const dynamic =
+  'force-dynamic'` so the per-request nonce reach the cached HTML body
+  on every request (without force-dynamic, Vercel Edge returns the
+  cached HTML with the old nonce and the browser blocks the CSP).
+- **`vercel.json`** — tightened the static CSP header (defense-in-depth
+  fallback only; middleware wins at runtime): `'unsafe-eval'` removed
+  from script-src, Sentry telemetry endpoints added to connect-src,
+  `object-src 'none'` + `base-uri 'self'` + `form-action 'self'` +
+  `frame-ancestors 'none'` + `upgrade-insecure-requests` added. The
+  static header still has `'unsafe-inline'` on style-src (next/font
+  + Tailwind inject inline styles; tightening to nonce-only is v1.4.0
+  work).
+- **`apps/pwa/src/middleware.test.ts`** — 9 vitest cases for
+  `buildCspHeader`: nonce, strict-dynamic, dev-only unsafe-eval,
+  prod no unsafe-eval, Sentry connect-src, frame-ancestors none,
+  style-src unsafe-inline compat, object-src/base-uri/form-action
+  closure, default-src self + upgrade-insecure-requests.
+- **`docs/THREAT_MODEL.md`** — section 5 row 2 status note (DONE
+  2026-06-28); A2 STRIDE T ampering row tightened to reference the
+  middleware path + nonce + strict-dynamic flow explicitly.
+
+### Migration notes
+
+- **No breaking change for existing deployments.** The middleware adds
+  per-request Content-Security-Policy headers; everything that worked
+  before (React hydration, Sentry SDK init, Three.js client bundle)
+  continues to work because they are nonced via the `x-nonce` request
+  header that Next.js 14 inspects. Style-src keeps `'unsafe-inline'`
+  until v1.4.0 when we audit every component for inline-style attrs.
+- **Edge runtime required.** middleware.ts is implicitly Edge runtime
+  (Vercel default). No `export const runtime` needed; setting it
+  explicitly to `'edge'` is allowed but redundant.
+- **NOT shipped in this commit**: nonce-only style-src (v1.4.0); per-
+  route CSP overrides (unnecessary while the source list is uniform);
+  report-only CSP shadow (runbooks can enable `Content-Security-Policy-
+  Report-Only` for a week if a regression is suspected).
+
 ## [1.2.0] - 2026-06-28
 
 The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget
