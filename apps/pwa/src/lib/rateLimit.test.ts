@@ -34,6 +34,13 @@ describe('rateLimit (in-memory fallback)', () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
     process.env.RATE_LIMIT_HMAC_SECRET = TEST_HMAC_SECRET;
+    // v1.4.6: set a syntactically-valid test DSN so the helper's
+    // Sentry.captureException call (in the Upstash-unreachable catch
+    // block) doesn't print Sentry's "no DSN configured" warning to
+    // stderr and pollute the vitest output. The DSN is fake (the
+    // test project doesn't exist on Sentry) so events are silently
+    // dropped by the SDK; the call still exercises the code path.
+    process.env.SENTRY_DSN = 'https://test@test.ingest.sentry.io/1';
     vi.resetModules();
     vi.unmock('@upstash/ratelimit');
     vi.unmock('@upstash/redis');

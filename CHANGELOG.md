@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] - 2026-06-28
+
+The v1.4.6 real-time prod observability closure. Closes the
+standing THREAT_MODEL §4 A2 observability gap: the v1.4.0
+Upstash-backed rate-limit is silent on fallback. The v1.4.2 CI
+probe catches it nightly, the v1.4.4 cron + v1.4.5 per-run log
+catch it within 24h, but real-time prod detection was missing.
+v1.4.6 closes the gap to seconds via a 2-layer alert architecture
+(Sentry primary + Vercel log-drain secondary).
+
+### Added
+
+- **`apps/pwa/src/lib/rateLimit.ts`** - added a
+  `Sentry.captureException` call right after the existing
+  `console.warn` in the Upstash-unreachable catch block. Lazy
+  import (`const Sentry = await import('@sentry/nextjs')`) +
+  try/catch so the call silently no-ops when @sentry/nextjs is
+  not installed (test env, dev builds without Sentry) or when
+  SENTRY_DSN is unset (Sentry v8 silent no-op). The captured
+  exception has `level: 'warning'` (fail-open degradation, not a
+  hard crash) and
+  `tags: { 'alert.upstash_degraded': 'true', 'rate_limit.backend':
+  'memory' }` (the tag is what the Sentry alert rule fires on).
+  Comment block documents the operator handoff path
+  (sentry.io -> kickbox-audio -> Alerts -> filter on the tag).
+
+- **`docs/ALERTING.md`** (NEW) - the 2-layer architecture
+  document. Sections: scope (what the failure mode is + why it
+  matters), 2-layer architecture diagram (ASCII), Layer 1 Sentry
+  handoff (5 min), Layer 2 Vercel log-drain handoff (15 min,
+  with Datadog + Honeycomb examples), alert response procedure
+  (6-step playbook: acknowledge -> check the burst cron -> check
+  Upstash dashboard -> rotate the API token -> verify recovery
+  -> document the incident), what's NOT covered (other rateLimit
+  failure modes, Vercel-side latency, pre-emptive alerts), and
+  migration notes (no production code breakage, no new env vars
+  required for Layer 1, test coverage still passes).
+
+- **`docs/THREAT_MODEL.md` §4 A2** - new sub-section "DoS
+  observability (v1.4.6)" documenting the real-time detection
+  architecture + closing the standing observability gap. Cross-
+  references `docs/ALERTING.md` for the full handoff.
+
+- **`docs/PRODUCTION_RUNBOOK.md` §6.8** - new "Real-time prod
+  alert (v1.4.6)" sub-bullet at the end of the v1.4.5 sub-
+  bullet block. Contains both operator handoffs (Sentry 5 min +
+  log-drain 15 min) as copy-paste blocks. Cross-references
+  `docs/ALERTING.md` for the alert response procedure.
+
+- **`.github/CODEOWNERS`** - added `/docs/ALERTING.md
+  @Cyberdad247 @sovereign/kba-authority` for symmetry with the
+  other docs + workflow ownership entries.
+
+### Migration notes
+
+- **No breaking change.** The Sentry captureException is a lazy
+  import + try/catch, no-ops when Sentry is unconfigured. The
+  existing `console.warn` is preserved exactly. The existing
+  `falls back to in-memory when Upstash throws` test in
+  `apps/pwa/src/lib/rateLimit.test.ts` still passes - the Sentry
+  call is additive, the warn is still called with the same
+  2-arg format.
+- **No new env vars required for Layer 1** (Sentry is already
+  wired from v1.3.0; the v1.4.6 code change is dormant until
+  SENTRY_DSN is set, then fires automatically).
+- **No new env vars required for Layer 2** (Vercel log-drain
+  stores the Datadog API key in the Vercel project's integration
+  settings, not in env vars).
+- **Operator action required (one-time, per environment):**
+  1. (5 min) Set up the Sentry alert rule per the Layer 1
+     handoff in PRODUCTION_RUNBOOK §6.8.
+  2. (15 min, optional) Set up the Vercel log-drain per the
+     Layer 2 handoff.
+  3. Verify: trigger a synthetic fallback (set UPSTASH_REDIS_REST_URL
+     to a non-existent host on a preview deploy, hit the
+     replay-coverage endpoint, confirm both Sentry event + log-
+     drain hit the alert path).
+- **What the alert looks like in practice**: an email + Slack
+  message titled "Upstash degraded" with the error stack trace
+  + the alert.upstash_degraded tag + a link to the Sentry
+  issue. Latency: <30s from the warn firing to the alert
+  delivery.
+
 ## [1.4.5] - 2026-06-28
 
 The v1.4.5 per-run observability closure. Closes the v1.4.5

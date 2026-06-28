@@ -126,6 +126,37 @@ listener on A3; only Tailscale mesh clients can reach it.
 | **D**oS | Rate-limit flood on `/api/diagnostics/replay-coverage`               | **M**    | Upstash-Redis-backed sliding-window limiter (60 req / IP / 60 s) chained with a daily hard-circuit (1000 req / IP / 24 h) as a free-tier cost guardrail; 429 + `Retry-After: N` header. IP is `HMAC-SHA256`-hashed with a vault-stored key (`RATE_LIMIT_HMAC_SECRET`) before storage — unlinkable, not just string-scrubbed (v1.4.3). Wired AFTER `ADMIN_TOKEN` auth (so unauth callers don't pollute the rate-limit state). In-memory fallback for dev/CI (fail-open + `console.warn` on Upstash outage). Multi-region accurate (v1.4.0). | low |
 | **E**levation | Render-side escalation (XSS → privileged token exfil)                 | **H**    | JSON-only fetches; no `<script>` injection surfaces; CSP `script-src 'self'`                          | low      |
 
+### A2.1 — PWA rate-limit observability (v1.4.6)
+
+The v1.4.0 rate-limit lift (Upstash-backed sliding window) has a
+known **silent fallback failure mode**: when Upstash Redis is
+unreachable, the helper logs
+`[rateLimit] Upstash unreachable, falling back to in-memory:` and
+serves from a per-Vercel-instance `Map<ip, number[]>`. The
+rate-limit ceiling (60 req / IP / 60s) is no longer shared across
+edge regions. Attackers behind a single NAT can effectively bypass
+the rate-limit by spreading requests across regions. The v1.4.0
+lift is functionally bypassed for the duration of the degradation,
+with no real-time signal to the operator.
+
+**Real-time detection (v1.4.6)**: 2-layer alert architecture
+documented in `docs/ALERTING.md`:
+- **Layer 1 (primary, real-time, Sentry)**: the helper emits
+  `Sentry.captureException(err, { level: 'warning', tags:
+  { 'alert.upstash_degraded': 'true', 'rate_limit.backend':
+  'memory' } })` on the same warn line. A Sentry alert rule on the
+  tag fires in seconds.
+- **Layer 2 (secondary, real-time, Vercel log-drain)**: a
+  Vercel `vercel integration add log-drains` (Datadog / Honeycomb
+  / Axiom) streams prod logs to a provider; a log-monitor on the
+  substring `[rateLimit] Upstash unreachable` fires within ~30s.
+
+**Closes**: the standing observability gap where the v1.4.0 lift
+was silent on fallback. Before v1.4.6: the v1.4.2 CI probe caught
+it nightly, the v1.4.4 cron + v1.4.5 per-run log caught it within
+24h, but real-time prod detection was missing. After v1.4.6: gap
+closes to seconds.
+
 ### A3 — Tailscale MCP guard (apps/mcp-query)
 
 | STRIDE   | Threat                                                                | Severity | Mitigation                                                                                            | Residual |

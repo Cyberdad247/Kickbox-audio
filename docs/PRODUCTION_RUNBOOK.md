@@ -684,6 +684,39 @@ VERIFICATION_LOG.md read in a weekly cron that alerts on
 `runner_min > 5` (slow-build regression). The schema in
 `docs/VERIFICATION_LOG.md` is greppable; an awk filter is ~10 LOC.
 
+**Real-time prod alert (v1.4.6)**: the rateLimit helper now emits
+`Sentry.captureException` on the Upstash-unreachable fallback
+(lazy import + try/catch, no-ops when Sentry is unconfigured). A
+Sentry alert rule on the tag `alert.upstash_degraded=true` fires
+in real-time prod (within seconds). Closes the THREAT_MODEL §4 A2
+observability gap. Full 2-layer architecture (Sentry primary +
+Vercel log-drain secondary) in `docs/ALERTING.md`. Operator
+handoff (5 min for Sentry, 15 min for log-drain):
+
+```text
+Layer 1 (Sentry, primary):
+1. sentry.io -> kickbox-audio -> Alerts -> Create Alert
+2. Type: "Issues", filter: tags[alert.upstash_degraded]=true + level=warning
+3. Action interval: 5 minutes
+4. Notify: email + #ops-alerts Slack webhook
+5. Save. Live immediately; no deploy needed.
+
+Layer 2 (Vercel log-drain, secondary):
+1. Pick a provider (Datadog recommended; free tier covers this use case)
+2. Mint a Datadog API key (Logs type)
+3. vercel integration add log-drains -> pick Datadog -> paste API key
+4. Datadog -> Monitors -> New Monitor -> Logs
+5. Query: `Upstash unreachable`; trigger: above 0 in 5-min window
+6. Notify: your team's email/Slack/PagerDuty
+7. Save. Logs flow within ~30s of being written on Vercel.
+```
+
+You only need ONE layer wired; the 2-layer design is
+defense-in-depth. The alert response procedure (what to do when
+the alert fires) is in `docs/ALERTING.md` §"Alert response
+procedure" (check Upstash dashboard, rotate the API token, verify
+recovery with the burst test).
+
 ---
 
 ## 7. Incident triage

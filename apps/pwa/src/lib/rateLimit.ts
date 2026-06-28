@@ -207,6 +207,29 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
         '[rateLimit] Upstash unreachable, falling back to in-memory:',
         (err as Error).message,
       );
+      // v1.4.6: also capture in Sentry for real-time prod alerting.
+      // The lazy import no-ops when @sentry/nextjs is not installed
+      // (test env, dev builds without Sentry) AND when SENTRY_DSN is
+      // unset (silent no-op in Sentry v8). Tagged with
+      // `alert.upstash_degraded=true` so the operator can set up a
+      // Sentry alert rule that fires on this exact tag (sentry.io
+      // -> kickbox-audio -> Alerts -> New Alert -> Issues -> filter
+      // `tags[alert.upstash_degraded]: true`). See PRODUCTION_RUNBOOK
+      // §6.8 + docs/ALERTING.md for the operator handoff.
+      try {
+        const Sentry = await import('@sentry/nextjs');
+        Sentry.captureException(err, {
+          level: 'warning',
+          tags: {
+            'alert.upstash_degraded': 'true',
+            'rate_limit.backend': 'memory',
+          },
+        });
+      } catch {
+        // Sentry not installed or not configured; the console.warn is
+        // the fallback (visible in Vercel logs, picked up by the
+        // optional Vercel log-drain in docs/ALERTING.md Layer 2).
+      }
     }
   }
   const mem = checkMemory(hashedIp, Date.now());
