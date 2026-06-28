@@ -50,6 +50,18 @@ jobs:
         # workspace links generate their client outputs.
         run: npm ci --no-audit --no-fund
 
+      - name: Generate Prisma client
+        # 2026-06-27 promotion: explicitly run `prisma generate` against
+        # `packages/db/schema.prisma` so the generated client is populated
+        # with the Transaction model (debit / credit / journal). Without
+        # this step, the @prisma/client postinstall runs from the monorepo
+        # ROOT where no schema.prisma exists, producing an empty client
+        # that makes `Prisma.TransactionCreateManyInput` undefined → tsc
+        # emits TS2694 at `ledgerValidator.ts:9`. The root package.json
+        # wires `db:generate` to `npm run generate --workspace=@sovereign/db`,
+        # which sets CWD=packages/db and finds the schema correctly.
+        run: npm run db:generate
+
       - name: Build @sovereign/db workspace
         # 2026-06-27 fix: switched from `npm --prefix packages/db run
         # build` to `npm run build --workspace=@sovereign/db`. In npm
