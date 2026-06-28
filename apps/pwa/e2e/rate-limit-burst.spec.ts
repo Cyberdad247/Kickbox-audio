@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type APIResponse } from '@playwright/test';
 
 /**
- * v1.4.1 (post-ship follow-up): e2e regression test for the
+ * v1.4.1 + v1.4.2: e2e regression test for the
  * `/api/diagnostics/replay-coverage` rate-limit (v1.4.0 lift to Upstash
  * Redis). Asserts the 60-req-per-minute sliding-window contract on a
  * live deployment so the rate-limit is regression-tested on every prod
@@ -16,7 +16,9 @@ import { test, expect, type APIRequestContext, type APIResponse } from '@playwri
  *      Upstash, the in-memory fallback is per-Vercel-instance and the
  *      61 requests can split across instances — the rate-limit would
  *      NOT fire (you'd see 61 × 200 instead of 60 pass + 1 × 429).
- *      See PRODUCTION_RUNBOOK §6.8 for the provisioning drill.
+ *      The `test.beforeAll` probe below ENFORCES this precondition
+ *      and fails fast with a clear "Upstash NOT wired" error. See
+ *      PRODUCTION_RUNBOOK §6.8 for the provisioning drill.
  *   3. (Optional) `SENTRY_AUTH_TOKEN` for the route to return 200
  *      instead of 503 on the first 60 calls. The test treats 200 and
  *      503 as equivalent "pass" (the rate-limit fires before the
@@ -35,7 +37,9 @@ import { test, expect, type APIRequestContext, type APIResponse } from '@playwri
  * Vercel appends the real egress IP to the chain, but the route reads
  * the FIRST value via `.split(',')[0]`, so the unique IP is what the
  * rate-limit's `sha256(ip)` key sees. This makes the test idempotent
- * and prevents CI runs from polluting each other's state.
+ * and prevents CI runs from polluting each other's state. The probe
+ * uses a different unique IP from the 2 main tests so they don't
+ * collide.
  *
  * Response contract (per PRODUCTION_RUNBOOK §10):
  *   - First 60 calls: `200` (Sentry wired) OR `503` (Sentry unwired,
@@ -47,6 +51,14 @@ import { test, expect, type APIRequestContext, type APIResponse } from '@playwri
  *     `'minute'` under normal conditions; `'day'` only fires if the
  *     same IP has burned the 1000-req/24h hard-circuit (vanishingly
  *     unlikely with random IPs but the test handles both).
+ *
+ * Fail-fast probe (v1.4.2): the `test.beforeAll` hook sends 61
+ * requests from a fresh unique IP and asserts the 61st returns 429.
+ * If the 61st is 200/503, the in-memory fallback is active (Upstash
+ * not wired) and the entire v1.4.0 lift is bypassed — the hook throws
+ * a clear error naming the misconfig, and the 2 main tests are marked
+ * as failed (they don't run). Closes the v1.4.1 code-reviewer F ⚠️
+ * minor (probe was documented but not enforced).
  */
 
 const E2E_BASE_URL = process.env.E2E_BASE_URL;
@@ -58,14 +70,57 @@ test.describe('replay-coverage rate-limit (v1.4.0 Upstash lift)', () => {
     'E2E_BASE_URL + E2E_ADMIN_TOKEN must be set to run against a live deploy',
   );
 
+  /**
+   * v1.4.2 fail-fast probe: enforce the "Upstash MUST be wired"
+   * precondition at the code level. Without Upstash, the in-memory
+   * fallback is per-Vercel-instance and the 61st request on a fresh
+   * IP returns 200 (not 429) because the 60 in-memory requests are
+   * split across instances. The probe sends 61 requests on a fresh
+   * unique IP and asserts the 61st returns 429. If not, throw a
+   * clear error naming the misconfig.
+   *
+   * IP isolation: the probe uses RFC 5737 TEST-NET-2 (`198.51.100.0/24`)
+   * to guarantee NO collision with the 2 main tests' random IP range
+   * (RFC 5737 TEST-NET-1, `192.0.2.0/24`). Different IP space = no
+   * possibility of probe-vs-test collision in the Upstash sliding
+   * window. The probe still randomizes within its range to handle the
+   * multi-worker case (where the probe might run in >1 worker).
+   *
+   * Runs once per worker (Playwright's beforeAll semantics).
+   */
+  test.beforeAll(async ({ request }) => {
+    const probeIp = `198.51.100.${Math.floor(Math.random() * 253) + 1}`;
+    const results = await burst(request, probeIp, 61);
+    const lastStatus = results[60]?.status;
+    if (lastStatus !== 429) {
+      const observed = results.map((r) => r.status).join(',');
+      throw new Error(
+        `Upstash NOT wired on the target deployment (${E2E_BASE_URL}): ` +
+        `sent 61 requests from a fresh RFC 5737 IP (${probeIp}), expected ` +
+        `the 61st to return 429 (rate-limit fired), but got ${lastStatus}. ` +
+        `Observed statuses: [${observed}]. This means the in-memory ` +
+        `fallback is per-Vercel-instance and the rate-limit is NOT shared ` +
+        `across regions (the entire v1.4.0 lift is bypassed). ` +
+        `Fix: set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN on the ` +
+        `Vercel project (Production + Preview); Doppler vault keys are ` +
+        `pwa/upstash-redis-rest-url + pwa/upstash-redis-rest-token (prd ` +
+        `config). See PRODUCTION_RUNBOOK §6.8 for the full provisioning ` +
+        `drill, or the PRECONDITIONS block at the top of this file.`,
+      );
+    }
+  });
+
   /** Random unique IP in RFC 5737 TEST-NET-1 (192.0.2.0/24). */
   function uniqueTestIp(): string {
     const last = Math.floor(Math.random() * 253) + 1; // 1..254
     return `192.0.2.${last}`;
   }
 
-  /** Send a burst of N requests with the supplied `X-Forwarded-For`.
-   * Returns an array of {status, retryAfter, body} in call order. */
+  /**
+   * Send a burst of N requests with the supplied `X-Forwarded-For`.
+   * Returns an array of {status, retryAfter, body} in call order.
+   * Exported to the test.beforeAll probe via the describe closure.
+   */
   async function burst(
     request: APIRequestContext,
     ip: string,

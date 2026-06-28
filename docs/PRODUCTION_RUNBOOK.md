@@ -534,7 +534,7 @@ operator offboard via the Upstash console → Database → Tokens → Roll.
 Set the new value in Doppler + Vercel. The helper re-probes env vars
 on the first call after a process restart (no SIGHUP needed).
 
-**Regression test (v1.4.1):** `npm run test:e2e:burst --workspace=apps/pwa`
+**Regression test (v1.4.1 + v1.4.2):** `npm run test:e2e:burst --workspace=apps/pwa`
 fires 61 requests at the live URL and asserts 60 pass + 1 × 429 with
 a numeric `Retry-After` header. Gated on `E2E_BASE_URL` +
 `E2E_ADMIN_TOKEN`; self-skips if either is unset. The test injects a
@@ -542,6 +542,16 @@ unique `X-Forwarded-For` per run (RFC 5737 TEST-NET-1) so successive
 CI runs from the same egress IP don't collide in the Upstash sliding
 window. Wire into a scheduled job or `workflow_dispatch` once the
 E2E secrets are in GitHub Actions.
+
+**v1.4.2 fail-fast probe:** the spec file's `test.beforeAll` hook
+enforces the "Upstash MUST be wired" precondition at the code level.
+It sends 61 requests from a fresh unique IP and asserts the 61st
+returns 429; if not, the hook throws a clear `Upstash NOT wired on
+<URL>` error naming the misconfig, the probe IP, and the observed
+status sequence, and the 2 main tests are skipped. This catches the
+"Upstash env vars unset on prod" failure mode loudly instead of
+letting it surface as a confusing `expected 60 pass, got 61` test
+failure.
 
 ---
 

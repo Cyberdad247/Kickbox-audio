@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-06-28
+
+The v1.4.2 fail-fast probe. Closes the v1.4.1 code-reviewer F ⚠️ minor
+(the Upstash-wired precondition was documented in the test file's
+PRECONDITIONS block but not enforced at the code level — a misconfigured
+deployment would surface as a confusing `expected 60 pass, got 61`
+failure instead of a clear "Upstash NOT wired" error).
+
+### Added
+
+- **`apps/pwa/e2e/rate-limit-burst.spec.ts`** — added a `test.beforeAll`
+  hook that sends 61 requests from a fresh RFC 5737 TEST-NET-1 IP and
+  asserts the 61st returns `429`. If the 61st is `200` or `503`, the
+  in-memory fallback is active (Upstash not wired) and the entire v1.4.0
+  lift is bypassed — the hook throws a clear error naming the
+  misconfig, the deployment URL, the probe IP, and the observed
+  status sequence, then the 2 main tests are marked as failed (they
+  don't run). The probe uses a DIFFERENT unique IP from the 2 main
+  tests so they don't collide in the Upstash sliding window. Hook
+  also references `PRODUCTION_RUNBOOK §6.8` and the test file's
+  PRECONDITIONS block in the error message. The 35-line file docstring
+  was updated to mention the probe + how it differs from the documented
+  (but previously unenforced) precondition.
+
+### Migration notes
+
+- **No breaking change.** No production code touched. The probe is
+  purely additive — it runs in `test.beforeAll` (a Playwright lifecycle
+  hook) and only fires when the test itself runs (i.e. when
+  `E2E_BASE_URL` + `E2E_ADMIN_TOKEN` are set; otherwise the entire
+  describe is skipped as before).
+- **What the probe catches**: a deployment where `UPSTASH_REDIS_REST_URL`
+  / `UPSTASH_REDIS_REST_TOKEN` are unset (or invalid). The route falls
+  back to the in-memory `Map<ip, number[]>` sliding window, which is
+  per-Vercel-instance — the 61 requests can split across instances and
+  the rate-limit never fires, so the 2 main tests would observe
+  `61 × 200` instead of `60 pass + 1 × 429`. The probe fails fast with
+  a clear error before the main tests run.
+- **What the probe does NOT catch**: Vercel X-Forwarded-For REPLACE
+  behavior (if Vercel ever changes from APPEND to REPLACE, the unique-IP
+  trick fails silently and the test uses the CI runner's real IP — the
+  rate-limit would still fire but tests would be flaky on rapid re-runs).
+  This is documented in the file docstring and is a known-acceptable
+  risk for v1.4.2.
+
 ## [1.4.1] - 2026-06-28
 
 The v1.4.1 e2e regression test for the v1.4.0 rate-limit lift. Closes
