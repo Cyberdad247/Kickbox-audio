@@ -645,6 +645,45 @@ handles the absence cleanly.
 3. Confirm 2/2 tests pass before promoting to prod
 ```
 
+**Per-run observability (v1.4.5):** the v1.4.4 burst-test workflow
+appends a row to `docs/VERIFICATION_LOG.md` on every successful
+run. The chained workflow is `.github/workflows/burst-log.yml`;
+it's triggered by the burst-test post-step via
+`gh workflow run burst-log.yml`. The 8 columns are:
+
+| Column             | Source                                                        |
+| ------------------ | ------------------------------------------------------------- |
+| date               | `date -u +%Y-%m-%dT%H:%M:%SZ` (in burst-log)                  |
+| commit             | First 7 chars of the trigger commit SHA                       |
+| tests passed       | Parsed from the Playwright `--reporter=list` output           |
+| 429 count          | `3` (deterministic: 1 probe + 1 main test 1 + 1 main test 2) |
+| fallback warnings  | `vercel logs pwa --since 1h | grep -c "Upstash unreachable"`  |
+| HMAC errors        | `vercel logs pwa --since 1h | grep -c "RATE_LIMIT_HMAC"`      |
+| Sentry 503s        | `vercel logs pwa --since 1h | grep -c "TELEMETRY_UNAVAILABLE"`|
+| runner-min         | Rounded up from `github.run_duration_ms / 60000`              |
+
+**Healthy row example** (what to expect on a green run):
+```text
+| 2026-06-28T03:00:12Z | fc4adce | 2 passed (47s) | 3 | 0 | 0 | 0 | 1 |
+```
+
+**Operator handoff (one-time per repo) for the 3 Vercel-logs
+columns:** add `VERCEL_TOKEN` to repo secrets (Settings -> Secrets
+and variables -> Actions). Mint the token at
+https://vercel.com/account/tokens (free Vercel account, scope = the
+`pwa` project, no expiry). Without this token, the 3 columns are
+`TBD`; the test still passes and the other 5 columns populate.
+Adding the token unlocks the per-run observability that catches
+**slow drift** (e.g., a week of `fallback_warnings: 0 -> 0 -> 0 ->
+1 -> 1` indicates the Upstash free tier is being exhausted, even
+though no single run fails).
+
+**Drift detection pattern** (optional, v1.4.6 candidate): wrap the
+VERIFICATION_LOG.md read in a weekly cron that alerts on
+`fallback_warnings > 0` OR `Sentry_503s > 0` (Sentry drift) OR
+`runner_min > 5` (slow-build regression). The schema in
+`docs/VERIFICATION_LOG.md` is greppable; an awk filter is ~10 LOC.
+
 ---
 
 ## 7. Incident triage

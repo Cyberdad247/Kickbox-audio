@@ -93,8 +93,54 @@ jobs:
         # --reporter=list,html emits the default stdout list AND
         # the HTML report under apps/pwa/playwright-report/ (uploaded
         # on failure below). List keeps the GH log readable; html
-        # gives the operator a clickable 61-row timeline.
-        run: npm run test:e2e:burst --workspace=apps/pwa -- --reporter=list,html
+        # gives the operator a clickable 61-row timeline. `tee` to
+        # /tmp captures the stdout for the v1.4.5 log-scan step.
+        run: |
+          npm run test:e2e:burst --workspace=apps/pwa -- --reporter=list,html 2>&1 | tee /tmp/playwright-test-output.log
+
+      - name: Extract test summary (v1.4.5)
+        if: success()
+        id: summary
+        # Parse the "N passed (Xs)" line from the Playwright list
+        # output. The line is always the LAST non-blank line of
+        # the stdout (Playwright prints the summary at the end).
+        # Also dynamically compute the expected 429 count by
+        # counting `test(...)` + `test.beforeAll(...)` declarations
+        # in the spec file (each fires exactly one burst that
+        # ends in 1 x 429). This is resilient to test additions:
+        # adding a 4th test bumps the count to 4 automatically,
+        # no hardcoded value to forget.
+        run: |
+          set -e
+          TESTS_PASSED=$(grep -oE "[0-9]+ passed \([0-9]+m?s\)" /tmp/playwright-test-output.log | tail -1)
+          if [ -z "$TESTS_PASSED" ]; then
+            TESTS_PASSED="UNKNOWN"
+          fi
+          SPEC=apps/pwa/e2e/rate-limit-burst.spec.ts
+          TEST_COUNT=$(grep -c "^  test(" "$SPEC" || echo "0")
+          BEFOREALL_COUNT=$(grep -c "^  test\.beforeAll(" "$SPEC" || echo "0")
+          COUNT_429=$((TEST_COUNT + BEFOREALL_COUNT))
+          echo "tests_passed=$TESTS_PASSED" >> $GITHUB_OUTPUT
+          echo "count_429=$COUNT_429" >> $GITHUB_OUTPUT
+
+      - name: Trigger burst-log appender (v1.4.5)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Chained workflow: the burst-log.yml workflow receives the
+        # test summary + runner-min + trigger_sha, scans Vercel
+        # logs, and commits a row to docs/VERIFICATION_LOG.md.
+        # Errors here do NOT fail the burst-test (the test itself
+        # already passed; the log append is a side effect).
+        continue-on-error: true
+        run: |
+          RUNNER_MIN=$(( (${{ github.run_duration_ms }} + 59999) / 60000 ))
+          gh workflow run burst-log.yml \
+            --ref ${{ github.sha }} \
+            -f tests_passed="${{ steps.summary.outputs.tests_passed }}" \
+            -f count_429="${{ steps.summary.outputs.count_429 }}" \
+            -f runner_min="$RUNNER_MIN" \
+            -f trigger_sha="${{ github.sha }}"
 
       - name: Upload Playwright HTML report
         # On failure, the operator gets the full HTML report (61

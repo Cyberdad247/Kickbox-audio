@@ -1,0 +1,151 @@
+name: Burst log appender (v1.4.5)
+
+# v1.4.5 per-run observability for the v1.4.4 burst-test cron.
+# Triggered ONLY by the burst-test workflow's post-step via
+# `gh workflow run burst-log.yml -f tests_passed=... -f runner_min=...
+# -f trigger_sha=...`. NOT triggered by schedule or push (the cron
+# is in burst-test.yml; this workflow is the log-append "side
+# effect" of a successful test run).
+#
+# What it does:
+#   1. Compute date + commit_short from the trigger inputs
+#   2. Install Vercel CLI + scan the last 1h of prod logs for the
+#      3 failure signatures (Upstash unreachable, RATE_LIMIT_HMAC,
+#      TELEMETRY_UNAVAILABLE). Mark TBD if VERCEL_TOKEN is unset.
+#   3. Append one row to docs/VERIFICATION_LOG.md via the GitHub
+#      API (uses secrets.GITHUB_TOKEN with contents: write).
+#
+# Required repo secrets:
+#   - VERCEL_TOKEN (optional: if unset, the 3 Vercel-logs columns
+#     are TBD; everything else still works)
+#   - The GITHUB_TOKEN is implicit (provided by the runner).
+#
+# Operator handoff: see PRODUCTION_RUNBOOK section 6.8 for the
+# VERCEL_TOKEN mint + add procedure (free Vercel account token at
+# vercel.com/account/tokens).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tests_passed:
+        description: "Test summary from the burst test workflow (e.g. '2 passed (47s)')"
+        required: true
+        type: string
+      count_429:
+        description: "Expected 429 count (dynamically computed from `test(...)` + `test.beforeAll(...)` in the spec)"
+        required: true
+        type: string
+      runner_min:
+        description: "Runner minutes for the burst test (rounded up from github.run_duration_ms)"
+        required: true
+        type: string
+      trigger_sha:
+        description: "The commit SHA that triggered the burst test"
+        required: true
+        type: string
+
+permissions:
+  # Needed to PUT the updated docs/VERIFICATION_LOG.md via gh api.
+  contents: write
+
+# 2 burst-log runs can race if burst-test fires twice in 1 minute
+# (e.g. scheduled + manual dispatch). Serialize them to prevent
+# the API PUT from clobbering an in-flight commit.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  append:
+    name: Append row to docs/VERIFICATION_LOG.md
+    runs-on: ubuntu-latest
+    # 3 min is the cold-cache safety budget: npm install -g vercel
+    # ~30s + log scan ~10s + gh api call ~5s + commit PUT ~5s.
+    # Bump to 5 if you add the Slack/Discord alert step.
+    timeout-minutes: 3
+    steps:
+      - name: Compute row values
+        id: row
+        run: |
+          set -e
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          COMMIT_SHORT=$(echo "${{ inputs.trigger_sha }}" | cut -c1-7)
+          # 429 count is passed in by the burst-test workflow as a
+          # string input (count_429), dynamically computed from the
+          # spec's `test(...)` + `test.beforeAll(...)` declarations
+          # (each fires exactly one burst that ends in 1 x 429).
+          # Resilient to test additions: a 4th test bumps the count
+          # to 4 automatically, no hardcoded value to forget.
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+
+      - name: Install Vercel CLI
+        # Needed for `vercel logs pwa --since 1h` to scan the
+        # last hour of prod logs. Only installed if VERCEL_TOKEN
+        # is set (avoids wasted ~30s install for runs that will
+        # only emit TBD columns anyway).
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: npm install -g vercel@latest
+
+      - name: Scan last 1h of prod logs
+        id: logscan
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          # Pull the last 1h of prod logs. Tolerate CLI errors
+          # (token rotated, expired, or unauthorized) by falling
+          # back to TBD for all 3 columns. Without this guard, a
+          # stale token would produce 0s in the row (the error
+          # message contains none of the 3 failure signatures).
+          if RAW=$(vercel logs pwa --since 1h 2>&1); then
+            FALLBACK=$(printf '%s' "$RAW" | grep -c "Upstash unreachable" || echo "0")
+            HMAC_ERRORS=$(printf '%s' "$RAW" | grep -c "RATE_LIMIT_HMAC" || echo "0")
+            SENTRY_503S=$(printf '%s' "$RAW" | grep -c "TELEMETRY_UNAVAILABLE" || echo "0")
+          else
+            echo "vercel logs failed (token rotated/expired?); emitting TBD" >&2
+            FALLBACK=TBD
+            HMAC_ERRORS=TBD
+            SENTRY_503S=TBD
+          fi
+          echo "fallback_warnings=$FALLBACK" >> $GITHUB_OUTPUT
+          echo "hmac_errors=$HMAC_ERRORS" >> $GITHUB_OUTPUT
+          echo "sentry_503s=$SENTRY_503S" >> $GITHUB_OUTPUT
+
+      - name: Mark log-scan columns TBD (no VERCEL_TOKEN)
+        id: logscan
+        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        run: |
+          echo "fallback_warnings=TBD" >> $GITHUB_OUTPUT
+          echo "hmac_errors=TBD" >> $GITHUB_OUTPUT
+          echo "sentry_503s=TBD" >> $GITHUB_OUTPUT
+
+      - name: Append row to docs/VERIFICATION_LOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Fetch the current file + sha
+          FILE_JSON=$(gh api repos/${{ github.repository }}/contents/docs/VERIFICATION_LOG.md)
+          CURRENT=$(echo "$FILE_JSON" | jq -r .content | base64 -d)
+          SHA=$(echo "$FILE_JSON" | jq -r .sha)
+          # Build the new row
+          NEW_ROW="| ${{ steps.row.outputs.date }} | ${{ steps.row.outputs.commit }} | ${{ inputs.tests_passed }} | ${{ inputs.count_429 }} | ${{ steps.logscan.outputs.fallback_warnings }} | ${{ steps.logscan.outputs.hmac_errors }} | ${{ steps.logscan.outputs.sentry_503s }} | ${{ inputs.runner_min }} |"
+          # Insert the new row immediately AFTER the header
+          # separator line (the line that starts with "| ---- |").
+          # Use awk for portable cross-platform insertion.
+          UPDATED=$(printf '%s\n' "$CURRENT" | awk -v row="$NEW_ROW" '
+            /^\| ---- \|/ { print; print row; next }
+            { print }
+          ')
+          # Re-encode (strip trailing newlines so base64 matches)
+          ENCODED=$(printf '%s' "$UPDATED" | base64 -w 0)
+          # Commit via the GitHub API
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            repos/${{ github.repository }}/contents/docs/VERIFICATION_LOG.md \
+            -f message="ci(v1.4.5): burst regression row ${{ steps.row.outputs.date }}" \
+            -f content="$ENCODED" \
+            -f sha="$SHA"

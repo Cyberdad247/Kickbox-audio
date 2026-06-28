@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.5] - 2026-06-28
+
+The v1.4.5 per-run observability closure. Closes the v1.4.5
+follow-up from the v1.4.4 ship ("the burst-test cron catches a
+regression, but a per-run history is needed to detect SLOW drift
+in the rate-limit's accuracy over weeks/months"). The burst-test
+workflow now appends a row to a markdown log on every successful
+run; the log is human-readable + greppable for trend analysis.
+
+### Added
+
+- **`docs/VERIFICATION_LOG.md`** (NEW) - the per-run table. 8 columns:
+  date, commit, tests passed, 429 count, fallback warnings, HMAC
+  errors, Sentry 503s, runner-min. First row is a placeholder; the
+  first successful `burst-test` run populates it. The file has a
+  schema section documenting each column's source (GitHub Actions
+  output names + Vercel log grep patterns) so the next maintainer
+  can extend it.
+
+- **`.github/workflows/burst-log.yml`** (NEW) - the log-appender
+  workflow. `on: workflow_dispatch` only (not schedule, not push).
+  Triggered by the `burst-test` workflow's post-step via
+  `gh workflow run burst-log.yml -f tests_passed=... -f runner_min=...
+  -f trigger_sha=...`. Steps: (1) compute date + commit_short from
+  the trigger inputs, (2) install `vercel@latest` CLI (skipped if
+  VERCEL_TOKEN is unset), (3) scan the last 1h of prod logs for the
+  3 failure signatures (`Upstash unreachable`, `RATE_LIMIT_HMAC`,
+  `TELEMETRY_UNAVAILABLE`) - mark TBD if VERCEL_TOKEN is unset,
+  (4) append the row to `docs/VERIFICATION_LOG.md` via the GitHub
+  API (`gh api PUT` with `contents: write` permission, 2-step
+  fetch-current + PUT-updated pattern). 3-min timeout, ubuntu-latest,
+  `contents: write` permission, concurrency group = workflow name
+  (serializes 2 racing log-appends).
+
+- **`.github/workflows/burst-test.yml`** - added 2 post-steps to
+  the v1.4.4 workflow (both on `if: success()`):
+    1. **Extract test summary** - parses the "N passed (Xs)" line
+       from the Playwright `--reporter=list` output (via `tee` to
+       `/tmp/playwright-test-output.log`).
+    2. **Trigger burst-log appender** - calls
+       `gh workflow run burst-log.yml` with the 3 inputs
+       (tests_passed, runner_min, trigger_sha). The `runner_min`
+       is computed as `((github.run_duration_ms + 59999) / 60000)`
+       to round up. `continue-on-error: true` so a log-append
+       failure doesn't fail the test (the test already passed;
+       the log is a side effect).
+
+- **`.github/CODEOWNERS`** - added
+  `/.github/workflows/burst-log.yml @Cyberdad247 @sovereign/kba-authority`
+  and `/docs/VERIFICATION_LOG.md @Cyberdad247 @sovereign/kba-authority`
+  for symmetry with the existing kba-smoke.yml + burst-test.yml
+  entries.
+
+- **`docs/PRODUCTION_RUNBOOK.md` section 6.8** - new "Per-run
+  observability (v1.4.5)" sub-bullet: the VERIFICATION_LOG.md
+  file path, the burst-log.yml workflow, the 8 columns, the
+  VERCEL_TOKEN handoff (free Vercel account token at
+  vercel.com/account/tokens), and a worked example of a row
+  (showing what a healthy row looks like: all 0s, 1 runner-min,
+  3 × 429).
+
+### Migration notes
+
+- **No breaking change.** The burst-test workflow's test contract
+  is unchanged; the 2 new post-steps are `if: success()` and the
+  burst-log trigger is `continue-on-error: true`. A log-append
+  failure cannot fail the test.
+- **Operator action required (one-time per repo):**
+  1. Add `VERCEL_TOKEN` to repo secrets (Settings -> Secrets and
+     variables -> Actions). Mint at
+     https://vercel.com/account/tokens (free Vercel account, scope
+     = the `pwa` project). Without this token, the 3 Vercel-logs
+     columns are `TBD`; everything else still works.
+  2. (Optional) Run the burst-test workflow once via
+     `workflow_dispatch` to populate the first row. The next
+     03:00 UTC nightly cron will do the same.
+  3. (Optional) Run `gh workflow run burst-test.yml` manually
+     after the above to verify the chained trigger fires.
+- **Drift detection pattern**: `gh api repos/.../contents/docs/VERIFICATION_LOG.md`
+  + a simple awk/perl filter can be wrapped in a weekly cron to
+  alert on `fallback_warnings > 0` (Upstash degradation) or
+  `Sentry_503s > 0` (Sentry drift). The CHANGELOG section above
+  has the column sources.
+- **Cost**: 3 min of ubuntu-latest per successful burst-test run
+  (the burst-log workflow is short-lived; the burst-test itself
+  is ~2 min). With the nightly cron, that's ~9 runner-min/day =
+  ~270 runner-min/month (public repo: free; private repo: 13.5%
+  of the 2000-min/mo free tier).
+
 ## [1.4.4] - 2026-06-28
 
 The v1.4.4 scheduled burst regression. Closes the standing v1.4.2
