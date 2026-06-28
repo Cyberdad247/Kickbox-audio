@@ -27,6 +27,32 @@ interface SentryReplayStats {
   p75ReplayBytes: number;
 }
 
+// v1.3.1 follow-up: in-memory rate limit (60 req/IP/60 s). The endpoint
+// is already admin-gated by ADMIN_TOKEN, but a leaked token in a tight
+// loop would hammer Sentry without bound. Note: in-memory only — for
+// multi-region Vercel instances, lift to Vercel Edge KV (v1.4.0 ticket).
+const RATE_LIMIT_MAX_REQS = 60;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const rateLimitLog = new Map<string, number[]>();
+
+function checkRateLimit(ip: string): { ok: boolean; retryAfterSec: number } {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  const recent = (rateLimitLog.get(ip) ?? []).filter((t) => t > cutoff);
+  if (recent.length >= RATE_LIMIT_MAX_REQS) {
+    const oldestInWindow = recent[0];
+    const retryAfterSec = Math.max(
+      1,
+      Math.ceil((oldestInWindow + RATE_LIMIT_WINDOW_MS - now) / 1000),
+    );
+    rateLimitLog.set(ip, recent);
+    return { ok: false, retryAfterSec };
+  }
+  recent.push(now);
+  rateLimitLog.set(ip, recent);
+  return { ok: true, retryAfterSec: 0 };
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -34,6 +60,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const token = process.env.ADMIN_TOKEN ?? '';
   if (!token || !auth.startsWith('Bearer ') || auth.slice('Bearer '.length) !== token) {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+  }
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown';
+  const rl = checkRateLimit(ip);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'RATE_LIMIT_EXCEEDED', retryAfterSec: rl.retryAfterSec },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    );
   }
   try {
     const sentryToken = await getSecret('pwa/sentry-auth-token', 'SENTRY_AUTH_TOKEN');

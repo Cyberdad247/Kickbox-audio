@@ -26,6 +26,7 @@
  */
 
 import { logger } from './logger';
+import { captureMessage } from './sentry';
 
 export type RevocationMarker = string;
 
@@ -149,6 +150,16 @@ export function revokeCert(args: Omit<RevokedCert, 'revokedAt'>): {
       },
       '[certRevocation] cert revoked',
     );
+    // Mirror to Sentry (captureMessage, NOT captureException — this is
+    // a deliberate security-significant event, not an error). The
+    // above logger.warn still fires so Pino carries the audit trail
+    // even when Sentry is unconfigured.
+    captureMessage('cert_revocation', {
+      marker: result.marker,
+      revokedAt: result.revoked.revokedAt,
+      revokedBy: result.revoked.revokedBy,
+      reason: result.revoked.reason,
+    });
   }
   return result as { marker: RevocationMarker; revoked: RevokedCert; duplicate: boolean };
 }
@@ -171,6 +182,7 @@ export function reissueCert(args: {
   store.set(key, { ...existing, reissuedAt } as RevokedCert & { reissuedAt: number });
   store.delete(key);
   logger.info({ marker: key, reissuedAt }, '[certRevocation] cert reissued');
+  captureMessage('cert_reissuance', { marker: key, reissuedAt });
   return { marker: key, reissuedAt };
 }
 

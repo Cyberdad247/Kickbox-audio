@@ -85,7 +85,7 @@ function parseArgs(): { fromPath: string; apply: boolean } {
   return { fromPath: argv[fromIdx + 1], apply: argv.includes('--apply') };
 }
 
-function loadYamlLite(raw: string): RotationFile {
+export function loadYamlLite(raw: string): RotationFile {
   // Trivial YAML parser: each non-blank, non-comment line is `- key: value`
   // (single-level mapping, sufficient for `rotations:` + bullet list).
   // Multi-key entries use indented continuation lines.
@@ -132,7 +132,7 @@ function loadYamlLite(raw: string): RotationFile {
   return { rotations };
 }
 
-function resolveValue(entry: RotationEntry): { value: string; source: 'literal' | 'cmd' } {
+export function resolveValue(entry: RotationEntry): { value: string; source: 'literal' | 'cmd' } {
   if (entry.value !== undefined) return { value: entry.value, source: 'literal' };
   const cmd = entry.value_cmd!;
   const r = spawnSync(cmd, { shell: true, encoding: 'utf8' });
@@ -142,7 +142,7 @@ function resolveValue(entry: RotationEntry): { value: string; source: 'literal' 
   return { value: r.stdout.trim(), source: 'cmd' };
 }
 
-async function applyToDoppler(entry: RotationEntry, value: string): Promise<void> {
+export async function applyToDoppler(entry: RotationEntry, value: string): Promise<void> {
   const token = process.env.DOPPLER_TOKEN;
   if (!token) {
     throw new Error('DOPPLER_TOKEN env var is required for --apply mode');

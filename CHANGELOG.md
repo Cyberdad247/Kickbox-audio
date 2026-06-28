@@ -336,6 +336,58 @@ telemetry + PII selectors + report-bug UI.
   on dynamic forms), server-side replay linkage across Next.js
   API routes, full Sentry dashboard with replay drill-down.
 
+## [1.3.1] - 2026-06-28
+
+The v1.3.1 follow-up patch. 3 surgical follow-ups to v1.3.0 that close
+standing items from prior code-reviews: `scripts/rotate-secrets.test.ts`
+coverage gaps, `/api/diagnostics/replay-coverage` rate-limit gap, and
+Sentry mirror for `certRevocation` events. All additive — no breaking
+changes, no operator config required.
+
+### Added
+
+- **`scripts/rotate-secrets.test.ts`** — 2 new vitest cases in the
+  `applyToDoppler` describe: (a) 5xx error path (status 500 throws),
+  (b) URL-encoding of project/config special chars (space→%20,
+  /→%2F, &→%26). Test count is now **4 `loadYamlLite` + 2 `resolveValue`
+  + 5 `applyToDoppler` = 11** (was 9).
+
+- **`apps/pwa/src/app/api/diagnostics/replay-coverage/route.ts`** —
+  in-memory rate limit (60 req / IP / 60 s). Sliding-window TTL prune
+  before push, 429 response with `Retry-After: N` header. Wired
+  AFTER `ADMIN_TOKEN` auth (so unauth callers don't pollute the
+  rate-limit state). In-memory is single-instance; for multi-region
+  accuracy lift to Vercel Edge KV (v1.4.0 ticket).
+
+- **`apps/bifrost/src/certRevocation.ts`** — `captureMessage` mirror
+  of the existing Pino audit log. `revokeCert` now emits a
+  `cert_revocation` message; `reissueCert` now emits a
+  `cert_reissuance` message. Falls through to `noopSentry` when
+  `SENTRY_DSN` is unset. The Pino audit trail is preserved
+  (`captureMessage` is in addition to, not instead of, the logger
+  call — both fire on every revocation event).
+
+- **`scripts/rotate-secrets.ts` + `scripts/rotate-secrets.test.ts`** —
+  helper exports (`loadYamlLite` / `resolveValue` / `applyToDoppler`)
+  + test-file restructure: removed dynamic-import + `vi.resetModules`
+  pattern, switched to top-level static imports; scoped
+  `vi.stubGlobal('fetch', mockFetch)` to the `applyToDoppler` describe's
+  `beforeEach` only (so the prior describe's `afterEach` cannot unstub
+  before the fetch-needing tests run). Closes the cross-block leakage
+  that previously let `applyToDoppler` tests hit real `api.doppler.com`.
+
+### Migration notes
+
+- **No breaking change.** All changes are additive. Existing v1.3.0
+  deployments continue to work without config changes.
+- **Rate-limit response:** 429 with `Retry-After: N` (seconds). The
+  `Retry-After` is calculated from the oldest timestamp in the current
+  60 s window. Operators should observe this if their scrape loop
+  accidentally exceeds 60 reqs per minute.
+- **Sentry events surface when `SENTRY_DSN` is configured.** If you
+  don't have a Sentry DSN wired, `captureMessage` is a no-op and the
+  Pino audit log remains the source of truth.
+
 ## [1.2.0] - 2026-06-28
 
 The v1.2.0 Tier 3 production-readiness release. 6 items: bundle-size budget
