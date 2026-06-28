@@ -25,6 +25,7 @@
 
 # CI surface
 /.github/workflows/kba-smoke.yml          @Cyberdad247 @sovereign/kba-authority
+/.github/workflows/burst-test.yml         @Cyberdad247 @sovereign/kba-authority
 /scripts/ci/fixture-hitl.mjs               @Cyberdad247 @sovereign/kba-authority
 /scripts/regen-helio-patch.mjs             @Cyberdad247 @sovereign/kba-authority
 

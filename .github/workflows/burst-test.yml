@@ -1,0 +1,110 @@
+name: Burst regression (v1.4.4)
+
+# v1.4.4: scheduled regression test for the v1.4.0 Upstash rate-limit
+# lift. Fires 61 requests at the live prod URL and asserts the
+# 60 pass + 1 x 429 + Retry-After contract end-to-end. Closes the
+# standing v1.4.2 follow-up ("wire the burst test into a scheduled
+# job so the rate-limit is regression-tested on every prod-like
+# deploy").
+#
+# Schedule: nightly at 03:00 UTC (low-traffic window; avoids overlap
+# with US business hours). Manual trigger via workflow_dispatch lets
+# the operator run against a preview deploy before a prod release
+# (override the E2E_BASE_URL input).
+#
+# Required repo secrets (Settings > Secrets and variables > Actions):
+#   - E2E_BASE_URL      e.g. https://pwa-eight-gamma.vercel.app
+#   - E2E_ADMIN_TOKEN   doppler secrets get --project kickbox-audio
+#                            --config prd bifrost/admin-token --plain
+# The test self-skips if either is unset (no false negatives on a
+# misconfigured repo; same posture as the in-repo test.skip gate).
+# See PRODUCTION_RUNBOOK section 6.8 for the operator handoff.
+
+on:
+  schedule:
+    # 03:00 UTC nightly. Cron uses UTC by GitHub Actions spec.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Override E2E_BASE_URL (default: E2E_BASE_URL repo secret)'
+        required: false
+        type: string
+      admin_token:
+        description: 'Override E2E_ADMIN_TOKEN (default: E2E_ADMIN_TOKEN repo secret)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Group scheduled runs together (so 2 nightly runs serialize) but
+# let manual dispatches run independently of each other and of the
+# schedule. cancel-in-progress: false means a slow nightly run won't
+# kill the next night's overlap; a slow manual run won't be killed
+# by a scheduled run kicking off.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && 'cron' || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  burst:
+    name: 61-request burst regression
+    runs-on: ubuntu-latest
+    # 8 min is the cold-cache safety budget: 61 requests ~30s + npm
+    # ci ~60s (cold: ~90s) + Playwright install first-run ~90s
+    # (cached: ~10s) + report upload ~5s. Worst-case cold = ~215s,
+    # leaving 265s headroom. Cached runs finish in ~50s. Bump to
+    # 10 if you add another test file or switch to webServer mode.
+    timeout-minutes: 8
+    env:
+      # `inputs.X` is only set on workflow_dispatch; on schedule, the
+      # expression falls through to the secret. `||` works on null
+      # AND empty string in GitHub Actions expression syntax.
+      E2E_BASE_URL: ${{ inputs.base_url || secrets.E2E_BASE_URL }}
+      E2E_ADMIN_TOKEN: ${{ inputs.admin_token || secrets.E2E_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        # Node 22 LTS (matches ci.yml + kba-smoke.yml + engines in
+        # package.json). cache: npm reuses the install layer across
+        # runs (~30s saved vs cold npm ci).
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install monorepo deps
+        # --no-audit + --no-fund mirror kba-smoke.yml. Production-
+        # bundle vulns are gated in ci.yml (npm audit --omit=dev
+        # --audit-level=high), so we don't double-gate here.
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        # --with-deps installs the system libraries (libnss3, libxss1,
+        # etc.) required by headless Chromium. First run ~90s, cached
+        # runs ~10s. Only chromium is installed (the spec only
+        # declares `chromium` in playwright.burst.config.ts).
+        run: npx playwright install --with-deps chromium
+
+      - name: Run burst e2e test
+        # Run from the pwa workspace via the v1.4.1 npm script.
+        # --reporter=list,html emits the default stdout list AND
+        # the HTML report under apps/pwa/playwright-report/ (uploaded
+        # on failure below). List keeps the GH log readable; html
+        # gives the operator a clickable 61-row timeline.
+        run: npm run test:e2e:burst --workspace=apps/pwa -- --reporter=list,html
+
+      - name: Upload Playwright HTML report
+        # On failure, the operator gets the full HTML report (61
+        # response statuses, the unique IP, the test timeline) for
+        # postmortem without re-running. Retention is 7 days; bump
+        # to 30 if you need longer postmortem windows.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/pwa/playwright-report/
+          retention-days: 7
+          if-no-files-found: warn

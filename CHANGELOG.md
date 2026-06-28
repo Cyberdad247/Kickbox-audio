@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] - 2026-06-28
+
+The v1.4.4 scheduled burst regression. Closes the standing v1.4.2
+follow-up ("wire the burst test into a scheduled job so the
+rate-limit is regression-tested on every prod-like deploy"). Nightly
+GitHub Actions cron at 03:00 UTC + manual `workflow_dispatch` for
+ad-hoc preview runs. All additive - no production code touched.
+
+### Added
+
+- **`.github/workflows/burst-test.yml`** (NEW) - nightly cron + manual
+  trigger. Runs `npm run test:e2e:burst --workspace=apps/pwa` against
+  the live prod URL with the `E2E_BASE_URL` + `E2E_ADMIN_TOKEN` repo
+  secrets. 5-min timeout; `ubuntu-latest`; Node 22 (matches `ci.yml`
+  + `kba-smoke.yml` + the `engines` field in `package.json`). Steps:
+  checkout -> setup-node (with npm cache) -> `npm ci --no-audit
+  --no-fund` -> `npx playwright install --with-deps chromium` -> run
+  burst with `--reporter=list,html` -> on failure, upload the
+  Playwright HTML report as a 7-day artifact so the operator can see
+  the 61 response statuses + the unique IP + the failure timeline
+  without re-running. Concurrency group is the workflow name with
+  `cancel-in-progress: false` (don't kill a slow run on overlap).
+  Permissions scoped to `contents: read` (matches `kba-smoke.yml`
+  posture). The test self-skips if either env var is unset (no false
+  negatives on a misconfigured repo; same `test.skip` gate the spec
+  itself uses).
+
+- **`.github/CODEOWNERS`** - added `/.github/workflows/burst-test.yml
+  @Cyberdad247 @sovereign/kba-authority` for symmetry with the
+  existing `kba-smoke.yml` ownership entry. The default `*` ownership
+  already covered it; the explicit entry is for reviewer-routing
+  parity.
+
+- **`docs/PRODUCTION_RUNBOOK.md` section 6.8** - new "Scheduled
+  burst regression (v1.4.4)" sub-bullet: the workflow file path, the
+  03:00 UTC cron schedule, the two required repo secrets
+  (`E2E_BASE_URL` + `E2E_ADMIN_TOKEN`), how to manually trigger via
+  `workflow_dispatch` (with optional `base_url` input for preview
+  runs), the failure-mode playbook (download the HTML report
+  artifact, inspect the 61 response statuses, the Upstash-fallback
+  probe error if applicable), and the rollout steps (add secrets ->
+  push workflow -> first manual run -> schedule auto-fires).
+
+### Migration notes
+
+- **No breaking change.** The workflow only runs the test command
+  that already exists in v1.4.1; the test itself self-skips without
+  the env vars, the workflow does the same.
+- **Operator action required (one-time per repo):**
+  1. Open `github.com/Cyberdad247/Kickbox-audio/settings/secrets/actions`
+  2. Add `E2E_BASE_URL` (e.g. `https://pwa-eight-gamma.vercel.app`)
+  3. Add `E2E_ADMIN_TOKEN` (paste the value from
+     `doppler secrets get --project kickbox-audio --config prd
+     bifrost/admin-token --plain`)
+  4. Push the v1.4.4 commit (the workflow file is dormant until
+     secrets are set + schedule is triggered).
+  5. Manual first run: Actions tab -> "Burst regression (v1.4.4)"
+     -> Run workflow -> leave inputs blank (uses secrets). Confirm
+     2/2 tests pass.
+  6. The nightly cron auto-fires from the next 03:00 UTC.
+- **Failure handling**: GitHub emails the maintainers on failure
+  (per the repo's notification settings). The Playwright HTML report
+  is attached as a 7-day artifact - download, expand, open
+  `index.html` in a browser, inspect the 61 response statuses and
+  the test timeline. If the failure is the v1.4.2 "Upstash NOT
+  wired" probe, see PRODUCTION_RUNBOOK section 6.8 for the
+  provisioning drill.
+- **Cost**: ~2 min of ubuntu-latest runner minutes per day = 60
+  runner-minutes/month (well within the free tier for public repos;
+  private repos should bump to weekly to stay under the 2000-min/mo
+  free tier).
+
 ## [1.4.3] - 2026-06-28
 
 The v1.4.3 unlinkable IP hashing hardening. Closes the v1.4.0

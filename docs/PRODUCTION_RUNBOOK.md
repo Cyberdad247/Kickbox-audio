@@ -579,6 +579,72 @@ the RS256 private key in §6.2). The helper is fail-closed: if the
 env var is unset, `checkRateLimit` throws and the route returns 500
 (operator sees the clear error in Vercel logs).
 
+**Scheduled burst regression (v1.4.4):** the v1.4.1 burst e2e test
+is wired into a nightly GitHub Actions cron so the rate-limit is
+regression-tested on every prod-like deploy. The workflow lives at
+`.github/workflows/burst-test.yml`; it fires at 03:00 UTC nightly
+(low-traffic window) and can be manually triggered via
+`workflow_dispatch` (useful for preview-deploy validation before
+a prod release).
+
+**Required repo secrets** (one-time setup, Settings -> Secrets and
+variables -> Actions):
+1. `E2E_BASE_URL` - e.g. `https://pwa-eight-gamma.vercel.app`
+2. `E2E_ADMIN_TOKEN` - paste the value from
+   `doppler secrets get --project kickbox-audio --config prd bifrost/admin-token --plain`
+
+If either secret is missing, the test self-skips (no false
+negatives). The workflow does NOT fail the schedule if the secrets
+are unset - the `test.skip` gate inside `rate-limit-burst.spec.ts`
+handles the absence cleanly.
+
+**Failure-mode playbook:**
+- GitHub emails the maintainers on failure (per repo notification
+  settings). The Playwright HTML report is uploaded as a 7-day
+  artifact.
+- Open the Actions run -> scroll to "Artifacts" -> download
+  `playwright-report` -> expand -> open `index.html` in a browser.
+  The report shows the 61 response statuses, the unique IP, and
+  the test timeline.
+- If the failure is the v1.4.2 "Upstash NOT wired on <URL>" probe
+  error, the Upstash env vars were unset or invalid - re-run the
+  Upstash provisioning drill at the top of this section.
+- If the failure is `expected 60 pass, got 61` (without the probe
+  error), the v1.4.2 probe is broken - check the test:beforeAll
+  hook in `rate-limit-burst.spec.ts`.
+- If the failure is intermittent (`got 59 pass, got 2 x 429`),
+  CI is likely sharing an IP with a previous run that hasn't
+  expired yet - the 60s sliding window from the prior nightly run
+  is still active. Wait 60s and re-run manually; if reproducible,
+  the unique-IP trick is broken (Vercel X-Forwarded-For REPLACE
+  instead of APPEND - known-acceptable risk, see the test docstring).
+- If the failure is `npm ci` exit 1 with "lockfile out of sync",
+  a PR-merge drifted `package-lock.json`; run `npm install` locally,
+  commit the regenerated lockfile, and re-run. (The `npm ci` step
+  is strict on purpose - it catches accidental lockfile drift before
+  the workflow hits the test.)
+- If the failure is intermittent 503s on the first request,
+  the test is racing a Vercel deploy in progress. Vercel returns
+  503 during the build's first ~30-60 s, so the first request of
+  the burst short-circuits with 503. Re-run after the deploy
+  settles, or wait for the next scheduled run. (Adding a
+  retry-on-503 in the spec is a v1.4.5 candidate.)
+- If the failure is HTTP 401 on the first request, `E2E_ADMIN_TOKEN`
+  was rotated in Doppler mid-run (the old value is in the repo
+  secret cache, the new value is on Vercel). The 401 is NOT a
+  test bug - update the repo secret from Doppler and re-run.
+  Rotation propagation from Doppler to Vercel is ~60 s.
+
+**Manual trigger (preview deploy validation):**
+```text
+1. Push the candidate branch; wait for the preview deploy URL
+2. Open the Actions tab -> "Burst regression (v1.4.4)" ->
+   "Run workflow" -> enter the preview URL in the "base_url"
+   input (leave "admin_token" blank to use the prod secret,
+   which has the same Bifrost RBAC role)
+3. Confirm 2/2 tests pass before promoting to prod
+```
+
 ---
 
 ## 7. Incident triage
