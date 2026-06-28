@@ -26,6 +26,27 @@ export const logger = pino({
   formatters: {
     level: (label) => ({ level: label }),
   },
+  // 2026-06-28 production-readiness (post-review): redact secret-bearing
+  // fields from log output. Without this, any code path that logs
+  // `req.body`, an `*.secret` derived value, an HMAC `signature`, or a
+  // webhook header would emit the secret verbatim. Paths use Pino's
+  // bracket notation for nested fields. See the v1.1.0 production-readiness
+  // PR review (2026-06-28) for the full code-reviewer finding.
+  redact: {
+    paths: [
+      '*.password',
+      '*.secret',
+      '*.token',
+      '*.signature',
+      '*.rawBody',
+      'req.headers.authorization',
+      'req.headers["x-webhook-signature"]',
+      'req.headers["x-webhook-action"]',
+      'req.headers["x-webhook-timestamp"]',
+      'req.headers["x-webhook-expires-at"]',
+    ],
+    censor: '[REDACTED]',
+  },
 });
 
 export type Logger = typeof logger;
