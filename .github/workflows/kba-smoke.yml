@@ -88,8 +88,16 @@ jobs:
         # on `^build` so @sovereign/db is already built by this point.
         run: npx turbo run typecheck
 
-      - name: Vitest — security/issuance/nlp/state
-        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
+      - name: Vitest — security/issuance/nlp/state/auth
+        # v1.2.0 Tier 3 RBAC: include auth.test.ts to gate JWT/requireRole
+        # behavior under the same kba-smoke run. The 11 cases cover HS256
+        # signing, the role hierarchy (viewer < operator < admin),
+        # missing/expired/forged tokens, and requireRole middleware
+        # enforcement. Failure here blocks merge per AGENTS.md CI
+        # governance. Closes the v1.2.0 final-pass Q9 follow-on without
+        # adding a new job or extra runner minutes — same workflow,
+        # one extra vitest file.
+        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts apps/bifrost/src/auth.test.ts
 
       - name: Issue signed KBA action via fixture
         run: node scripts/ops/fixture-hitl.mjs

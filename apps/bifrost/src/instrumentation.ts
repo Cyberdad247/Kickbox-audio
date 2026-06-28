@@ -10,8 +10,17 @@
  *
  * The try/catch wraps the require() so the file is safe to import even if
  * the OTel SDK is not installed (optional dependency).
+ *
+ * Defense-in-depth: even though this file is normally loaded once per
+ * process, the `registered` flag guards the SIGTERM/SIGINT handler
+ * registration so vitest setup + dev-server boot (or any future hot-
+ * reload) cannot double-register. Without the guard, the second handler
+ * would double-flush the SDK on shutdown and stall the process on the
+ * second signal — the code-reviewer flagged this in the v1.2.0 final
+ * pass.
  */
 let sdk: { start(): void; shutdown(): Promise<void> } | null = null;
+let registered = false;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { NodeSDK } = require('@opentelemetry/sdk-node') as typeof import('@opentelemetry/sdk-node');
@@ -29,14 +38,20 @@ try {
       ],
     });
     sdk.start();
-    // Graceful shutdown: flush spans before process exits
+    // Graceful shutdown: flush spans before process exits.
+    // Guarded by `registered` so a reload (vitest worker + dev boot,
+    // or HMR) cannot double-register and double-flush the SDK on
+    // shutdown — the code-reviewer flagged this in v1.2.0 final pass.
     const shutdown = (): void => {
       sdk?.shutdown().catch(() => {
         // ignore
       });
     };
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
+    if (!registered) {
+      process.on('SIGTERM', shutdown);
+      process.on('SIGINT', shutdown);
+      registered = true;
+    }
   }
 } catch {
   // OTel SDK not installed; tracing disabled (env var is ignored).

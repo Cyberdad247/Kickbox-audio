@@ -111,14 +111,18 @@ function requestListener(req: http.IncomingMessage, res: http.ServerResponse): v
 }
 
 // v1.2.0 T3.5: create the server (HTTP or HTTPS depending on MTLS_ENABLED).
-const { server: _server, protocol } = createSecureServer(requestListener, tlsConfig);
-export const server = _server;
+// Hold the full createSecureServer result so we can read `protocol` from
+// the boot log without a throwaway `_server` rename — the underscore-
+// prefixed alias was a needless indirection that the code-reviewer
+// flagged in the v1.2.0 final pass.
+const secure = createSecureServer(requestListener, tlsConfig);
+export const server = secure.server;
 
 // Bind all interfaces so the Tailscale IP is reachable.
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
-      `mcp-query server (${protocol}) on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'}, mtls=${tlsConfig.enabled ? 'on' : 'off'})`,
+      `mcp-query server (${secure.protocol}) on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'}, mtls=${tlsConfig.enabled ? 'on' : 'off'})`,
     );
   });
 }
