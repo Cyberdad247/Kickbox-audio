@@ -16,7 +16,7 @@ export function LakishaEnclave() {
       : 'Awaiting Audio';
 
   return (
-    <div className="fixed right-8 bottom-8 z-[60] flex flex-col items-end gap-2">
+    <div className="fixed bottom-8 left-8 z-[60] flex flex-col items-start gap-2">
       <LakishaAvatar speaking={isSpeaking} connected={connected} />
       <div
         className={`flex w-56 items-center gap-3 border border-gold bg-smoke-800/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${

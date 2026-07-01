@@ -1,13 +1,36 @@
 'use client';
 
-// Ambassador Lakisha — an animated living-presence avatar. No video asset yet, so
-// this is an audio-reactive SVG/CSS presence that pulses violet while speaking and
-// holds a calm gold glow at rest. Drop a <video> in later behind the same frame.
+import { useRef, useState } from 'react';
+
+// Ambassador Lakisha — an animated living-presence avatar. Backed by the same
+// /assets/lakisha_avatar.mp4 loop used by LakeishaVideoHUD; the audio-reactive
+// SVG/CSS presence (rings + orb + eyes) rides on top as a live overlay so she
+// still pulses violet while speaking even while the video loops underneath.
+// Falls back to the SVG/CSS-only presence if the asset fails to load.
 export function LakishaAvatar({ speaking, connected }: { speaking: boolean; connected: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
+
   return (
     <div className="w-56 border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold">
       <div className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian">
-        {/* concentric presence rings */}
+        {!videoFailed && (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 h-full w-full object-cover"
+            src="/assets/lakisha_avatar.mp4"
+            muted
+            autoPlay
+            loop
+            playsInline
+            preload="auto"
+            onError={() => setVideoFailed(true)}
+          />
+        )}
+        {/* concentric presence rings — pulse violet over the video while speaking.
+            No solid orb/eyes here anymore: that was a face-substitute for when
+            there was no video asset; with real video underneath it just masked
+            her face, so only the reactive rings remain. */}
         <div className="absolute inset-0 flex items-center justify-center">
           {speaking && (
             <>
@@ -15,30 +38,6 @@ export function LakishaAvatar({ speaking, connected }: { speaking: boolean; conn
               <span className="absolute h-32 w-32 animate-pulse rounded-full border border-violet/20" />
             </>
           )}
-          {/* the orb */}
-          <div
-            className={`h-20 w-20 rounded-full transition-all duration-300 ${
-              speaking
-                ? 'bg-violet/40 shadow-[0_0_40px_rgba(157,78,221,0.8)]'
-                : connected
-                  ? 'bg-gold/20 shadow-gold'
-                  : 'bg-white/5'
-            }`}
-            style={{
-              background: speaking
-                ? 'radial-gradient(circle at 35% 30%, #e0b6ff, #9D4EDD 55%, transparent 75%)'
-                : 'radial-gradient(circle at 35% 30%, #FFD700, #D4AF37 55%, transparent 78%)',
-            }}
-          />
-          {/* abstract eyes */}
-          <div className="absolute flex gap-3" style={{ transform: 'translateY(-2px)' }}>
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-white' : 'bg-obsidian/70'}`}
-            />
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-white' : 'bg-obsidian/70'}`}
-            />
-          </div>
         </div>
         {/* scanline sheen */}
         <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,rgba(0,0,0,0.18)_4px)] opacity-40" />
