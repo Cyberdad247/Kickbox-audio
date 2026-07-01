@@ -1,21 +1,20 @@
 'use client';
 
-// Shared Lakisha voice core with a built-in failsafe chain, consumed by BOTH
-// the bottom-center HUD and the bottom-right Enclave so the surfaces are
-// redundant — if one input path fails, the other still drives Lakisha.
+// Shared Lakisha voice core with a built-in failsafe chain. Currently consumed
+// by the bottom-left LakishaEnclave (the sole input surface — speak or type).
 //
 //   //INGEST primary : Web Speech recognition (transcript -> command)
 //   //INGEST failsafe : VAD-only (getUserMedia + RMS) — mic stays "hot" and the
 //                       UI keeps reacting even where SpeechRecognition is absent
 //   //IGNITE          : on-device SpeechSynthesis (speaks the STATE_UPDATE reply)
 //
-// Two interaction models are supported from one core so neither surface has to
-// re-implement recognition/VAD/IGNITE:
-//   • persistent-connect (Enclave): continuous recognition + VAD stay hot after
-//     a single connect(). Pass { continuous: true }.
-//   • toggle-listen (HUD): non-continuous recognition that auto-stops after a
+// Two interaction models are supported from one core:
+//   • persistent-connect: continuous recognition + VAD stay hot after a single
+//     connect(). Pass { continuous: true }.
+//   • toggle-listen: non-continuous recognition that auto-stops after a
 //     phrase; VAD runs only while listening. Drive with startListening()/
-//     stopListening()/toggleListening(). This is the default.
+//     stopListening()/toggleListening(). This is the default — what
+//     LakishaEnclave's speak-or-text bar uses.
 //
 // Each component calls useLakishaVoice() for its OWN instance, so the
 // awaiting-gate (//IGNITE only for commands IT dispatched) stays isolated.

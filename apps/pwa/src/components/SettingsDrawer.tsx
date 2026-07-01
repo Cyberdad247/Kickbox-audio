@@ -7,8 +7,8 @@ import { PortalSettings } from './PortalSettings';
 // SettingsDrawer is mounted in `apps/pwa/src/app/page.tsx` top-right.
 // Collapsed by default; opens via the toggle button. When open, renders
 // PortalSettings (config) + LearnWithMe (memory curator) stacked.
-// Does not collide with `-z-10` KineticCanvas or bottom-center LakishaHUD,
-// nor with the autoplay-gate pane (which sits at `bottom-8 right-8` pre-unlock).
+// Does not collide with `-z-10` KineticCanvas, the bottom-left LakishaEnclave,
+// or the bottom-right LakeishaVideoHUD autoplay-gate pane.
 
 export function SettingsDrawer() {
   const [open, setOpen] = useState(false);

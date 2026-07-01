@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
-import { LakishaHUD } from './LakishaHUD';
 import { PlanCard } from './PlanCard';
 import { CoffeeTab } from './tabs/CoffeeTab';
 import { KnightsTab } from './tabs/KnightsTab';
@@ -102,7 +101,6 @@ export function Dashboard() {
       </div>
 
       <PlanCard />
-      <LakishaHUD />
     </div>
   );
 }
