@@ -6,19 +6,28 @@ import { useRef, useState } from 'react';
 // /assets/lakisha_avatar.mp4 loop used by LakeishaVideoHUD; the audio-reactive
 // SVG/CSS presence (rings + orb + eyes) rides on top as a live overlay so she
 // still pulses violet while speaking even while the video loops underneath.
-// Falls back to the SVG/CSS-only presence if the asset fails to load.
+//
+// The still poster is set as a CSS background on the frame itself (not just
+// the <video poster> attribute) so it's guaranteed visible any time the video
+// doesn't render — load error, autoplay blocked, or a stall that never fires
+// `onError` at all (seen in some installed-PWA contexts). It never depends on
+// the <video> element's own lifecycle.
 export function LakishaAvatar({ speaking, connected }: { speaking: boolean; connected: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
 
   return (
     <div className="w-56 border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold">
-      <div className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian">
+      <div
+        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian bg-cover bg-center"
+        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.jpg)' }}
+      >
         {!videoFailed && (
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover"
             src="/assets/lakisha_avatar.mp4"
+            poster="/assets/lakisha_avatar_poster.jpg"
             muted
             autoPlay
             loop

@@ -149,11 +149,15 @@ export function LakeishaVideoHUD() {
       }}
       className="fixed bottom-8 right-8 z-50 w-[min(20rem,calc(100vw-2rem))] border border-gold/50 bg-[#16161E]/70 shadow-[0_0_15px_#FFD700] backdrop-blur-xl select-none"
     >
-      <div className="relative aspect-video overflow-hidden border-b border-gold/30 bg-[#050505] pointer-events-none">
+      <div
+        className="relative aspect-video overflow-hidden border-b border-gold/30 bg-[#050505] bg-cover bg-center pointer-events-none"
+        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.jpg)' }}
+      >
         <video
           ref={videoRef}
           className="h-full w-full object-cover"
           src="/assets/lakisha_avatar.mp4"
+          poster="/assets/lakisha_avatar_poster.jpg"
           muted
           autoPlay
           loop
