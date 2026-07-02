@@ -22,3 +22,5 @@ benchmark-report.json
 # OS / editor
 .DS_Store
 *.log
+
+.vercel

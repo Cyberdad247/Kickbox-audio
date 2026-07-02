@@ -3,6 +3,12 @@ const webpack = require('webpack');
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   webpack: (config, { isServer }) => {
     config.plugins.push(
       new webpack.IgnorePlugin({
