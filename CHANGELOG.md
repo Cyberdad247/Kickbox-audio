@@ -104,7 +104,7 @@ _Iteration numbers below refer to the `CAMELOT_OS/SOVEREIGNTY_LEDGER.md` iterati
   VAD/stt pipeline, form modal, telemetry. Mounted via `LakishaHUD.tsx`.
 - **KineticCanvas 3D background** — WebGL particle/weather backdrop
   rendered at `-z-10` so it sits behind the dashboard.
-- **BifrostContext** — WebRTC connection state + audio bridge, mounted at
+- **BifrostContext** — WebSocket connection state + audio bridge, mounted at
   root in `app/layout.tsx`.- **Prisma schema** (`packages/db/schema.prisma`) — 7 models across three product surfaces: Vault_Ω (double-entry accounting: `JournalEntry`,
   `Transaction` with debit/credit/journal FK), Raven_Ω (email campaigns:
   `Contact`, `Tag`, `EmailSequence`, `SequenceStep`), Echo_Ω (comms

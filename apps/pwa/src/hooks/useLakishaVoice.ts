@@ -3,16 +3,32 @@
 // Shared Lakisha voice core with a built-in failsafe chain. Currently consumed
 // by the bottom-left LakishaEnclave (the sole input surface — speak or type).
 //
-//   //INGEST primary : Web Speech recognition (transcript -> command)
-//   //INGEST failsafe : VAD-only (getUserMedia + RMS) — mic stays "hot" and the
-//                       UI keeps reacting even where SpeechRecognition is absent
-//   //IGNITE          : on-device SpeechSynthesis (speaks the STATE_UPDATE reply)
+//   //INGEST primary  : Web Speech recognition (transcript -> command). Needs
+//                       browser support AND, in most implementations, a live
+//                       network connection to a cloud speech service.
+//   //INGEST fallback : local-asr — Moonshine (MIT, Useful Sensors), run in a
+//                       sidecar Worker (public/voice-engine/asr-worker.mjs)
+//                       loading Transformers.js from a CDN at runtime. Never
+//                       touches webpack — see that file's header comment for
+//                       why (Phase 3's first attempt tried npm-bundling these
+//                       libraries directly and broke `next build`). Engages
+//                       when recognition is unsupported or the device is
+//                       offline.
+//   //INGEST failsafe : VAD-only (getUserMedia + RMS) — mic stays "hot" with
+//                       no real transcription, last resort of last resorts.
+//   //IGNITE primary  : browser SpeechSynthesis (on-device already, but the
+//                       API itself may not exist on the platform).
+//   //IGNITE fallback : local-tts — Kokoro-82M, same sidecar-Worker pattern
+//                       (public/voice-engine/tts-worker.mjs), engages when
+//                       SpeechSynthesis is unsupported.
 //
 // Two interaction models are supported from one core:
 //   • persistent-connect: continuous recognition + VAD stay hot after a single
-//     connect(). Pass { continuous: true }.
-//   • toggle-listen: non-continuous recognition that auto-stops after a
-//     phrase; VAD runs only while listening. Drive with startListening()/
+//     connect(). Pass { continuous: true }. (Currently unused by any mounted
+//     component — the online/offline ASR fallback below only applies to the
+//     toggle-listen model.)
+//   • toggle-listen: non-continuous, online-recognition-or-local-ASR per
+//     listen session, auto-stops after a phrase. Drive with startListening()/
 //     stopListening()/toggleListening(). This is the default — what
 //     LakishaEnclave's speak-or-text bar uses.
 //
@@ -21,10 +37,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
+import { type AudioRecorder, startRecording } from '../lib/audioCapture';
 import { cancelSpeech, speak, speakableResponse, speechSupported } from '../lib/voice';
+import { cancelLocalSpeech, speakLocally, transcribeLocally } from '../lib/voiceWorkerClient';
 import { useVad } from './useVad';
 
-export type VoiceMode = 'idle' | 'recognition' | 'vad-only';
+export type VoiceMode = 'idle' | 'recognition' | 'local-asr' | 'vad-only';
 
 export interface UseLakishaVoiceOptions {
   /**
@@ -40,7 +58,8 @@ export interface LakishaVoice {
   connected: boolean;
   mode: VoiceMode;
   voiceSupported: boolean; // SpeechSynthesis (//IGNITE) support — drives the mute toggle
-  recognitionSupported: boolean; // Web Speech recognition (//INGEST) — drives the mic toggle
+  recognitionSupported: boolean; // Web Speech recognition (//INGEST) — online path only
+  voiceInputSupported: boolean; // recognitionSupported OR mic-capable for local-asr fallback — drives the mic button
   error: string | null;
   // Mic energy (VAD)
   isSpeaking: boolean; // real mic energy (VAD), not a mock — alias: voiced
@@ -88,8 +107,11 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
   // HUD's conditionally-rendered mic/mute buttons match server + client output.
   const [synthSupported, setSynthSupported] = useState(false);
   const [recognitionSupported, setRecognitionSupported] = useState(false);
+  const [micCapable, setMicCapable] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const localRecorderRef = useRef<AudioRecorder | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const awaitingRef = useRef(false);
   const lastUpdatedRef = useRef<string | null>(null);
   const dispatchAtRef = useRef<number | null>(null);
@@ -182,44 +204,90 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     setMode('idle');
   }, [vadStop]);
 
-  // Toggle-listen model (HUD): start a one-shot recognition + VAD meter.
+  // Toggle-listen model: online Web Speech recognition when supported + the
+  // device is online; otherwise falls back to VAD-gated local recording,
+  // transcribed locally via the Moonshine sidecar Worker on stopListening().
   const startListening = useCallback(async () => {
     setError(null);
     setTranscript('');
     cancelSpeech(); // barge-in: silence Lakisha when the Sovereign speaks
-    let recognition = recognitionRef.current;
-    if (!recognition) {
-      recognition = buildRecognition();
-      recognitionRef.current = recognition;
+    cancelLocalSpeech();
+
+    const online = typeof navigator === 'undefined' || navigator.onLine;
+    if (recognitionSupported && online) {
+      let recognition = recognitionRef.current;
+      if (!recognition) {
+        recognition = buildRecognition();
+        recognitionRef.current = recognition;
+      }
+      if (recognition) {
+        try {
+          recognition.start();
+          setMode('recognition');
+          setListening(true);
+          return;
+        } catch {
+          // start() throws if already running, or recognition genuinely
+          // failed to launch — fall through to the local-asr fallback below.
+        }
+      }
     }
-    if (!recognition) return;
+
+    // Offline / unsupported / launch-failed fallback: record raw mic audio,
+    // transcribe the whole utterance locally when the client stops listening.
     try {
-      recognition.start();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStreamRef.current = stream;
+      localRecorderRef.current = startRecording(stream);
+      setMode('local-asr');
       setListening(true);
     } catch {
-      // start() throws if already running — ignore.
+      setError('MIC DENIED');
     }
-  }, [buildRecognition]);
+  }, [recognitionSupported, buildRecognition]);
 
   const stopListening = useCallback(() => {
+    if (mode === 'local-asr' && localRecorderRef.current) {
+      const recorder = localRecorderRef.current;
+      localRecorderRef.current = null;
+      setListening(false);
+      void recorder
+        .stop()
+        .then(async (audio) => {
+          for (const track of localStreamRef.current?.getTracks() ?? []) track.stop();
+          localStreamRef.current = null;
+          try {
+            const text = await transcribeLocally(audio);
+            if (text) dispatch(text);
+          } catch {
+            setError('LOCAL_ASR_FAILED');
+          } finally {
+            setMode('idle');
+          }
+        })
+        .catch(() => setError('LOCAL_ASR_FAILED'));
+      return;
+    }
     recognitionRef.current?.stop();
     setListening(false);
-  }, []);
+  }, [mode, dispatch]);
 
   const toggleListening = useCallback(() => {
     if (listening) stopListening();
     else void startListening();
   }, [listening, startListening, stopListening]);
 
-  // Drive the VAD meter from `listening` in the toggle model only. The
-  // persistent model keeps VAD hot via connect()/disconnect() instead.
+  // Drive the VAD meter from `listening` in the toggle model, online-
+  // recognition sub-mode only — the local-asr fallback manages its own mic
+  // stream via audioCapture.ts and doesn't need a second concurrent one.
   useEffect(() => {
-    if (continuous) return;
+    if (continuous || mode === 'local-asr') return;
     if (listening) void vadStart();
     else vadStop();
-  }, [continuous, listening, vadStart, vadStop]);
+  }, [continuous, listening, mode, vadStart, vadStop]);
 
-  // Resolve //IGNITE (synthesis) + //INGEST (recognition) support post-mount.
+  // Resolve //IGNITE (synthesis) + //INGEST (recognition + mic) support
+  // post-mount (avoids SSR hydration mismatch).
   useEffect(() => {
     setSynthSupported(speechSupported());
     const Ctor =
@@ -227,6 +295,7 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
         ? (window.SpeechRecognition ?? window.webkitSpeechRecognition)
         : undefined;
     setRecognitionSupported(!!Ctor);
+    setMicCapable(typeof navigator !== 'undefined' && !!navigator.mediaDevices);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -257,21 +326,30 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     // Prefer a remote MCP answer (//ROUTE) over the local confirmation.
     const line = state.lastResponse ?? speakableResponse(state);
     const speakAt = performance.now();
-    speak(line, {
-      onStart: () => {
-        setTtfaMs(performance.now() - speakAt); // time-to-first-audio
-        setSpeaking(true);
-      },
-      onEnd: () => setSpeaking(false),
-    });
-  }, [state]);
+    const onIgniteStart = () => {
+      setTtfaMs(performance.now() - speakAt); // time-to-first-audio
+      setSpeaking(true);
+    };
+    const onIgniteEnd = () => setSpeaking(false);
+    if (synthSupported) {
+      speak(line, { onStart: onIgniteStart, onEnd: onIgniteEnd });
+    } else {
+      // Browser SpeechSynthesis API doesn't exist on this platform — fall
+      // back to the fully-local Kokoro sidecar Worker.
+      void speakLocally(line, { onStart: onIgniteStart, onEnd: onIgniteEnd }).catch(() =>
+        setSpeaking(false),
+      );
+    }
+  }, [state, synthSupported]);
 
   // Release mic + speech on unmount.
   useEffect(
     () => () => {
       recognitionRef.current?.abort();
+      for (const track of localStreamRef.current?.getTracks() ?? []) track.stop();
       vadStop();
       cancelSpeech();
+      cancelLocalSpeech();
     },
     [vadStop],
   );
@@ -281,6 +359,7 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     mode,
     voiceSupported: synthSupported,
     recognitionSupported,
+    voiceInputSupported: recognitionSupported || micCapable,
     error,
     isSpeaking: voiced,
     voiced,

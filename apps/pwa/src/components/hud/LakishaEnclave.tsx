@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBifrost } from '../../context/BifrostContext';
 import { useLakishaVoice } from '../../hooks/useLakishaVoice';
+import { QUERY_BUDGET_MS, TTFA_BUDGET_MS, budgetStatus, formatMs } from '../../lib/telemetry';
 import { LakishaAvatar } from './LakishaAvatar';
 
 // Ambassador Lakisha — draggable video-avatar presence (bottom-left by default)
@@ -18,10 +19,13 @@ export function LakishaEnclave() {
     input,
     setInput,
     listening,
-    recognitionSupported,
+    voiceInputSupported,
+    mode,
     speaking,
     toggleListening,
     dispatch,
+    ttfaMs,
+    queryMs,
   } = useLakishaVoice();
 
   // Draggable HUD state.
@@ -93,12 +97,13 @@ export function LakishaEnclave() {
         onSubmit={submit}
         className="flex w-56 items-center gap-1.5 border border-t-0 border-gold/50 bg-smoke-900/85 px-2.5 py-2 backdrop-blur-md shadow-gold"
       >
-        {recognitionSupported && (
+        {voiceInputSupported && (
           <button
             type="button"
             onClick={toggleListening}
             aria-pressed={listening}
             aria-label={listening ? 'Stop listening' : 'Speak to Lakisha'}
+            title={mode === 'local-asr' ? 'Speak to Lakisha (offline mode)' : 'Speak to Lakisha'}
             className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
               listening
                 ? 'border-violet bg-violet/20 text-violet-light'
@@ -113,7 +118,13 @@ export function LakishaEnclave() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={listening ? 'Listening…' : 'Speak or type…'}
+          placeholder={
+            listening
+              ? mode === 'local-asr'
+                ? 'Listening (offline)…'
+                : 'Listening…'
+              : 'Speak or type…'
+          }
           className="w-full min-w-0 rounded-sm border border-white/10 bg-obsidian px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
         />
 
@@ -126,7 +137,38 @@ export function LakishaEnclave() {
           <SendIcon className="h-3.5 w-3.5" />
         </button>
       </form>
+
+      {/* Telemetry readout — ttfaMs/queryMs were already computed by
+          useLakishaVoice but had zero consumers before this. Only shown once
+          there's a real measurement (after the first dispatch/speak cycle),
+          attached below the input bar as the same seamless card. */}
+      {(ttfaMs != null || queryMs != null) && (
+        <div className="flex w-56 items-center justify-between gap-2 border border-t-0 border-gold/30 bg-smoke-900/60 px-2.5 py-1">
+          <TelemetryMetric label="TTFA" ms={ttfaMs} budget={TTFA_BUDGET_MS} />
+          <TelemetryMetric label="Query" ms={queryMs} budget={QUERY_BUDGET_MS} />
+        </div>
+      )}
     </div>
+  );
+}
+
+function TelemetryMetric({
+  label,
+  ms,
+  budget,
+}: { label: string; ms: number | null; budget: number }) {
+  const status = budgetStatus(ms, budget);
+  const color =
+    status === 'breach' ? 'text-red-400' : status === 'warn' ? 'text-amber-300' : 'text-white/45';
+  return (
+    <span className={`flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] ${color}`}>
+      <span
+        className={`h-1 w-1 rounded-full ${
+          status === 'breach' ? 'bg-red-400' : status === 'warn' ? 'bg-amber-400' : 'bg-white/30'
+        }`}
+      />
+      {label} {formatMs(ms)}
+    </span>
   );
 }
 
