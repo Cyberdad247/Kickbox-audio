@@ -65,6 +65,7 @@ interface BifrostContextValue {
   pendingPlan: PendingPlan | null;
   approvePlan: () => void;
   rejectPlan: () => void;
+  reconnect: () => void;
 }
 
 const BifrostContext = createContext<BifrostContextValue | null>(null);
@@ -76,6 +77,11 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SovereignState | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Bumping this tears down the current socket (if any) and opens a fresh one
+  // immediately, bypassing the 2s auto-retry backoff — the manual "sync with
+  // Bifrost bridge" action.
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const reconnect = useCallback(() => setReconnectNonce((n) => n + 1), []);
 
   useEffect(() => {
     let closed = false;
@@ -107,7 +113,7 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };
-  }, []);
+  }, [reconnectNonce]);
 
   const rawSend = useCallback((payload: string) => {
     const ws = wsRef.current;
@@ -140,7 +146,7 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BifrostContext.Provider
-      value={{ connected, state, sendVoiceCommand, pendingPlan, approvePlan, rejectPlan }}
+      value={{ connected, state, sendVoiceCommand, pendingPlan, approvePlan, rejectPlan, reconnect }}
     >
       {children}
     </BifrostContext.Provider>

@@ -8,10 +8,12 @@ import { LakishaAvatar } from './LakishaAvatar';
 
 // Ambassador Lakisha — draggable video-avatar presence (bottom-left by default)
 // with a short speak-or-text bar attached directly under the video frame. This
-// is now the ONLY Lakisha input surface (replaces the old bottom-center HUD):
-// toggle-listen recognition + VAD failsafe, or type — client's choice.
+// is now the ONLY Lakisha surface on the page (replaces both the old
+// bottom-center text HUD and the old bottom-right video HUD): toggle-listen
+// recognition + VAD failsafe, or type — client's choice — plus a manual sync
+// button to force a fresh Bifrost bridge connection.
 export function LakishaEnclave() {
-  const { connected } = useBifrost();
+  const { connected, reconnect } = useBifrost();
   const {
     input,
     setInput,
@@ -22,7 +24,7 @@ export function LakishaEnclave() {
     dispatch,
   } = useLakishaVoice();
 
-  // Draggable HUD state — same pattern as LakeishaVideoHUD, so both widgets move alike.
+  // Draggable HUD state.
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -83,7 +85,7 @@ export function LakishaEnclave() {
       }}
       className="fixed bottom-8 left-8 z-[60] flex flex-col items-start select-none"
     >
-      <LakishaAvatar speaking={speaking} connected={connected} />
+      <LakishaAvatar speaking={speaking} connected={connected} onSync={reconnect} />
 
       {/* Attached speak-or-text bar — same width as the avatar frame, no gap,
           shared top border dropped so the two read as one card. */}

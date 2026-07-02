@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic';
 import type { ReactNode } from 'react';
-import { LakeishaVideoHUD } from '../components/hud/LakeishaVideoHUD';
 import { LakishaEnclave } from '../components/hud/LakishaEnclave';
 import { BifrostProvider } from './BifrostContext';
 
@@ -20,7 +19,6 @@ export function KoARealmProvider({ children }: { children: ReactNode }) {
       <div className="relative min-h-screen bg-[#050505] text-white">
         <SpatialBackground />
         {children}
-        <LakeishaVideoHUD />
         <LakishaEnclave />
       </div>
     </BifrostProvider>
