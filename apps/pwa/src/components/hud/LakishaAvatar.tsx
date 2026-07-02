@@ -19,15 +19,15 @@ export function LakishaAvatar({ speaking, connected }: { speaking: boolean; conn
   return (
     <div className="w-56 border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold">
       <div
-        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian bg-cover bg-center"
-        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.jpg)' }}
+        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian bg-cover bg-top"
+        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.png)' }}
       >
         {!videoFailed && (
           <video
             ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-top"
             src="/assets/lakisha_avatar.mp4"
-            poster="/assets/lakisha_avatar_poster.jpg"
+            poster="/assets/lakisha_avatar_poster.png"
             muted
             autoPlay
             loop

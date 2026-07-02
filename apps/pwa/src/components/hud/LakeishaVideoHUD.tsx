@@ -150,14 +150,18 @@ export function LakeishaVideoHUD() {
       className="fixed bottom-8 right-8 z-50 w-[min(20rem,calc(100vw-2rem))] border border-gold/50 bg-[#16161E]/70 shadow-[0_0_15px_#FFD700] backdrop-blur-xl select-none"
     >
       <div
-        className="relative aspect-video overflow-hidden border-b border-gold/30 bg-[#050505] bg-cover bg-center pointer-events-none"
-        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.jpg)' }}
+        className="relative aspect-video overflow-hidden border-b border-gold/30 bg-[#050505] bg-cover bg-top pointer-events-none"
+        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.png)' }}
       >
+        {/* No `poster` attribute here on purpose: the poster is a full-body
+            portrait (top-aligned, via the div's bg-top above) while the live
+            video is a square headshot that needs center framing in this
+            16:9 aspect frame — one <video> can't have two object-positions,
+            so the fallback lives on the div background instead. */}
         <video
           ref={videoRef}
           className="h-full w-full object-cover"
           src="/assets/lakisha_avatar.mp4"
-          poster="/assets/lakisha_avatar_poster.jpg"
           muted
           autoPlay
           loop
