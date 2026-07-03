@@ -13,9 +13,11 @@ name: KBA HMAC Probe
 #
 # Path filter is explicit-listed (NOT a glob) because @actions/glob
 # expansion behavior for nested **/route.ts in apps/pwa/src/app/api/cms/
-# is harder to verify than enumerating each file the user named. The seven
+# is harder to verify than enumerating each file the user named. The nine
 # entries below cover EXACTLY the surfaces that touch the proxy-auth
-# contract; any new proxy-auth surface should be added to this list.
+# contract — the first pair self-trigger on probe-file changes, the next
+# seven gate proxy-auth surfaces. Add a new proxy-auth surface to the
+# latter group whenever one lands.
 #
 # Lives in a SEPARATE workflow file rather than extending kba-smoke.yml:
 # the existing hitl-handshake job should keep firing on EVERY feat/** PR
@@ -26,10 +28,7 @@ on:
   pull_request:
     branches: ['feat/**']
     paths:
-      # Self-trigger: include the workflow file + probe script so changes
-      # to the probe itself are validated by the probe (otherwise the
-      # child workflow cannot bootstrap because PR #24 — which only
-      # touches these two files — would never trigger it).
+      # Self-trigger: include the workflow file + script so probe-only PRs bootstrap.
       - '.github/workflows/kba-hmac-probe.yml'
       - 'scripts/ops/probe-hmac-e2e.sh'
       # The seven proxy-auth surfaces — explicit-listed per AGENTS.md so
