@@ -13,11 +13,12 @@ name: KBA HMAC Probe
 #
 # Path filter is explicit-listed (NOT a glob) because @actions/glob
 # expansion behavior for nested **/route.ts in apps/pwa/src/app/api/cms/
-# is harder to verify than enumerating each file the user named. The nine
+# is harder to verify than enumerating each file the user named. The eleven
 # entries below cover EXACTLY the surfaces that touch the proxy-auth
-# contract — the first pair self-trigger on probe-file changes, the next
-# seven gate proxy-auth surfaces. Add a new proxy-auth surface to the
-# latter group whenever one lands.
+# contract — the first pair self-triggers on probe-file changes, the next
+# nine gate proxy-auth surfaces (5 bifrost + 1 pwa lib + 3 expanded cms
+# routes, expanded from the original 7-entry brace spec per AGENTS.md).
+# Add a new proxy-auth surface to the latter group whenever one lands.
 #
 # Lives in a SEPARATE workflow file rather than extending kba-smoke.yml:
 # the existing hitl-handshake job should keep firing on EVERY feat/** PR
@@ -59,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # Same secret used by kba-smokeyml:hitl-handshake so the two gates stay
+      # Same secret used by kba-smoke.yml:hitl-handshake so the two gates stay
       # consistent. The probe script's own default matches this if WEBHOOK_SECRET
       # is unset, but pinning here documents the contract.
       WEBHOOK_SECRET: kba-smoke-secret
@@ -88,12 +89,12 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma client
-        # Same step shape as kba-smokeyml — see its expanded comment for the
+        # Same step shape as kba-smoke.yml — see its expanded comment for the
         # EBADENGINE / TS2694 history on placing this step explicitly.
         run: npm run db:generate
 
       - name: Build @sovereign/db workspace
-        # Same shape as kba-smokeyml so the @sovereign/db dist/{js,d.ts}
+        # Same shape as kba-smoke.yml so the @sovereign/db dist/{js,d.ts}
         # is populated for downstream workspace imports.
         run: npm run build --workspace=@sovereign/db
 
