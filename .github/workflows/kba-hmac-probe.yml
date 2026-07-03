@@ -26,8 +26,13 @@ name: KBA HMAC Probe
 # kba-smoke.yml would have inadvertently narrowed that contract.
 
 on:
+  # `pull_request.branches:` matches the BASE branch of the PR (NOT head).
+  # PRs entering `main` are the canonical pre-merge gate; PRs entering another
+  # `feat/**` branch are an in-flight sibling-merge safety net. Note that
+  # `branches: ['feat/**']` alone would NOT fire for PRs targeting `main` —
+  # the learn-rule here is in AGENTS.md "pull_request triggers filter on BASE`.
   pull_request:
-    branches: ['feat/**']
+    branches: ['main', 'feat/**']
     paths:
       # Self-trigger: include the workflow file + script so probe-only PRs bootstrap.
       - '.github/workflows/kba-hmac-probe.yml'
