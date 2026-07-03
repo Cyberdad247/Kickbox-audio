@@ -32,10 +32,10 @@ on:
       # Self-trigger: include the workflow file + script so probe-only PRs bootstrap.
       - '.github/workflows/kba-hmac-probe.yml'
       - 'scripts/ops/probe-hmac-e2e.sh'
-      # The seven proxy-auth surfaces — explicit-listed per AGENTS.md so
-      # @actions/glob expansion of nested **/route.ts globs is never
-      # ambiguous. Add a new entry here whenever a new proxy-auth surface
-      # lands.
+      # The nine proxy-auth surfaces (5 bifrost + 1 pwa lib + 3 expanded
+      # cms routes) — explicit-listed per AGENTS.md so @actions/glob
+      # expansion of nested **/route.ts globs is never ambiguous. Add a new
+      # entry here whenever a new proxy-auth surface lands.
       - 'apps/bifrost/src/security.ts'
       - 'apps/bifrost/src/server.ts'
       - 'apps/bifrost/src/issuance.ts'
