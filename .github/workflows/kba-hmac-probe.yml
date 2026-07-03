@@ -26,6 +26,16 @@ on:
   pull_request:
     branches: ['feat/**']
     paths:
+      # Self-trigger: include the workflow file + probe script so changes
+      # to the probe itself are validated by the probe (otherwise the
+      # child workflow cannot bootstrap because PR #24 — which only
+      # touches these two files — would never trigger it).
+      - '.github/workflows/kba-hmac-probe.yml'
+      - 'scripts/ops/probe-hmac-e2e.sh'
+      # The seven proxy-auth surfaces — explicit-listed per AGENTS.md so
+      # @actions/glob expansion of nested **/route.ts globs is never
+      # ambiguous. Add a new entry here whenever a new proxy-auth surface
+      # lands.
       - 'apps/bifrost/src/security.ts'
       - 'apps/bifrost/src/server.ts'
       - 'apps/bifrost/src/issuance.ts'
