@@ -26,11 +26,30 @@ name: KBA HMAC Probe
 # kba-smoke.yml would have inadvertently narrowed that contract.
 
 on:
-  # `pull_request.branches:` matches the BASE branch of the PR (NOT head).
-  # PRs entering `main` are the canonical pre-merge gate; PRs entering another
-  # `feat/**` branch are an in-flight sibling-merge safety net. Note that
-  # `branches: ['feat/**']` alone would NOT fire for PRs targeting `main` —
-  # the learn-rule here is in AGENTS.md "pull_request triggers filter on BASE`.
+  # `push:` is the defense-in-depth axis (mirrors kba-smoke.yml).
+  # `pull_request.branches:` matches the BASE branch of the PR (NOT head) — see
+  # AGENTS.md "pull_request triggers filter on BASE" learn-rule. PRs entering
+  # `main` are the canonical pre-merge gate; PRs entering another `feat/**`
+  # branch are an in-flight sibling-merge safety net. Combined coverage:
+  #   - direct pushes to feat/** (no PR yet) → push block fires
+  #   - PR targeting main → pull_request block fires
+  #   - PR targeting another feat/** → pull_request block fires
+  # `paths:` lists are intentionally duplicated (DRY violation; GitHub does
+  # not honour YAML anchors in on: keys reliably across all runners).
+  push:
+    branches: ['feat/**']
+    paths:
+      - '.github/workflows/kba-hmac-probe.yml'
+      - 'scripts/ops/probe-hmac-e2e.sh'
+      - 'apps/bifrost/src/security.ts'
+      - 'apps/bifrost/src/server.ts'
+      - 'apps/bifrost/src/issuance.ts'
+      - 'apps/bifrost/src/cms.ts'
+      - 'apps/bifrost/src/smtpRelay.ts'
+      - 'apps/pwa/src/lib/proxyAuth.ts'
+      - 'apps/pwa/src/app/api/cms/template/render/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/create-draft/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/publish/route.ts'
   pull_request:
     branches: ['main', 'feat/**']
     paths:
