@@ -26,6 +26,11 @@ export interface PendingPlan {
   risk: 'low' | 'medium' | 'high';
 }
 
+export interface VoiceDispatchResult {
+  ok: boolean;
+  status: 'sent' | 'pending_approval' | 'disconnected';
+}
+
 function buildPlan(raw: string): PendingPlan | null {
   const t = raw.trim().toLowerCase();
   const tx = t.match(/^add\s+transaction\s+\$?([\d,]+(?:\.\d+)?)/);
@@ -61,11 +66,12 @@ function buildPlan(raw: string): PendingPlan | null {
 interface BifrostContextValue {
   connected: boolean;
   state: SovereignState | null;
-  sendVoiceCommand: (payload: string) => void;
+  sendVoiceCommand: (payload: string) => VoiceDispatchResult;
   pendingPlan: PendingPlan | null;
   approvePlan: () => void;
   rejectPlan: () => void;
   reconnect: () => void;
+  dispatchError: string | null;
 }
 
 const BifrostContext = createContext<BifrostContextValue | null>(null);
@@ -76,6 +82,7 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<SovereignState | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   // Bumping this tears down the current socket (if any) and opens a fresh one
   // immediately, bypassing the 2s auto-retry backoff — the manual "sync with
@@ -84,6 +91,7 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const reconnect = useCallback(() => setReconnectNonce((n) => n + 1), []);
 
   useEffect(() => {
+    void reconnectNonce;
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
@@ -91,7 +99,10 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
       const ws = new WebSocket(BIFROST_URL);
       wsRef.current = ws;
 
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => {
+        setConnected(true);
+        setDispatchError(null);
+      };
       ws.onclose = () => {
         setConnected(false);
         if (!closed) reconnectTimer = setTimeout(connect, 2000);
@@ -115,30 +126,36 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
     };
   }, [reconnectNonce]);
 
-  const rawSend = useCallback((payload: string) => {
+  const rawSend = useCallback((payload: string): VoiceDispatchResult => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
+      setDispatchError(null);
       ws.send(JSON.stringify({ type: 'VOICE_COMMAND', payload }));
+      return { ok: true, status: 'sent' };
     }
+    setDispatchError('Bifrost bridge offline. Sync Lakisha before dispatch.');
+    return { ok: false, status: 'disconnected' };
   }, []);
 
   // Gate financial/destructive intents behind a Plan Card; everything else sends.
   const sendVoiceCommand = useCallback(
-    (payload: string) => {
+    (payload: string): VoiceDispatchResult => {
       const plan = buildPlan(payload);
       if (plan) {
+        setDispatchError(null);
         setPendingPlan(plan);
-        return;
+        return { ok: true, status: 'pending_approval' };
       }
-      rawSend(payload);
+      return rawSend(payload);
     },
     [rawSend],
   );
 
   const approvePlan = useCallback(() => {
     setPendingPlan((plan) => {
-      if (plan) rawSend(plan.raw);
-      return null;
+      if (!plan) return null;
+      const result = rawSend(plan.raw);
+      return result.ok ? null : plan;
     });
   }, [rawSend]);
 
@@ -146,7 +163,16 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BifrostContext.Provider
-      value={{ connected, state, sendVoiceCommand, pendingPlan, approvePlan, rejectPlan, reconnect }}
+      value={{
+        connected,
+        state,
+        sendVoiceCommand,
+        pendingPlan,
+        approvePlan,
+        rejectPlan,
+        reconnect,
+        dispatchError,
+      }}
     >
       {children}
     </BifrostContext.Provider>
