@@ -241,7 +241,10 @@ describe('requireBifrostProxySignature — non-body-bound (render/draft)', () =>
     const actionId = 'CMS__RENDER__abc';
     const timestamp = Date.now();
     const expiresAt = timestamp + 600_000;
-    const signature = crypto.createHmac('sha256', SECRET).update(`${actionId}:${timestamp}`).digest('hex');
+    const signature = crypto
+      .createHmac('sha256', SECRET)
+      .update(`${actionId}:${timestamp}`)
+      .digest('hex');
 
     const req = makeReq(makeValidHeaders({ actionId, expiresAt, signature, timestamp }));
     const res = makeRes();
@@ -272,7 +275,14 @@ describe('requireBifrostProxySignature — non-body-bound (render/draft)', () =>
     process.env.NODE_ENV = 'production';
     const actionId = 'CMS__DRAFT__abc';
     const timestamp = Date.now();
-    const req = makeReq(makeValidHeaders({ actionId, expiresAt: timestamp + 600_000, signature: 'x'.repeat(64), timestamp }));
+    const req = makeReq(
+      makeValidHeaders({
+        actionId,
+        expiresAt: timestamp + 600_000,
+        signature: 'x'.repeat(64),
+        timestamp,
+      }),
+    );
     const res = makeRes();
     const next = makeNext();
 
@@ -289,7 +299,10 @@ describe('requireBifrostProxySignature — non-body-bound (render/draft)', () =>
     const actionId = 'CMS__RENDER__abc';
     const timestamp = Date.now() - 10 * 60_000;
     const expiresAt = Date.now() - 60_000;
-    const signature = crypto.createHmac('sha256', SECRET).update(`${actionId}:${timestamp}`).digest('hex');
+    const signature = crypto
+      .createHmac('sha256', SECRET)
+      .update(`${actionId}:${timestamp}`)
+      .digest('hex');
     const req = makeReq(makeValidHeaders({ actionId, expiresAt, signature, timestamp }));
     const res = makeRes();
     const next = makeNext();
@@ -330,7 +343,10 @@ describe('requireBifrostProxySignature — body-bound (publish)', () => {
     const timestamp = Date.now();
     const expiresAt = timestamp + 600_000;
     const signature = crypto.createHmac('sha256', SECRET).update(originalBody).digest('hex');
-    const req = makeReq(makeValidHeaders({ actionId, expiresAt, signature, timestamp }), tamperedBody);
+    const req = makeReq(
+      makeValidHeaders({ actionId, expiresAt, signature, timestamp }),
+      tamperedBody,
+    );
     const res = makeRes();
     const next = makeNext();
 
@@ -352,7 +368,10 @@ describe('requireBifrostProxySignature — body-bound (publish)', () => {
     const actionId = 'CMS__PUBLISH__abc';
     const timestamp = Date.now();
     const expiresAt = timestamp + 600_000;
-    const signature = crypto.createHmac('sha256', SECRET).update(`${actionId}:${timestamp}`).digest('hex');
+    const signature = crypto
+      .createHmac('sha256', SECRET)
+      .update(`${actionId}:${timestamp}`)
+      .digest('hex');
     const req = makeReq(makeValidHeaders({ actionId, expiresAt, signature, timestamp }));
     const res = makeRes();
     const next = makeNext();
@@ -426,6 +445,7 @@ describe('requireBifrostProxySignature — body-bound (publish)', () => {
 
 describe('requireBifrostProxySignature — dev bypass', () => {
   it('bypasses silently in development when WEBHOOK_SECRET is unset', () => {
+    // biome-ignore lint/performance/noDelete: process.env key must be absent (not "undefined") to test the unset guard
     delete process.env.WEBHOOK_SECRET;
     process.env.NODE_ENV = 'development';
     const req = makeReq({});
@@ -439,6 +459,7 @@ describe('requireBifrostProxySignature — dev bypass', () => {
   });
 
   it('fail-closes (401) in production when WEBHOOK_SECRET is unset', () => {
+    // biome-ignore lint/performance/noDelete: process.env key must be absent (not "undefined") to test the unset guard
     delete process.env.WEBHOOK_SECRET;
     process.env.NODE_ENV = 'production';
     const req = makeReq({});

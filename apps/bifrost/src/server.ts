@@ -8,7 +8,12 @@ import { renderCmsTemplate } from './cms';
 import { issueProxySignedAction, issueSignedAction } from './issuance';
 import { MicrocubicMatrix } from './microcubic';
 import { type RouteOutcome, route } from './router';
-import { SignatureError, requireBifrostProxySignature, verifyActionSignature, verifyWebhookSignature } from './security';
+import {
+  SignatureError,
+  requireBifrostProxySignature,
+  verifyActionSignature,
+  verifyWebhookSignature,
+} from './security';
 import { dispatchToLocalMta } from './smtpRelay';
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
 
@@ -262,134 +267,149 @@ async function getPrisma() {
   return mod.prisma;
 }
 
-app.post('/api/cms/template/render', cmsLimiter, requireBifrostProxySignature(), async (req, res) => {
-  const parsed = CmsTemplateRenderSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-  }
+app.post(
+  '/api/cms/template/render',
+  cmsLimiter,
+  requireBifrostProxySignature(),
+  async (req, res) => {
+    const parsed = CmsTemplateRenderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+    }
 
-  try {
-    const rendered = renderCmsTemplate(parsed.data.template_id, parsed.data.contact_context);
-    res.status(200).json(rendered);
-  } catch (error) {
-    console.error('[CMS/render] failed:', error);
-    res.status(500).json({ error: 'RENDER_FAILED' });
-  }
-});
+    try {
+      const rendered = renderCmsTemplate(parsed.data.template_id, parsed.data.contact_context);
+      res.status(200).json(rendered);
+    } catch (error) {
+      console.error('[CMS/render] failed:', error);
+      res.status(500).json({ error: 'RENDER_FAILED' });
+    }
+  },
+);
 
-app.post('/api/cms/content/create-draft', cmsLimiter, requireBifrostProxySignature(), async (req, res) => {
-  const parsed = CmsDraftSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-  }
+app.post(
+  '/api/cms/content/create-draft',
+  cmsLimiter,
+  requireBifrostProxySignature(),
+  async (req, res) => {
+    const parsed = CmsDraftSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+    }
 
-  const draftId = randomUUID();
-  const { contact, html, metadata, status, subject, template_id, text } = parsed.data;
+    const draftId = randomUUID();
+    const { contact, html, metadata, status, subject, template_id, text } = parsed.data;
 
-  try {
-    const prisma = await getPrisma();
-    await prisma.contact.upsert({
-      where: { email: contact.email },
-      update: { name: contact.name },
-      create: { email: contact.email, name: contact.name },
-    });
-    await prisma.echoLog.create({
-      data: {
-        message: JSON.stringify({
-          contact,
-          draftId,
-          html,
-          metadata,
-          stage: 'cms_draft',
-          status,
-          subject,
-          template_id,
-          text,
-          timestamp: new Date().toISOString(),
-        }),
-      },
-    });
-
-    res.status(200).json({
-      contact,
-      draft_id: draftId,
-      metadata,
-      status,
-      subject,
-      template_id,
-    });
-  } catch (error) {
-    console.error('[CMS/create-draft] failed:', error);
-    res.status(500).json({ error: 'DRAFT_CREATE_FAILED' });
-  }
-});
-
-app.post('/api/cms/content/publish', cmsLimiter, requireBifrostProxySignature({ bindBody: true }), async (req, res) => {
-  const parsed = CmsPublishSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-  }
-
-  const { approval, draft_id, html, subject, text, to } = parsed.data;
-  try {
-    const dispatch = await dispatchToLocalMta({
-      bodyHtml: html,
-      bodyText: text,
-      subject,
-      toAddress: to.email,
-    });
-
-    const prisma = await getPrisma();
-    await prisma.messageThread.upsert({
-      where: { channel_handle: { channel: 'email', handle: to.email } },
-      update: {
-        messages: {
-          create: {
-            body: text,
-            direction: 'outbound',
-          },
+    try {
+      const prisma = await getPrisma();
+      await prisma.contact.upsert({
+        where: { email: contact.email },
+        update: { name: contact.name },
+        create: { email: contact.email, name: contact.name },
+      });
+      await prisma.echoLog.create({
+        data: {
+          message: JSON.stringify({
+            contact,
+            draftId,
+            html,
+            metadata,
+            stage: 'cms_draft',
+            status,
+            subject,
+            template_id,
+            text,
+            timestamp: new Date().toISOString(),
+          }),
         },
-      },
-      create: {
-        channel: 'email',
-        handle: to.email,
-        messages: {
-          create: [
-            {
+      });
+
+      res.status(200).json({
+        contact,
+        draft_id: draftId,
+        metadata,
+        status,
+        subject,
+        template_id,
+      });
+    } catch (error) {
+      console.error('[CMS/create-draft] failed:', error);
+      res.status(500).json({ error: 'DRAFT_CREATE_FAILED' });
+    }
+  },
+);
+
+app.post(
+  '/api/cms/content/publish',
+  cmsLimiter,
+  requireBifrostProxySignature({ bindBody: true }),
+  async (req, res) => {
+    const parsed = CmsPublishSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
+    }
+
+    const { approval, draft_id, html, subject, text, to } = parsed.data;
+    try {
+      const dispatch = await dispatchToLocalMta({
+        bodyHtml: html,
+        bodyText: text,
+        subject,
+        toAddress: to.email,
+      });
+
+      const prisma = await getPrisma();
+      await prisma.messageThread.upsert({
+        where: { channel_handle: { channel: 'email', handle: to.email } },
+        update: {
+          messages: {
+            create: {
               body: text,
               direction: 'outbound',
             },
-          ],
+          },
         },
-      },
-    });
-    await prisma.echoLog.create({
-      data: {
-        message: JSON.stringify({
-          approvedBy: approval.approved_by,
-          draftId: draft_id,
-          relay: dispatch.relay,
-          stage: 'cms_publish',
-          subject,
-          timestamp: new Date().toISOString(),
-          to,
-          transport: dispatch.dryRun ? 'dry-run' : 'smtp',
-        }),
-      },
-    });
+        create: {
+          channel: 'email',
+          handle: to.email,
+          messages: {
+            create: [
+              {
+                body: text,
+                direction: 'outbound',
+              },
+            ],
+          },
+        },
+      });
+      await prisma.echoLog.create({
+        data: {
+          message: JSON.stringify({
+            approvedBy: approval.approved_by,
+            draftId: draft_id,
+            relay: dispatch.relay,
+            stage: 'cms_publish',
+            subject,
+            timestamp: new Date().toISOString(),
+            to,
+            transport: dispatch.dryRun ? 'dry-run' : 'smtp',
+          }),
+        },
+      });
 
-    res.status(200).json({
-      approved_by: approval.approved_by,
-      draft_id,
-      relay: dispatch.relay,
-      recipient: dispatch.recipient,
-      transport: dispatch.dryRun ? 'dry-run' : 'smtp',
-    });
-  } catch (error) {
-    console.error('[CMS/publish] failed:', error);
-    res.status(500).json({ error: 'PUBLISH_FAILED' });
-  }
-});
+      res.status(200).json({
+        approved_by: approval.approved_by,
+        draft_id,
+        relay: dispatch.relay,
+        recipient: dispatch.recipient,
+        transport: dispatch.dryRun ? 'dry-run' : 'smtp',
+      });
+    } catch (error) {
+      console.error('[CMS/publish] failed:', error);
+      res.status(500).json({ error: 'PUBLISH_FAILED' });
+    }
+  },
+);
 
 // ── PWA proxy HMAC mint endpoint — issues a 10-min signed bundle the PWA
 // attaches as x-webhook-* headers on every /api/cms/* call. Open-and-rate-
@@ -397,10 +417,12 @@ app.post('/api/cms/content/publish', cmsLimiter, requireBifrostProxySignature({ 
 // boundary (Tailscale / private deployment) and by the verify-side signature
 // check on /api/cms/*. See `requireBifrostProxySignature({ bindBody })`.
 const ProxySignBodySchema = z.object({
-  actionId: z.string().regex(
-    /^CMS__(RENDER|DRAFT|PUBLISH)__[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    'actionId must match CMS__<VERB>__<uuid>',
-  ),
+  actionId: z
+    .string()
+    .regex(
+      /^CMS__(RENDER|DRAFT|PUBLISH)__[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      'actionId must match CMS__<VERB>__<uuid>',
+    ),
   rawBody: z.string().optional(),
 });
 

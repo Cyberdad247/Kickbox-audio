@@ -37,10 +37,7 @@ const cache = new Map<string, CacheEntry>();
  * the TTL window, `false` on every subsequent duplicate call. The TTL is
  * reread from clock insensitivity to test-injected `now`.
  */
-export function claimOnce(
-  key: string,
-  options: { ttlMs?: number; now?: number } = {},
-): boolean {
+export function claimOnce(key: string, options: { ttlMs?: number; now?: number } = {}): boolean {
   const now = options.now ?? Date.now();
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const existing = cache.get(key);
