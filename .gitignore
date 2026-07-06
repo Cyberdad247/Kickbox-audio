@@ -13,6 +13,12 @@ out/
 *.tsbuildinfo
 benchmark-report.json
 
+# Rust / WASM build artifacts
+packages/wasm-pills/target/
+
+# Audit worktree (ops scripts only, not project source)
+audit-kickbox-audio/
+
 # Vercel local link state (machine-specific)
 .vercel/
 
