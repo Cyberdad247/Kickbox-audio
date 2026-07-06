@@ -1,9 +1,7 @@
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": [
-      "hitl-handshake"
-    ]
+    "contexts": ["hitl-handshake"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {

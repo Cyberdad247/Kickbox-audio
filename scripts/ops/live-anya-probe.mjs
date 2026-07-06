@@ -75,10 +75,7 @@ async function main() {
     const actionId = 'KBA_AUDIT_VLT_002';
     const timestamp = Date.now();
     const payload = `${actionId}:${timestamp}`;
-    const signature = crypto
-      .createHmac('sha256', SECRET)
-      .update(payload)
-      .digest('hex');
+    const signature = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
     console.log(`  minted: ${actionId} ts=${timestamp} sig=${signature.slice(0, 16)}…`);
   } else {
     console.log('  No MCP-style port reachable — utterance loop DEFERRED');

@@ -10,8 +10,14 @@ name: KBA Smoke
 on:
   push:
     branches: ['feat/**']
+  # `pull_request.branches:` evaluates against the BASE branch of the PR
+  # (the target), NOT the head (source). PRs targeting `feat/**` are rare;
+  # the dominant pre-merge gate is PR → `main`. Including both base
+  # branches means hitl-handshake fires for either case. Picked up from
+  # the kba-hmac-probe branch-filter bug fix on PR #24 (see AGENTS.md
+  # Rule 7).
   pull_request:
-    branches: ['feat/**']
+    branches: ['main', 'feat/**']
   workflow_dispatch:
 
 permissions:

@@ -4,10 +4,7 @@
   "private": true,
   "packageManager": "npm@11.11.0",
   "description": "Sovereign System monorepo — PWA + Bifrost gateway + Prisma DB (Vault_Ω / Raven_Ω / Echo_Ω)",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
