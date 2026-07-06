@@ -68,9 +68,7 @@ export function KBASwarmCommand() {
         body: JSON.stringify({ payload: signed.payload }),
       });
 
-      setStatus(
-        execRes.ok ? 'COMMAND_EXECUTED_SUCCESSFULLY' : 'BIFROST_REJECTED_PAYLOAD',
-      );
+      setStatus(execRes.ok ? 'COMMAND_EXECUTED_SUCCESSFULLY' : 'BIFROST_REJECTED_PAYLOAD');
     } catch (err) {
       console.error('[KBA_NODE_ERR]', err);
       setStatus('BIFROST_UPLINK_FAILED');

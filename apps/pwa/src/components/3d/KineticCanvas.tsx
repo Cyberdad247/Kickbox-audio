@@ -127,6 +127,7 @@ export default function KineticCanvas() {
   const { condition, isDay } = useClevelandWeather();
   return (
     <Canvas
+      className="pointer-events-none fixed inset-0 -z-10 h-screen w-screen"
       camera={{ position: [0, 0, 18], fov: 32 }}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
       dpr={[1, 1.5]}

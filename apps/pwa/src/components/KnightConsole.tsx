@@ -28,7 +28,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
     {
       id: 1,
       kind: 'sys',
-      text: `${knight.name} online — ${knight.title} · ${knight.domain}`,
+      text: `${knight.name} online - ${knight.title} | ${knight.domain}`,
       t: stamp(),
     },
     { id: 2, kind: 'sys', text: knight.task, t: stamp() },
@@ -52,18 +52,20 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
     if (!directive) return;
     const id = idRef.current;
     idRef.current += 2;
-    sendVoiceCommand(`dispatch ${knight.id} ${directive}`);
-    setLog((l) => [
-      ...l,
+    const result = sendVoiceCommand(`dispatch ${knight.id} ${directive}`);
+    setLog((lines) => [
+      ...lines,
       { id, kind: 'out', text: directive, t: stamp() },
       {
         id: id + 1,
-        kind: 'ack',
-        text: `${knight.name} acknowledged — routing through Bifrost.`,
+        kind: result.ok ? 'ack' : 'sys',
+        text: result.ok
+          ? `${knight.name} acknowledged - routing through Bifrost.`
+          : 'Bifrost offline - directive not dispatched.',
         t: stamp(),
       },
     ]);
-    setInput('');
+    if (result.ok) setInput('');
     requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }));
   };
 
@@ -83,7 +85,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
               {knight.name}
             </p>
             <p className="text-[11px] text-white/40 uppercase tracking-[0.16em]">
-              {knight.title} · {knight.domain}
+              {knight.title} | {knight.domain}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -95,9 +97,9 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="text-white/40 text-xl leading-none transition-colors hover:text-white"
+              className="text-xl leading-none text-white/40 transition-colors hover:text-white"
             >
-              ×
+              x
             </button>
           </div>
         </div>
@@ -105,7 +107,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
         <div className="h-72 overflow-y-auto px-6 py-4 text-sm">
           {log.map((line) => (
             <div key={line.id} className="flex gap-3 py-1">
-              <span className="shrink-0 text-[11px] text-white/25 tabular-nums">{line.t}</span>
+              <span className="shrink-0 tabular-nums text-[11px] text-white/25">{line.t}</span>
               <span
                 className={
                   line.kind === 'out'
@@ -115,7 +117,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
                       : 'text-white/55'
                 }
               >
-                {line.kind === 'out' ? '▸ ' : line.kind === 'ack' ? '✓ ' : '· '}
+                {line.kind === 'out' ? '> ' : line.kind === 'ack' ? '+ ' : '. '}
                 {line.text}
               </span>
             </div>
@@ -127,13 +129,13 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Issue a directive to ${knight.name}…`}
+            placeholder={`Issue a directive to ${knight.name}...`}
             className="flex-1 rounded-sm border border-white/10 bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
           />
           <button
             type="submit"
             disabled={!connected}
-            className="bg-violet px-5 py-2.5 text-sm text-white uppercase tracking-widest shadow-glow transition-opacity disabled:opacity-40"
+            className="bg-violet px-5 py-2.5 text-sm uppercase tracking-widest text-white shadow-glow transition-opacity disabled:opacity-40"
           >
             Dispatch
           </button>

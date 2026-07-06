@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AaliyahComposer } from './AaliyahComposer';
 
 interface EmailMessage {
   id: string;
@@ -90,33 +91,30 @@ export function HomeTab() {
     {
       id: 'cf-1',
       title: 'Plumbing Repair late fee dispute',
-      description: 'Gold Quarter Unit 4 tenant claims late fee was assessed during plumbing downtime.',
+      description:
+        'Gold Quarter Unit 4 tenant claims late fee was assessed during plumbing downtime.',
       resolved: false,
     },
   ]);
 
   const toggleAspect = (id: string) => {
     setAspects((prev) =>
-      prev.map((asp) => (asp.id === id ? { ...asp, checked: !asp.checked } : asp))
+      prev.map((asp) => (asp.id === id ? { ...asp, checked: !asp.checked } : asp)),
     );
   };
 
   const markEmailRead = (id: string) => {
     setEmails((prev) =>
-      prev.map((email) => (email.id === id ? { ...email, unread: false } : email))
+      prev.map((email) => (email.id === id ? { ...email, unread: false } : email)),
     );
   };
 
   const toggleLight = (id: string) => {
-    setLights((prev) =>
-      prev.map((lt) => (lt.id === id ? { ...lt, active: !lt.active } : lt))
-    );
+    setLights((prev) => prev.map((lt) => (lt.id === id ? { ...lt, active: !lt.active } : lt)));
   };
 
   const adjustBrightness = (id: string, val: number) => {
-    setLights((prev) =>
-      prev.map((lt) => (lt.id === id ? { ...lt, brightness: val } : lt))
-    );
+    setLights((prev) => prev.map((lt) => (lt.id === id ? { ...lt, brightness: val } : lt)));
   };
 
   const handleResearchSearch = async (e: React.FormEvent) => {
@@ -127,8 +125,8 @@ export function HomeTab() {
     // Simulating deep research search retrieval
     setTimeout(() => {
       setResearchResults([
-        `[RESEARCH BRIEF] Cleveland Heights power grid load peaks at 14:00. Advise Jalen to shift heavy backup operations to 02:00.`,
-        `[RESEARCH BRIEF] Sandusky city council proposed 1.5% tax incentive for local restoration projects. Nia should apply for Obsidian tower units.`,
+        '[RESEARCH BRIEF] Cleveland Heights power grid load peaks at 14:00. Advise Jalen to shift heavy backup operations to 02:00.',
+        '[RESEARCH BRIEF] Sandusky city council proposed 1.5% tax incentive for local restoration projects. Nia should apply for Obsidian tower units.',
       ]);
       setSearching(false);
     }, 800);
@@ -149,7 +147,7 @@ export function HomeTab() {
 
   const resolveConflict = (id: string, action: string) => {
     setConflicts((prev) =>
-      prev.map((cf) => (cf.id === id ? { ...cf, resolved: true, actionTaken: action } : cf))
+      prev.map((cf) => (cf.id === id ? { ...cf, resolved: true, actionTaken: action } : cf)),
     );
   };
 
@@ -168,27 +166,31 @@ export function HomeTab() {
 
           <ul className="mt-4 space-y-3">
             {aspects.map((asp) => (
-              <li
-                key={asp.id}
-                onClick={() => toggleAspect(asp.id)}
-                className="flex items-center gap-3 cursor-pointer group"
-              >
-                <div
-                  className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                    asp.checked
-                      ? 'border-gold-royal bg-gold-royal text-[#050507]'
-                      : 'border-gold/30 group-hover:border-violet'
-                  }`}
+              <li key={asp.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleAspect(asp.id)}
+                  className="group flex w-full items-center gap-3 text-left"
                 >
-                  {asp.checked && <span className="text-[10px] font-bold">✓</span>}
-                </div>
-                <span
-                  className={`font-mono text-xs transition-colors ${
-                    asp.checked ? 'text-white/40 line-through' : 'text-white/80 group-hover:text-white'
-                  }`}
-                >
-                  {asp.text}
-                </span>
+                  <div
+                    className={`w-4 h-4 border flex items-center justify-center transition-colors ${
+                      asp.checked
+                        ? 'border-gold-royal bg-gold-royal text-[#050507]'
+                        : 'border-gold/30 group-hover:border-violet'
+                    }`}
+                  >
+                    {asp.checked && <span className="text-[10px] font-bold">✓</span>}
+                  </div>
+                  <span
+                    className={`font-mono text-xs transition-colors ${
+                      asp.checked
+                        ? 'text-white/40 line-through'
+                        : 'text-white/80 group-hover:text-white'
+                    }`}
+                  >
+                    {asp.text}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -213,7 +215,9 @@ export function HomeTab() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-display text-xs text-white font-medium">{email.sender}</span>
+                    <span className="font-display text-xs text-white font-medium">
+                      {email.sender}
+                    </span>
                     <span className="font-mono text-[9px] text-white/40">{email.time}</span>
                   </div>
                   <p className="mt-1 font-mono text-xs text-white/70">{email.subject}</p>
@@ -230,6 +234,8 @@ export function HomeTab() {
               </li>
             ))}
           </ul>
+
+          <AaliyahComposer />
         </section>
       </div>
 
@@ -246,7 +252,10 @@ export function HomeTab() {
 
           <div className="mt-4 space-y-4">
             {lights.map((lt) => (
-              <div key={lt.id} className="flex flex-col gap-2 p-3 border border-white/5 bg-[#050505]/40">
+              <div
+                key={lt.id}
+                className="flex flex-col gap-2 p-3 border border-white/5 bg-[#050505]/40"
+              >
                 <div className="flex justify-between items-center">
                   <span className="font-mono text-xs text-white/80">{lt.name}</span>
                   <button
@@ -292,7 +301,10 @@ export function HomeTab() {
 
           <div className="mt-4 grid gap-4 grid-cols-3">
             {cameras.map((cam) => (
-              <div key={cam.id} className="border border-white/5 bg-[#050505]/80 p-3 flex flex-col justify-between aspect-video relative overflow-hidden">
+              <div
+                key={cam.id}
+                className="border border-white/5 bg-[#050505]/80 p-3 flex flex-col justify-between aspect-video relative overflow-hidden"
+              >
                 {/* Visual Camera Scanline Decal */}
                 <div className="absolute inset-0 pointer-events-none bg-[repeating-linear-gradient(rgba(0,0,0,0.1)_0px,rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)]" />
 
@@ -304,7 +316,13 @@ export function HomeTab() {
                 </div>
 
                 <div className="mt-4 flex justify-between items-end font-mono text-[8px]">
-                  <span className={cam.status === 'MOTION_ALERT' ? 'text-violet-light font-bold' : 'text-white/40'}>
+                  <span
+                    className={
+                      cam.status === 'MOTION_ALERT'
+                        ? 'text-violet-light font-bold'
+                        : 'text-white/40'
+                    }
+                  >
                     {cam.status}
                   </span>
                   <span className="text-white/45">{cam.fps} FPS</span>
@@ -346,8 +364,11 @@ export function HomeTab() {
 
           {researchResults.length > 0 && (
             <div className="mt-4 space-y-3">
-              {researchResults.map((res, idx) => (
-                <div key={idx} className="border border-white/5 bg-[#050505] p-3 flex justify-between items-start gap-4">
+              {researchResults.map((res) => (
+                <div
+                  key={res}
+                  className="border border-white/5 bg-[#050505] p-3 flex justify-between items-start gap-4"
+                >
                   <p className="font-mono text-xs text-white/80 leading-relaxed">{res}</p>
                   <button
                     type="button"

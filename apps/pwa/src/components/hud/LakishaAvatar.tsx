@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import type { AvatarRuntimeProfile } from '../../lib/avatarRuntime';
 
 // Ambassador Lakisha — an animated living-presence avatar backed by a looping
 // /assets/lakisha_avatar.mp4; the audio-reactive SVG/CSS presence (rings)
@@ -17,31 +18,38 @@ export function LakishaAvatar({
   speaking,
   connected,
   onSync,
+  runtimeProfile,
 }: {
   speaking: boolean;
   connected: boolean;
   onSync: () => void;
+  runtimeProfile: AvatarRuntimeProfile;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
+  const useVideo = !videoFailed && runtimeProfile.videoMode !== 'poster-only';
 
   return (
-    <div className="w-56 border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold">
+    <div
+      className="border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold"
+      style={{ width: runtimeProfile.shellWidth }}
+    >
       <div
         className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian bg-cover bg-top"
         style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.png)' }}
       >
-        {!videoFailed && (
+        {useVideo && (
           <video
             ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover object-top"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: runtimeProfile.objectPosition }}
             src="/assets/lakisha_avatar.mp4"
             poster="/assets/lakisha_avatar_poster.png"
             muted
-            autoPlay
+            autoPlay={runtimeProfile.videoMode === 'full-motion'}
             loop
             playsInline
-            preload="auto"
+            preload={runtimeProfile.videoMode === 'full-motion' ? 'auto' : 'metadata'}
             onError={() => setVideoFailed(true)}
           />
         )}
@@ -83,6 +91,9 @@ export function LakishaAvatar({
           <span className="text-[9px] uppercase tracking-[0.14em] text-white/45">
             {connected ? 'Persistent avatar online' : 'Bifrost disconnected'}
           </span>
+        </div>
+        <div className="mt-1 font-mono text-[8px] uppercase tracking-[0.14em] text-white/30">
+          {runtimeProfile.deviceClass} | {runtimeProfile.videoMode}
         </div>
       </div>
     </div>

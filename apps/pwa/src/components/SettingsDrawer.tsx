@@ -14,12 +14,12 @@ export function SettingsDrawer() {
 
   return (
     <aside
-      className="fixed top-4 right-4 md:right-6 z-40 flex max-h-[calc(100vh-6rem)] w-[min(88vw,28rem)] flex-col items-end"
+      className="fixed right-4 top-4 z-40 flex max-h-[calc(100vh-6rem)] w-[min(88vw,28rem)] flex-col items-end md:right-6"
       aria-label="Lakisha settings"
     >
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="settings-drawer-panel"
         aria-label={open ? 'Close settings drawer' : 'Open settings drawer'}
@@ -41,7 +41,7 @@ export function SettingsDrawer() {
           <PortalSettings />
           <LearnWithMe />
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-white/30">
-            // portal surfaces — see apps/pwa/src/lib/portalBridge.ts
+            {'// portal surfaces - see apps/pwa/src/lib/portalBridge.ts'}
           </p>
         </div>
       )}

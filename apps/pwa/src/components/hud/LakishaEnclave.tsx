@@ -3,6 +3,7 @@
 import type { FormEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBifrost } from '../../context/BifrostContext';
+import { useAvatarRuntimeProfile } from '../../hooks/useAvatarRuntimeProfile';
 import { useLakishaVoice } from '../../hooks/useLakishaVoice';
 import { QUERY_BUDGET_MS, TTFA_BUDGET_MS, budgetStatus, formatMs } from '../../lib/telemetry';
 import { LakishaAvatar } from './LakishaAvatar';
@@ -15,9 +16,11 @@ import { LakishaAvatar } from './LakishaAvatar';
 // button to force a fresh Bifrost bridge connection.
 export function LakishaEnclave() {
   const { connected, reconnect } = useBifrost();
+  const runtimeProfile = useAvatarRuntimeProfile();
   const {
     input,
     setInput,
+    error,
     listening,
     voiceInputSupported,
     mode,
@@ -57,7 +60,10 @@ export function LakishaEnclave() {
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     const touch = e.touches[0];
-    setPosition({ x: touch.clientX - dragStartRef.current.x, y: touch.clientY - dragStartRef.current.y });
+    setPosition({
+      x: touch.clientX - dragStartRef.current.x,
+      y: touch.clientY - dragStartRef.current.y,
+    });
   }, []);
 
   useEffect(() => {
@@ -89,28 +95,43 @@ export function LakishaEnclave() {
       }}
       className="fixed bottom-8 left-8 z-[60] flex flex-col items-start select-none"
     >
-      <LakishaAvatar speaking={speaking} connected={connected} onSync={reconnect} />
+      <LakishaAvatar
+        speaking={speaking}
+        connected={connected}
+        onSync={reconnect}
+        runtimeProfile={runtimeProfile}
+      />
 
       {/* Attached speak-or-text bar — same width as the avatar frame, no gap,
           shared top border dropped so the two read as one card. */}
       <form
         onSubmit={submit}
-        className="flex w-56 items-center gap-1.5 border border-t-0 border-gold/50 bg-smoke-900/85 px-2.5 py-2 backdrop-blur-md shadow-gold"
+        className="flex items-center gap-1.5 border border-t-0 border-gold/50 bg-smoke-900/85 px-2.5 py-2 backdrop-blur-md shadow-gold"
+        style={{ width: runtimeProfile.shellWidth }}
       >
         {voiceInputSupported && (
           <button
             type="button"
             onClick={toggleListening}
+            disabled={!connected}
             aria-pressed={listening}
             aria-label={listening ? 'Stop listening' : 'Speak to Lakisha'}
-            title={mode === 'local-asr' ? 'Speak to Lakisha (offline mode)' : 'Speak to Lakisha'}
+            title={
+              !connected
+                ? 'Bifrost disconnected. Sync Lakisha first.'
+                : mode === 'local-asr'
+                  ? 'Speak to Lakisha (offline mode)'
+                  : 'Speak to Lakisha'
+            }
             className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
               listening
                 ? 'border-violet bg-violet/20 text-violet-light'
-                : 'border-gold/40 text-gold-light hover:bg-white/5'
+                : 'border-gold/40 text-gold-light hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/20'
             }`}
           >
-            {listening && <span className="absolute inset-0 animate-ping rounded-full bg-violet/30" />}
+            {listening && (
+              <span className="absolute inset-0 animate-ping rounded-full bg-violet/30" />
+            )}
             <MicIcon className="h-3.5 w-3.5" />
           </button>
         )}
@@ -143,9 +164,21 @@ export function LakishaEnclave() {
           there's a real measurement (after the first dispatch/speak cycle),
           attached below the input bar as the same seamless card. */}
       {(ttfaMs != null || queryMs != null) && (
-        <div className="flex w-56 items-center justify-between gap-2 border border-t-0 border-gold/30 bg-smoke-900/60 px-2.5 py-1">
+        <div
+          className="flex items-center justify-between gap-2 border border-t-0 border-gold/30 bg-smoke-900/60 px-2.5 py-1"
+          style={{ width: runtimeProfile.shellWidth }}
+        >
           <TelemetryMetric label="TTFA" ms={ttfaMs} budget={TTFA_BUDGET_MS} />
           <TelemetryMetric label="Query" ms={queryMs} budget={QUERY_BUDGET_MS} />
+        </div>
+      )}
+
+      {(error || !connected) && (
+        <div
+          className="border border-t-0 border-gold/20 bg-obsidian/90 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.12em] text-white/45"
+          style={{ width: runtimeProfile.shellWidth }}
+        >
+          {error ?? 'Governance uplink paused. Sync Lakisha to resume dispatch.'}
         </div>
       )}
     </div>
