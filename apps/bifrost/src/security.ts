@@ -1,4 +1,8 @@
 import crypto from 'node:crypto';
+import type { NextFunction, Request, Response } from 'express';
+
+export const DEFAULT_PAST_SKEW_MS = 60_000;
+export const DEFAULT_FUTURE_SKEW_MS = 30_000;
 
 /**
  * Verify an HMAC-SHA256 hex signature of the raw request body using a shared
@@ -28,15 +32,6 @@ export class SignatureError extends Error {
   }
 }
 
-/**
- * Freshness check for a signed action bundle. Validates three things:
- *   1. `timestamp` is well-formed (finite number).
- *   2. `timestamp` is not older than `pastSkewMs` (default 60 s) and not further
- *      in the future than `futureSkewMs` (default 30 s) — symmetric
- *      defense-in-depth against both replay and timestamp-forgery attacks.
- *   3. If `expiresAt` is supplied, `now` may not exceed it by more than 1 s
- *      of additional grace.
- */
 export interface FreshnessOptions {
   /** Unix epoch ms when the signature was minted. */
   timestamp: number;
@@ -50,9 +45,6 @@ export interface FreshnessOptions {
   futureSkewMs?: number;
 }
 
-export const DEFAULT_PAST_SKEW_MS = 60_000;
-export const DEFAULT_FUTURE_SKEW_MS = 30_000;
-
 export function assertFresh(opts: FreshnessOptions): void {
   const now = opts.now ?? Date.now();
   const pastSkewMs = opts.pastSkewMs ?? DEFAULT_PAST_SKEW_MS;
@@ -64,10 +56,7 @@ export function assertFresh(opts: FreshnessOptions): void {
 
   const skewMs = now - opts.timestamp;
   if (skewMs > pastSkewMs) {
-    throw new SignatureError(
-      'EXPIRED',
-      `signature too old (age=${skewMs}ms > ${pastSkewMs}ms)`,
-    );
+    throw new SignatureError('EXPIRED', `signature too old (age=${skewMs}ms > ${pastSkewMs}ms)`);
   }
   if (skewMs < -futureSkewMs) {
     throw new SignatureError(
@@ -106,4 +95,127 @@ export function verifyActionSignature(args: {
     throw new SignatureError('INVALID', 'signature mismatch');
   }
   assertFresh({ timestamp, expiresAt });
+}
+
+// ── PWA→CMS proxy HMAC middleware (Task DAG T2) ──────────────────────
+
+interface ProxySignatureRequest extends Request {
+  rawBody?: string;
+}
+
+export interface ProxySignatureMiddlewareOptions {
+  /** When true, signature verification binds to req.rawBody (used on /publish). */
+  bindBody?: boolean;
+}
+
+let cmsHmacDevBypassWarned = false;
+
+function readSingleHeader(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+/**
+ * Express middleware that validates an HMAC-signed nonce on the four
+ * `x-webhook-*` headers that the PWA proxy attaches to every `/api/cms/*`
+ * call. The secret is the same `WEBHOOK_SECRET` used for `/webhook/sms` and
+ * `/api/bifrost/hitl` — there's no separate proxy secret any more.
+ *
+ * Per-route body binding:
+ *   - bindBody=false (default) — verifies signature against `${actionId}:${timestamp}`
+ *   - bindBody=true              — verifies signature against `req.rawBody`
+ *
+ * Behavior matrix:
+ *   - WEBHOOK_SECRET PRESENT + headers MATCH (and body binds if configured) -> next()
+ *   - WEBHOOK_SECRET PRESENT + missing/expired/malformed -> 401 (mirror SignatureError.code)
+ *   - WEBHOOK_SECRET UNSET + NODE_ENV=production -> 401 { error: 'UNAUTHORIZED' } (fail closed)
+ *   - WEBHOOK_SECRET UNSET + NODE_ENV!=production -> next() with warn-once
+ */
+export function requireBifrostProxySignature(
+  opts: ProxySignatureMiddlewareOptions = {},
+): (req: Request, res: Response, next: NextFunction) => void {
+  return function middleware(req: Request, res: Response, next: NextFunction): void {
+    const secret = process.env.WEBHOOK_SECRET ?? '';
+    const isProd = process.env.NODE_ENV === 'production';
+
+    if (!secret) {
+      if (isProd) {
+        res.status(401).json({ error: 'UNAUTHORIZED' });
+        return;
+      }
+      if (!cmsHmacDevBypassWarned) {
+        console.warn(
+          '[bifrost/cms] WEBHOOK_SECRET unset; CMS HMAC proxy auth bypassed (development only)',
+        );
+        cmsHmacDevBypassWarned = true;
+      }
+      next();
+      return;
+    }
+
+    const actionId = readSingleHeader(req.headers['x-webhook-action']);
+    const signature = readSingleHeader(req.headers['x-webhook-signature']);
+    const timestampRaw = readSingleHeader(req.headers['x-webhook-timestamp']);
+    const expiresAtRaw = readSingleHeader(req.headers['x-webhook-expires-at']);
+
+    if (!actionId || !signature || !timestampRaw || !expiresAtRaw) {
+      res.status(401).json({ error: 'UNAUTHORIZED' });
+      return;
+    }
+
+    const timestamp = Number(timestampRaw);
+    const expiresAt = Number(expiresAtRaw);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(expiresAt)) {
+      res.status(401).json({ error: 'UNAUTHORIZED' });
+      return;
+    }
+
+    // bindBody=true: HMAC must be over req.rawBody, the raw bytes captured by
+    // `express.json({ verify: ... })` — which only fires for Content-Type:
+    // application/json. If rawBody is undefined here the parser was skipped
+    // (e.g. a non-JSON Content-Type sent by an attacker), strict body-binding
+    // cannot be enforced and we must hard-fail. Falling back to
+    // actionId+timestamp verification would silently invalidate the publish
+    // body-binding contract (round-2 review footgun: anyone who can mint a
+    // signature via the open `/api/bifrost/proxy-sign` route could then
+    // publish arbitrary bodies by simply suppressing Content-Type). 400
+    // BAD_PROXY_AUTH is the targeted refusal; downstream zod never runs, so
+    // no SMTP dispatch happens for a body-suppression attempt.
+    if (opts.bindBody && (req as ProxySignatureRequest).rawBody === undefined) {
+      res.status(400).json({ error: 'BAD_PROXY_AUTH' });
+      return;
+    }
+
+    try {
+      verifyActionSignature({
+        actionId,
+        expiresAt,
+        secret,
+        signature,
+        timestamp,
+        ...(opts.bindBody
+          ? { rawBody: (req as ProxySignatureRequest).rawBody as string }
+          : { rawBody: undefined }),
+      });
+    } catch (err) {
+      if (err instanceof SignatureError) {
+        // Differentiate EXPIRED vs INVALID for the caller; both are 401.
+        if (err.code === 'EXPIRED') {
+          res.status(401).json({ error: 'EXPIRED', message: err.message });
+          return;
+        }
+        // INVALID or MALFORMED — keep blind to the exact reason.
+        res.status(401).json({ error: 'UNAUTHORIZED' });
+        return;
+      }
+      res.status(401).json({ error: 'UNKNOWN_SIG_ERROR' });
+      return;
+    }
+    next();
+  };
+}
+
+/** @internal Test-only: resets the cms HMAC dev-bypass warn-once flag. */
+export function __resetCmsHmacDevBypassForTests(): void {
+  cmsHmacDevBypassWarned = false;
 }
