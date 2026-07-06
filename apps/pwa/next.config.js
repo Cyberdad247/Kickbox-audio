@@ -1,11 +1,8 @@
-const path = require('path');
+const path = require('node:path');
 const webpack = require('webpack');
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -13,12 +10,12 @@ const nextConfig = {
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^virtual:/,
-      })
+      }),
     );
 
     config.resolve.alias['@agent-native/core'] = path.resolve(
       __dirname,
-      'src/lib/agent-native-mock.ts'
+      'src/lib/agent-native-mock.ts',
     );
 
     if (!isServer) {
@@ -37,7 +34,7 @@ const nextConfig = {
       config.resolve.alias = {
         ...config.resolve.alias,
         'better-sqlite3': false,
-        'bindings': false,
+        bindings: false,
       };
     }
 

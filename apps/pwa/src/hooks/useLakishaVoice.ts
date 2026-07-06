@@ -90,7 +90,7 @@ export interface LakishaVoice {
 
 export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVoice {
   const { continuous = false } = options;
-  const { sendVoiceCommand, state } = useBifrost();
+  const { connected: bifrostConnected, dispatchError, sendVoiceCommand, state } = useBifrost();
   const { start: vadStart, stop: vadStop, voiced, level } = useVad();
 
   const [connected, setConnected] = useState(false);
@@ -124,7 +124,14 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
       if (!cmd) return;
       awaitingRef.current = true; // //IGNITE on the resulting STATE_UPDATE
       dispatchAtRef.current = performance.now(); // start the query-latency clock
-      sendVoiceCommand(cmd);
+      const result = sendVoiceCommand(cmd);
+      if (!result.ok) {
+        awaitingRef.current = false;
+        dispatchAtRef.current = null;
+        setError('BIFROST DISCONNECTED');
+        return;
+      }
+      setError(null);
       setTranscript('');
     },
     [sendVoiceCommand],
@@ -213,6 +220,11 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     cancelSpeech(); // barge-in: silence Lakisha when the Sovereign speaks
     cancelLocalSpeech();
 
+    if (!bifrostConnected) {
+      setError('BIFROST DISCONNECTED');
+      return;
+    }
+
     const online = typeof navigator === 'undefined' || navigator.onLine;
     if (recognitionSupported && online) {
       let recognition = recognitionRef.current;
@@ -244,7 +256,7 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     } catch {
       setError('MIC DENIED');
     }
-  }, [recognitionSupported, buildRecognition]);
+  }, [bifrostConnected, recognitionSupported, buildRecognition]);
 
   const stopListening = useCallback(() => {
     if (mode === 'local-asr' && localRecorderRef.current) {
@@ -297,6 +309,10 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     setRecognitionSupported(!!Ctor);
     setMicCapable(typeof navigator !== 'undefined' && !!navigator.mediaDevices);
   }, []);
+
+  useEffect(() => {
+    if (dispatchError) setError('BIFROST DISCONNECTED');
+  }, [dispatchError]);
 
   const toggleMute = useCallback(() => {
     setMuted((m) => {
