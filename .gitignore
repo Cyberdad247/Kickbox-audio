@@ -15,6 +15,7 @@ benchmark-report.json
 
 # Rust / WASM build artifacts
 packages/wasm-pills/target/
+packages/wasm-pills/pkg/
 
 # Audit worktree (ops scripts only, not project source)
 audit-kickbox-audio/

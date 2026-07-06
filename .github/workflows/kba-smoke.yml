@@ -94,14 +94,52 @@ jobs:
         # on `^build` so @sovereign/db is already built by this point.
         run: npx turbo run typecheck
 
-      - name: Vitest — security/issuance/nlp/state
-        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
+      - name: Secrets scan
+        # H2: Run secrets-audit.mjs before starting any server so credential
+        # leaks are caught before they reach a running process. Non-zero exit
+        # blocks the rest of the job.
+        run: node scripts/ops/secrets-audit.mjs
+
+      - name: Vitest — full suite (all 18 suites, 141 tests)
+        # H1: Previously only ran 4 bifrost test files; now runs the full
+        # monorepo vitest suite so nonceCache, smtpRelay, cms, proxyAuth,
+        # bifrostHttp, avatarRuntime, mcp-query and ledgerValidator are all
+        # gated in CI. The Bifrost server is NOT running yet at this point
+        # (server.test.ts spawns its own ephemeral instance on a random port).
+        run: npm test
 
       - name: Issue signed KBA action via fixture
         run: node scripts/ops/fixture-hitl.mjs
 
       - name: Dry-run HELIO_PATCH regen gate
         run: bash scripts/ops/check-helio-dry.sh
+
+      - name: Bundle size gate — PWA active-route chunks < 150 KB
+        # M2: Matches the iron-gate in docs/verification.md.
+        # Builds the PWA production bundle, then asserts that the largest
+        # individual chunk in .next/static/chunks/ is below 150 KB
+        # (the edge cold-start budget). Three.js / R3F chunks are already
+        # deferred behind next/dynamic so they don't count toward FCP.
+        run: |
+          npm run build --workspace=pwa
+          MAX=$(find apps/pwa/.next/static/chunks -name '*.js' -exec wc -c {} + \
+            | awk 'NR>1{print $1}' | sort -n | tail -1)
+          echo "Largest chunk: ${MAX} bytes (limit: 153600)"
+          [ "${MAX}" -le 153600 ] || \
+            { echo "FAIL: chunk exceeds 150 KB budget"; exit 1; }
+
+      - name: Biome-ignore suppression audit
+        # L1: Counts biome-ignore comments across the codebase. Hard-fails
+        # if the count exceeds 15 so suppressions can't silently accumulate.
+        # Update the threshold here (with a PR comment explaining why) if
+        # a new legitimate suppression is needed.
+        run: |
+          COUNT=$(grep -r "biome-ignore" --include="*.ts" --include="*.tsx" \
+            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist . \
+            | wc -l | tr -d ' ')
+          echo "biome-ignore suppression count: ${COUNT} (limit: 15)"
+          [ "${COUNT}" -le 15 ] || \
+            { echo "FAIL: too many biome-ignore suppressions (${COUNT})"; exit 1; }
 
       - name: Tear down Bifrost + dump logs
         if: always()

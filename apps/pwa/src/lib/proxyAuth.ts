@@ -41,8 +41,7 @@ async function mintProxyAuth(
   fetchImpl: typeof fetch,
 ): Promise<ProxyAuthHeaders> {
   const actionId = `CMS__${verb}__${crypto.randomUUID()}`;
-  const mintBody =
-    rawBody !== undefined ? { actionId, rawBody } : { actionId };
+  const mintBody = rawBody !== undefined ? { actionId, rawBody } : { actionId };
 
   const res = await fetchWithTimeout(
     fetchImpl,
@@ -57,9 +56,7 @@ async function mintProxyAuth(
   );
 
   if (!res.ok) {
-    throw new Error(
-      `[pwa/cms proxy] proxy-sign mint failed: HTTP ${res.status} ${res.statusText}`,
-    );
+    throw new Error(`[pwa/cms proxy] proxy-sign mint failed: HTTP ${res.status} ${res.statusText}`);
   }
 
   const signed = (await res.json()) as {

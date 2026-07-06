@@ -35,9 +35,7 @@ function makeFactory(opts: { ttlMs?: number; alreadyExpired?: boolean } = {}) {
 
 function errorFactory(status = 400) {
   return (): Promise<Response> =>
-    Promise.resolve(
-      new Response(JSON.stringify({ error: 'INVALID_BODY' }), { status }),
-    );
+    Promise.resolve(new Response(JSON.stringify({ error: 'INVALID_BODY' }), { status }));
 }
 
 describe('getOrMintProxyAuthHeaders (PWA \u2192 Bifrost HMAC mint+cache)', () => {
