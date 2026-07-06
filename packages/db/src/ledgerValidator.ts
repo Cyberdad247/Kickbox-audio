@@ -6,7 +6,9 @@ import { Prisma } from '@prisma/client';
 // Prisma runtime.
 export function validateTransactionBatchBalance(args: any) {
   if (args.data) {
-    const transactions = (Array.isArray(args.data) ? args.data : [args.data]) as Prisma.TransactionCreateManyInput[];
+    const transactions = (
+      Array.isArray(args.data) ? args.data : [args.data]
+    ) as Prisma.TransactionCreateManyInput[];
     let totalDebit = 0;
     let totalCredit = 0;
 

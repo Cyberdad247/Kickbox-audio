@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { ledgerValidator } from './ledgerValidator';
 
 // Reuse a single client across hot-reloads in dev to avoid connection exhaustion.
