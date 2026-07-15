@@ -66,6 +66,18 @@ export function Dashboard() {
           })}
         </nav>
 
+        {/* ── KBA Command Node — separate route ─────────────── */}
+        <div className="border-gold/10 border-t px-3 py-3">
+          <a
+            href="/kba"
+            className="group relative flex items-center rounded-sm px-4 py-2.5 text-sm text-white/45 transition-colors hover:bg-white/5 hover:text-gold-light"
+            aria-label="KBA Command Center"
+          >
+            <span className="absolute left-0 h-5 w-0.5 rounded-full bg-transparent transition-all group-hover:bg-gold-royal" />
+            ⚡ KBA Command
+          </a>
+        </div>
+
         <div className="border-gold/10 border-t px-6 py-5">
           <span
             className={`flex items-center gap-2 text-[11px] ${connected ? 'text-violet-light' : 'text-white/40'}`}

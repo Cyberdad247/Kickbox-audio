@@ -186,7 +186,9 @@ export function KnightSwarmCommand() {
   const handleExecuteActionOverride = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeInstruction.trim()) return;
-    console.log('[EXEC]: Injecting Sovereign instruction to Merlin DAG: ', activeInstruction);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[EXEC]: Injecting Sovereign instruction to Merlin DAG: ', activeInstruction);
+    }
     setActiveInstruction('');
   };
 

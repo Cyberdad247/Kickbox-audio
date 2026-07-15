@@ -1,6 +1,6 @@
 export function defineAction<TInput, TOutput>(options: {
   description: string;
-  schema: any;
+  schema: Record<string, unknown>;
   run: (input: TInput) => Promise<TOutput>;
 }) {
   return {

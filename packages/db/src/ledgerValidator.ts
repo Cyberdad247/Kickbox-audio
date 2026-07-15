@@ -4,7 +4,9 @@ import { Prisma } from '@prisma/client';
 // Splits Responsibility: Extension glue lives in `ledgerValidator` below;
 // invariant logic lives here so the test layer doesn't need to mock the
 // Prisma runtime.
-export function validateTransactionBatchBalance(args: any) {
+export function validateTransactionBatchBalance(args: {
+  data: Prisma.TransactionCreateManyInput | Prisma.TransactionCreateManyInput[];
+}) {
   if (args.data) {
     const transactions = (
       Array.isArray(args.data) ? args.data : [args.data]
