@@ -35,7 +35,7 @@ export function LakishaAvatar({
       style={{ width: runtimeProfile.shellWidth }}
     >
       <div
-        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian bg-cover bg-top"
+        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-void-950 bg-cover bg-top"
         style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.png)' }}
       >
         {useVideo && (

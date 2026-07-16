@@ -107,7 +107,24 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
         setConnected(false);
         if (!closed) reconnectTimer = setTimeout(connect, 2000);
       };
-      ws.onerror = () => ws.close();
+      // Defensive: a stale NEXT_PUBLIC_BIFROST_URL (e.g. the golden-zinc tunnel
+      // from the first supervisor run) can briefly fire onopen before onerror
+      // if DNS resolves to a cached A-record. Flipping connected=false in
+      // onerror closes that race window and prevents the HUD from showing a
+      // false-positive 'Bifrost connected' against a dead endpoint. Setting
+      // dispatchError surfaces the dead state through the existing UI channel
+      // (LakishaEnclave already reads `error ?? 'Governance uplink paused...'`
+      // from this same context value), so the user sees the disconnect even
+      // when the WS handshake briefly succeeds against a stale DNS A-record.
+      // Copy family mirrors existing strings ('Bifrost bridge offline',
+      // 'Governance uplink paused', 'Bifrost mesh' in SettingsTab) — picked
+      // 'Bifrost mesh unreachable' to match the canonical 'Bifrost mesh'
+      // noun and the '…ing' progressive form used elsewhere.
+      ws.onerror = () => {
+        setConnected(false);
+        setDispatchError('Bifrost mesh unreachable. Retrying…');
+        ws.close();
+      };
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
 import { PlanCard } from './PlanCard';
 import { CoffeeTab } from './tabs/CoffeeTab';
@@ -24,6 +24,16 @@ type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
   const [active, setActive] = useState<Tab>('Overview');
+  // SSR/CSR hydration guard — defer Bifrost HUD text until after first client
+  // commit so the server-rendered 'Disconnected' marker matches the client's
+  // initial state (useBifrost().connected starts false on both sides, but the
+  // useEffect that opens the WebSocket can flip connected=true during the
+  // hydration window if a stale tunnel still resolves). Without this guard,
+  // React #425/#418/#423 fire on the prod build.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const { connected } = useBifrost();
 
   return (
@@ -31,7 +41,7 @@ export function Dashboard() {
       {/* ── The Navigation Spire ───────────────────────────────── */}
       <aside className="fixed inset-y-0 left-0 flex w-60 flex-col border-gold/20 border-r bg-smoke-900/60 backdrop-blur-sm">
         <div className="flex items-center gap-3 px-6 py-7">
-          <span className="flex h-9 w-9 items-center justify-center border border-gold/40 bg-obsidian font-display text-gold-royal text-lg shadow-gold">
+          <span className="flex h-9 w-9 items-center justify-center border border-gold/40 bg-void-900 font-display text-gold-royal text-lg shadow-gold">
             K
           </span>
           <div className="leading-tight">
@@ -80,12 +90,12 @@ export function Dashboard() {
 
         <div className="border-gold/10 border-t px-6 py-5">
           <span
-            className={`flex items-center gap-2 text-[11px] ${connected ? 'text-violet-light' : 'text-white/40'}`}
+            className={`flex items-center gap-2 text-[11px] ${!mounted ? 'text-white/30' : connected ? 'text-violet-light' : 'text-white/40'}`}
           >
             <span
-              className={`h-2 w-2 rounded-full ${connected ? 'bg-violet shadow-glow' : 'bg-white/30'}`}
+              className={`h-2 w-2 rounded-full ${!mounted ? 'bg-white/20' : connected ? 'bg-violet shadow-glow' : 'bg-white/30'}`}
             />
-            {connected ? 'Bifrost connected' : 'Disconnected'}
+            {!mounted ? '\u00A0' : connected ? 'Bifrost connected' : 'Disconnected'}
           </span>
         </div>
       </aside>

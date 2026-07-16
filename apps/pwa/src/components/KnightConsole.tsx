@@ -75,7 +75,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
         type="button"
         aria-label="Close console"
         onClick={onClose}
-        className="absolute inset-0 bg-obsidian/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-void-950/70 backdrop-blur-sm"
       />
       <div className="relative w-[min(94vw,40rem)] border border-gold/60 bg-smoke-900/95 shadow-glow-lg">
         <div className="flex items-start justify-between border-gold/20 border-b px-6 py-4">
@@ -130,7 +130,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={`Issue a directive to ${knight.name}...`}
-            className="flex-1 rounded-sm border border-white/10 bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
+            className="flex-1 rounded-sm border border-white/10 bg-void-900 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
           />
           <button
             type="submit"

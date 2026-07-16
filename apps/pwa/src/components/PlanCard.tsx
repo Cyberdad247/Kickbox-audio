@@ -29,7 +29,7 @@ export function PlanCard() {
       <p className="mt-2 text-sm text-white/60">{pendingPlan.detail}</p>
 
       {/* the literal plan, JSON-style */}
-      <pre className="mt-4 overflow-x-auto border border-white/10 bg-obsidian p-3 text-[11px] text-violet-light">
+      <pre className="mt-4 overflow-x-auto border border-white/10 bg-void-900 p-3 text-[11px] text-violet-light">
         {JSON.stringify(
           {
             command: pendingPlan.raw,

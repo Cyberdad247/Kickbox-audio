@@ -17,7 +17,7 @@ function Toggle({
     >
       <span className="text-sm text-white/70 uppercase tracking-wider">{label}</span>
       <span
-        className={`relative h-5 w-9 border transition-colors ${value ? 'border-violet bg-violet/30' : 'border-white/20 bg-obsidian'}`}
+        className={`relative h-5 w-9 border transition-colors ${value ? 'border-violet bg-violet/30' : 'border-white/20 bg-void-900'}`}
       >
         <span
           className={`absolute top-0.5 h-3.5 w-3.5 transition-all ${value ? 'left-4 bg-violet-light' : 'left-0.5 bg-white/40'}`}

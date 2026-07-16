@@ -146,7 +146,7 @@ export function LakishaEnclave() {
                 : 'Listening…'
               : 'Speak or type…'
           }
-          className="w-full min-w-0 rounded-sm border border-white/10 bg-obsidian px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
+          className="w-full min-w-0 rounded-sm border border-white/10 bg-void-900 px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
         />
 
         <button
@@ -175,7 +175,7 @@ export function LakishaEnclave() {
 
       {(error || !connected) && (
         <div
-          className="border border-t-0 border-gold/20 bg-obsidian/90 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.12em] text-white/45"
+          className="border border-t-0 border-gold/20 bg-void-900/90 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.12em] text-white/45"
           style={{ width: runtimeProfile.shellWidth }}
         >
           {error ?? 'Governance uplink paused. Sync Lakisha to resume dispatch.'}
