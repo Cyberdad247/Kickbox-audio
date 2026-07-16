@@ -31,3 +31,7 @@ audit-kickbox-audio/
 *.log
 
 .vercel
+# Local env files (never commit secrets; .env.example templates stay tracked)
+.env
+.env.*
+!.env.example
