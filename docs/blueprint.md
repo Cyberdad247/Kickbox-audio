@@ -5,7 +5,7 @@
 - Framework target: `@agent-native/core`.
 - Philosophy: UI buttons and Knight autonomous decisions call the same TypeScript functions.
 - Routing: all high-risk actions funnel through the Bifrost Bridge.
-- Evidence boundary: current confirmed Bifrost controls are HMAC webhook validation, Tailscale remote MCP guard, local-first `//REZERO`, and worker-thread microcubes. mTLS remains planned until implemented in code.
+- Evidence boundary: current confirmed Bifrost controls are HMAC webhook validation, Tailscale remote MCP guard (now `tailscale serve`-gated per Task 5.6 Path B Sovereign Ruling at commit `1fa274a8`), local-first `//REZERO`, and worker-thread microcubes. Transport-layer mTLS: provided by Tailscale daemon auto-issued cert. App-layer `node:https` mTLS: deferred (Path B rejection of cert-ops debt; see Task 5.6 matrix in `docs/task.md` for per-path trade-offs).
 
 ## 2. Embedded Nano-Squires
 
