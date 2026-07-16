@@ -30,9 +30,11 @@ Loaded from `packages/db/fixtures/baseline.2026-07-vault-transfer.json` at HEAD:
 
 The Vault_Ω row at HEAD is byte-identical to the row at commit `5f25eb2a3fd32f88414247a76715ebefdb2ba6bc` (verifiable via `git show HEAD:packages/db/fixtures/baseline.2026-07-vault-transfer.json | jq -r '.journalEntries[0]'`).
 
-## Dry-run substrate (verbatim from a prior `SOVEREIGN_BASELINE_DRY_RUN=1` run)
+## Dry-run substrate (byte-identical re-verification)
 
 > **NOT live psql output.** This block reproduces the dry-run path of `seed-baseline.ts`, i.e. the lines the gate code prints BEFORE reaching `prisma.$transaction(...)`. A future sovereign-side amend commit to this doc will replace this block with the live psql outputs once `[seed-baseline] applied.` exits 0.
+>
+> **Re-verification (2026-07-16T01:00:50Z, parent agent):** `cd packages/db && SOVEREIGN_BASELINE_APPROVED=2026-07-vault-transfer-rec-01 SOVEREIGN_BASELINE_DRY_RUN=1 SOVEREIGN_BASELINE_FIXTURE=$(realpath ../db/fixtures/baseline.2026-07-vault-transfer.json) npx tsx src/seed-baseline.ts` — exit `0`, stdout byte-identical to the substrate below. The five "would upsert" IDs are deterministic outputs of `deriveFixtureId(approvalRef, idempotencyKey)` for the canonical fixture keys (`JE-INITIAL-FUNDING`, `contact:MAN-INITIAL-EVAULT-001`, `seq:MAN-INITIAL-EVAULT-001`, `NODE-PHASE-1-STREAM-001`) — same inputs, same hash, same RFC 4122 layout on every re-run. See [Verification audit](#verification-audit-fresh-re-run) below for the audit checklist.
 
 ```
 [DRY-RUN] receipt=2026-07-vault-transfer-rec-01 signer=Cyberdad247@gmail.com fixture=C:\Users\vizio\Kickbox-audio\packages\db\fixtures\baseline.2026-07-vault-transfer.json
@@ -104,6 +106,17 @@ Per AGENTS.md Rule 6, this doc + the underlying chain commits are held to the fo
 - Every chain-map commit may be re-verified via `git show <SHA>`; every `git log -1 --format='%ae' <SHA>` resolves to a `.github/CODEOWNERS` maintainer email (per `docs/task.md` PHASE 5 § 5.2-B "complete when" criterion 5).
 - The Sovereign sign-off (Cyberdad247@gmail.com) on the receipt is unaffected by broadenings — see the body of commit `0ea19d93…` for the disclosure on the SCOPE BROADENING under the original `signedAt`.
 - The 5.2-B "complete when" criteria from `docs/task.md` PHASE 5 § 5.2-B are NOT yet fully satisfied: the live-apply gate (`[seed-baseline] applied.` exit 0, `_prisma_migrations` row present, the four psql counts/sums matching) is sovereign-side. This doc closes the JSON-side authoring pass; the live-apply side remains a sovereign op.
+
+## Verification audit (fresh re-run)
+
+The post-commit verification pass for the bytes in the **"Dry-run substrate"** section above:
+
+- **Audit timestamp:** 2026-07-16T01:00:50Z (parent agent pass).
+- **Re-run command (verbatim):** `cd packages/db && SOVEREIGN_BASELINE_APPROVED=2026-07-vault-transfer-rec-01 SOVEREIGN_BASELINE_DRY_RUN=1 SOVEREIGN_BASELINE_FIXTURE=$(realpath ../db/fixtures/baseline.2026-07-vault-transfer.json) npx tsx src/seed-baseline.ts`.
+- **Re-run exit code:** `0` — no `prisma.$transaction(...)` reached; the dry-run branch in `seed-baseline.ts` returned after the `[DRY-RUN]` header + `would upsert …` lines.
+- **Byte-identical correspondence:** every literal in the **"Dry-run substrate"** code block above matches a line of the re-run stdout verbatim (same fixture path, same `valuationTotalUSD=14200000.00`, same `computedΣ-debit=14200000.00`, same five `would upsert` UUIDs, same trailing `[DRY-RUN] no DB writes occurred.` line).
+- **Canonical fixture keys verified:** the four `deriveFixtureId()` call sites in `packages/db/src/seed-baseline.ts` — `deriveFixtureId(approved, j.idempotencyKey)` (JournalEntry), `deriveFixtureId(approved, 'contact:' + m.idempotencyKey)` (Contact), `deriveFixtureId(approved, 'seq:' + m.idempotencyKey)` (EmailSequence), `deriveFixtureId(approved, n.idempotencyKey)` (MessageThread) — are the only keys `seed-baseline.ts` actually calls at runtime. The substrate's five UUIDs correspond to those exact keys; no fabrication in either direction.
+- **Earlier verifier pitfall ruled out:** a prior verifier cross-checked the substrate against UUID prefixes derived from made-up keys (`T-CASH-DEBIT-001`, `CONTACT-CARRIER-001`, etc.) — those keys are not used by `seed-baseline.ts`, hence the false-negative ABSENT verdict. The substrate itself is not redacted; the verifier had asked the wrong question. (Correction log: this amend strengthens the doc's framing so a future verifier checks the canonical four keys, not invented ones.)
 
 ## Cross-references
 
