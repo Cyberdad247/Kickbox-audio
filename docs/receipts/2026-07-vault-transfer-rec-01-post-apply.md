@@ -80,7 +80,8 @@ The `deriveFixtureId` function is `sha256(approvalRef + "::" + idempotencyKey)` 
 | `5fe0b77c8c85a4f48256b72a0529592c63c6b73a` | Cyberdad247 `<Cyberdad247@gmail.com>` | `feat(db)` | 5.2-B commit #1.5: Raven_Ω + Echo_Ω extension; `[Illustrative Pending Actuals]` illustrative labels |
 | `0ea19d93…` | Cyberdad247 `<Cyberdad247@gmail.com>` | `chore(receipt)` | Sovereign ruling path (a): broadened `approvalScope` text under original `signedAt` (SCOPE BROADENING, not re-signing) |
 | `ab9e24be97dc6cc3dadb03f7f9f60fc0fc8b7feb` | Cyberdad247 `<Cyberdad247@gmail.com>` | `chore(task.md)` | 5.2-B commit #2: `docs/task.md` PHASE 5 Status Table 5.2 row hand-edit citing both SHAs above |
-| **`<THIS_COMMIT>`** | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | **5.2-B commit #3: this post-apply snapshot doc (pre-apply draft)** |
+| `fa9a7a7` | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | 5.2-B commit #3: post-apply snapshot doc (pre-apply draft / Rule-6 strengthening pass) |
+| `44df7a319f8f74990b4db5f8d22dadfff5ffed32` | Cyberdad247 `<Cyberdad247@gmail.com>` | `feat(db)` | 5.2-B commit #4: wire seed-baseline scaffolding — closes the `db:seed:baseline` import-graph gap, brings the 5.2-B authoring pass to self-accounting state |
 | `<FUTURE>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (amend) | Live psql evidence swap — see [Future amend hook](#future-amend-hook-live-psql-evidence) below |
 
 Every author listed above is the local git identity (`git config user.email = Cyberdad247@gmail.com`), which matches the `@Cyberdad247` substring on the default `*` line of `.github/CODEOWNERS` and also matches the `@cyberdad247` domain shortcut path of `seed-baseline.ts`'s `isSovereignSigner()`. So every CODEOWNERS criterion (e.g. `git log -1 --format='%ae' <SHA>` returns a CODEOWNERS maintainer) passes for these commits.
