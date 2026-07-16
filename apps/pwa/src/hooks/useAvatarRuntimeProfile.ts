@@ -21,7 +21,18 @@ function readProfile(): AvatarRuntimeProfile {
 }
 
 export function useAvatarRuntimeProfile(): AvatarRuntimeProfile {
-  const [profile, setProfile] = useState<AvatarRuntimeProfile>(() => readProfile());
+  // SSR-stable seed; corrected on mount (avoids SSR hydration mismatch — see
+  // the same pattern in useClevelandWeather + the comment block on
+  // useLakishaVoice's capability flags). On client-initial-render, readProfile()
+  // would otherwise read window.devicePixelRatio / window.innerWidth /
+  // navigator.hardwareConcurrency — none of which exist during SSR — producing
+  // different runtimeProfile values that propagate into LakishaEnclave's JSX
+  // (style={{ width: runtimeProfile.shellWidth }} on the avatar frame + form
+  // + telemetry + error footer, plus the videoMode/objectPosition/deviceClass
+  // text) and triggering React #425/#418/#423 on the prod build.
+  const [profile, setProfile] = useState<AvatarRuntimeProfile>(() =>
+    resolveAvatarRuntimeProfile({ height: 844, width: 390 }),
+  );
 
   useEffect(() => {
     const update = () => setProfile(readProfile());
