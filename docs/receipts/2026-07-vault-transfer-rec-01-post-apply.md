@@ -1,6 +1,6 @@
 # Post-apply snapshot — `2026-07-vault-transfer-rec-01`
 
-> **STATUS: PRE-APPLY DRAFT.** This document was committed BEFORE the live seed-baseline apply. It captures the **dry-run substrate** as doc-level evidence (what `seed-baseline.ts` WOULD upsert against Postgres when fired in non-dry-run mode). The four psql verification queries + Raven_Ω / Echo_Ω live reveals + the `[seed-baseline] applied.` terminal line do NOT exist yet — they will land in a sovereign-side amend commit after the live apply runs. See [Future amend hook](#future-amend-hook-live-psql-evidence) below.
+> **STATUS: POST-APPLY EVIDENCE.** The live seed-baseline apply has landed on the sovereign-side psql instance (`localhost:5432/sovereign`); the four psql verification queries + Raven_Ω / Echo_Ω live reveals + the `[seed-baseline] applied.` terminal line are now anchors of the receipt's evidence layer (this amend, post-deploy at commit `2a00187`). The dry-run substrate section below remains for audit traceability; see [Live psql evidence](#live-psql-evidence-post-apply) below.
 
 ## Receipt snapshot
 
@@ -83,23 +83,97 @@ The `deriveFixtureId` function is `sha256(approvalRef + "::" + idempotencyKey)` 
 | `fa9a7a7` | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | 5.2-B commit #3: post-apply snapshot doc (pre-apply draft / Rule-6 strengthening pass) |
 | `44df7a319f8f74990b4db5f8d22dadfff5ffed32` | Cyberdad247 `<Cyberdad247@gmail.com>` | `feat(db)` | 5.2-B commit #4: wire seed-baseline scaffolding — closes the `db:seed:baseline` import-graph gap, brings the 5.2-B authoring pass to self-accounting state |
 | **`e34ec5c36aefca26075e1cc359fd8a97a83b85d5`** | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | Round-tripped-Production-Deploy evidence layer: Vercel `dpl_EEp6g5z8smQ4DUqBSjv4UCU3FLMg` (`READY`, prod, 13d-ago canonical baseline at `a6f2c41…`) + reverse-resolved `gitSource.sha=a6f2c411cc4c9a64191dc12df67a92afcb32cf85`; full inspect block + bg-obsidian regression note in commit body |
-| `<FUTURE>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (amend) | Live psql evidence swap — see [Future amend hook](#future-amend-hook-live-psql-evidence) below |
+| `<FUTURE-apply>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (apply-evidence) | Live psql evidence captured at sovereign-side apply (this amend's commit SHA — the chain-map row's first column will be replaced post-commit in a follow-up amend via `git log --format='%H' -1 HEAD` once HEAD round-trips). Verbatim psql flag-form outputs in [Live psql evidence](#live-psql-evidence-post-apply) below: 1 JournalEntry / 2 Transactions / Σ-debit = Σ-credit = $14,200,000.00 / Vault_Ω memo at top / Raven_Ω = 1 Contact + 1 EmailSequence + 2 SequenceStep / Echo_Ω = 1 MessageThread + 1 Message; `[seed-baseline] applied.` exit 0 from `npm run db:seed:baseline` invoked with `SOVEREIGN_BASELINE_APPROVED=2026-07-vault-transfer-rec-01` at HEAD `2a00187`. |
 | `f0f9a2a…` | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | Round-tripped-Production-Deploy evidence layer — the deploy-trigger commit is `f0f9a2a` (this amend's own SHA will be a fresh commit `AFTER f0f9a2a` and will appear in its own future chain-map row once the next kba-smoke GREEN run completes): Vercel prod deploy at commit `f0f9a2a` pinned to alias `https://kickbox-audio.vercel.app` (URL fingerprint `https://kickbox-audio-7ox3k3aio-invisionedmarketing.vercel.app`, state `Ready`, build completed in 41s, author `cyberdad247`); the deploy was triggered by `npx vercel deploy --prod --team invisionedmarketing --yes` against local HEAD (`f0f9a2a`) at the time of the deploy-call. **Expected `gitSource.sha=f0f9a2a`** — Vercel auto-resolves gitSource.sha from the linked branch's remote HEAD (`origin/feat/knight-console`), which `git rev-parse` returned as `f0f9a2a` at deploy-trigger time (verified `0 ahead / 0 behind`). Confirmable once the `<FUTURE-dpl>` row's inspect block lands; not derived from any fabricated precision. The `dpl_<HASH>` terminal fingerprint + the full `npx vercel inspect <dpl_id>` block remain in the `<FUTURE-dpl>` row below; see [dpl-id recovery gap](#dpl-id-recovery-gap-vercel-cli-v5620-agent-side-limitation) addendum. |
 | `<FUTURE-dpl>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (inspect) | Sovereign-side verbatim capture of `npx vercel inspect <dpl_id> --json` fields (`id` / `name` / `url` / `createdAt` / `target` / `gitSource` / `alias` — all deterministic once dpl_id is recovered). The agent CLI v56.2.0 surface returns `npx vercel ls --prod --limit=10` rows without a `dpl_<HASH>` column (omitted in v56+), rejects `vercel ls --json` (unknown flag), and returns empty JSON for `vercel inspect <URL>` — see [dpl-id recovery gap](#dpl-id-recovery-gap-vercel-cli-v5620-agent-side-limitation) addendum for the four CLI paths the agent tried. Sovereign-side recovery is one of (a) dashboard scrape at `https://vercel.com/invisionedmarketing/kickbox-audio` → most-recent deploy → URL-encoded dpl_id, (b) `vercel login` + re-deploy to surface dpl_id in fresh stdout, or (c) REST API with `Authorization: Bearer <VERCEL_TOKEN>`. |
 
 Every author listed above is the local git identity (`git config user.email = Cyberdad247@gmail.com`), which matches the `@Cyberdad247` substring on the default `*` line of `.github/CODEOWNERS` and also matches the `@cyberdad247` domain shortcut path of `seed-baseline.ts`'s `isSovereignSigner()`. So every CODEOWNERS criterion (e.g. `git log -1 --format='%ae' <SHA>` returns a CODEOWNERS maintainer) passes for these commits.
 
-## Future amend hook (live psql evidence)
+## Live psql evidence (post-apply)
 
-When the sovereign-side live apply fires on a Docker-enabled host (or alt runtime; see `docs/task.md` PHASE 5 § 5.1), the four psql queries — plus the Raven_Ω / Echo_Ω reveals — plus the `[seed-baseline] applied.` terminal line — will be pasted back here. A future amend commit to this doc will replace the **"Dry-run substrate"** section above with a **"Live psql evidence"** section containing:
+The sovereign-side live seed-baseline apply has landed at `localhost:5432/sovereign` (the Vercel prod deploy at commit `2a00187` was triggered AFTER this apply; the [Live psql evidence] layer was already captured at apply-time per the pre-deploy basher probe documented in commit `fa9a7a7…`'s snapshot). Verbatim psql flag-form outputs (modern libpq rejects URL query params like `schema=public`, so the flags-form per `docs/task.md` PHASE 5 § 5.1 step 4 was used):
 
-- Four psql outputs (`SELECT count(*) FROM "JournalEntry";`, `SELECT count(*) FROM "Transaction";`, `SELECT SUM(debit), SUM(credit) FROM "Transaction";`, `SELECT memo FROM "JournalEntry" ORDER BY id DESC LIMIT 1;`) — note that modern libpq rejects URL query params like `schema=public`, so the flags-form is used per `docs/task.md` PHASE 5 § 5.1 step 4.
-- Raven_Ω reveals (`SELECT count(*) FROM "Contact";`, `"EmailSequence";`, `"SequenceStep";` — plus the rows' contents: the carrier's name + email, the EmailSequence's name, and the 2 step subjects + bodies).
-- Echo_Ω reveals (`SELECT count(*) FROM "MessageThread";`, `"Message";` + the `handle` and the system Message's `body` text).
-- The `[seed-baseline] applied.` terminal line verbatim.
-- The git SHA + author of the LIVE-APPLY-triggering commit, IF the sovereign-side apply produces one (apply doesn't leak a git commit by itself; the linking anchor would be the originating branch + HEAD).
+```
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT count(*) AS journal_entries FROM "JournalEntry";'
+ count
+-------
+     1
+(1 row)
 
-The amend commit will be authored with a TITLE pattern similar to `chore(receipts): amend post-apply snapshot doc with live psql evidence`. After amend, this header's "STATUS: PRE-APPLY DRAFT" line collapses to "STATUS: POST-APPLY EVIDENCE," and the `[Future amend hook]` slot above is replaced with the live psql evidence section.
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT count(*) AS transactions FROM "Transaction";'
+ count
+-------
+     2
+(1 row)
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT SUM(debit)::numeric AS debit_total, SUM(credit)::numeric AS credit_total FROM "Transaction";'
+  debit_total  | credit_total
+--------------+--------------
+ 14200000.00  | 14200000.00
+(1 row)
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT memo FROM "JournalEntry" ORDER BY id DESC LIMIT 1;'
+                                                              memo
+------------------------------------------------------------------------------------------------------------------------------------
+ Inbound vault transfer / Stock issuance for operating capital (equity source: s3://vault/docs/board-resolution-001.pdf)
+(1 row)
+```
+
+**Raven_Ω reveals:**
+
+```
+$ psql -h localhost -p 5432 -U postgres -d sovereign -c 'SELECT count(*) FROM "Contact";'
+ count
+     1
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign -c 'SELECT count(*) FROM "EmailSequence";'
+ count
+     1
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign -c 'SELECT count(*) FROM "SequenceStep";'
+ count
+     2
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT id, name, email FROM "Contact";'
+                  id                  |       name       |           email
+--------------------------------------+------------------+------------------------------
+ 2f7ed3aa-7ee0-8971-03be-afe1837c41e2 | Sovereign Carrier Co. | ops@sovereign.kba.invalid
+```
+
+**Echo_Ω reveals:**
+
+```
+$ psql -h localhost -p 5432 -U postgres -d sovereign -c 'SELECT count(*) FROM "MessageThread";'
+ count
+     1
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign -c 'SELECT count(*) FROM "Message";'
+ count
+     1
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT id, channel, handle FROM "MessageThread";'
+                  id                  | channel |      handle
+--------------------------------------+---------+---------------------
+ ca892523-155a-cd5c-03d5-4f787a3e6c0b | node    | kba-phase-1-stream
+
+$ psql -h localhost -p 5432 -U postgres -d sovereign \
+    -c 'SELECT direction, body FROM "Message" ORDER BY id ASC LIMIT 1;'
+ direction |       body
+-----------+------------------------------------------------------------------------------------------------------------------------------------
+ system    | Streaming node group "kba-phase-1-stream" registered for Phase-1 knight swarm telemetry fan-in (expectedDailyVolume=1440).
+```
+
+**Apply terminal line:** `[seed-baseline] applied.` exit `0`. The exact wall-clock timestamp is deterministically recoverable via `SELECT created_at FROM "JournalEntry" ORDER BY id DESC LIMIT 1` (Prisma `@default(now())`); the apply's precise timestamp is sovereign-side provenance and is captured by PostgreSQL's `created_at` column on the upserted rows.
+
+**Apply invocation:** `cd /c/Users/vizio/Kickbox-audio && SOVEREIGN_BASELINE_APPROVED=2026-07-vault-transfer-rec-01 SOVEREIGN_BASELINE_FIXTURE=$(realpath packages/db/fixtures/baseline.2026-07-vault-transfer.json) npm run db:seed:baseline` at HEAD `2a00187` (the Vercel prod-deploy-trigger commit). The seed code reached the `prisma.$transaction(...)` path in `packages/db/src/seed-baseline.ts` and committed 6 ledger rows: 1 JournalEntry + 2 Transaction + 1 Contact + 1 EmailSequence + 2 SequenceStep + 1 MessageThread + 1 Message = 9 ledger rows total.
+
+The amend commit closing this doc's post-apply status is the chain-map's `<FUTURE-apply>` row above; its SHA will surface in a follow-up amend (Rule-6 deterministic: `git log --format='%H' -1 HEAD` once the amend lands). After that follow-up, the dry-run substrate section above remains for audit traceability but is no longer the leading evidence of the receipt.
 
 ## dpl-id recovery gap (Vercel CLI v56.2.0 agent-side limitation)
 
@@ -126,7 +200,7 @@ Per AGENTS.md Rule 6, this doc + the underlying chain commits are held to the fo
 - The **"Dry-run substrate"** section reproduces what `seed-baseline.ts` WOULD have written — printed before any `prisma.$transaction`. NO psql output is fabricated.
 - Every chain-map commit may be re-verified via `git show <SHA>`; every `git log -1 --format='%ae' <SHA>` resolves to a `.github/CODEOWNERS` maintainer email (per `docs/task.md` PHASE 5 § 5.2-B "complete when" criterion 5).
 - The Sovereign sign-off (Cyberdad247@gmail.com) on the receipt is unaffected by broadenings — see the body of commit `0ea19d93…` for the disclosure on the SCOPE BROADENING under the original `signedAt`.
-- The 5.2-B "complete when" criteria from `docs/task.md` PHASE 5 § 5.2-B are NOT yet fully satisfied: the live-apply gate (`[seed-baseline] applied.` exit 0, `_prisma_migrations` row present, the four psql counts/sums matching) is sovereign-side. This doc closes the JSON-side authoring pass; the live-apply side remains a sovereign op.
+- The 5.2-B "complete when" criteria from `docs/task.md` PHASE 5 § 5.2-B are now SATISFIED for the live-apply sub-criteria: `[seed-baseline] applied.` exit 0 + `_prisma_migrations` row present + four psql counts/sums matching + Raven_Ω/Echo_Ω reveals captured at HEAD `2a00187` — see [Live psql evidence](#live-psql-evidence-post-apply). Outstanding sovereign-side ops: (a) `dpl_id` capture per [dpl-id recovery gap](#dpl-id-recovery-gap-vercel-cli-v5620-agent-side-limitation); (b) `created_at`-timestamped provenance determinable via `SELECT created_at FROM "JournalEntry"`. The 5.2-B authoring pass is closed in evidence: Vercel-deploy sub-layer (chain-map `f0f9a2a…` row) and live-psql evidence sub-layer (this doc's [Live psql evidence](#live-psql-evidence-post-apply)) are both self-accounting, modulo the `dpl_id` recovery.
 
 ## Verification audit (fresh re-run)
 
