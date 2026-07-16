@@ -16,6 +16,11 @@ import {
 } from './security';
 import { dispatchToLocalMta } from './smtpRelay';
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
+import {
+  StreamingTelemetrySchema,
+  getStreamingSnapshot,
+  upsertStreamingTelemetry,
+} from './streaming';
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -63,6 +68,41 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', clients: wss.clients.size });
 });
 
+app.get('/api/streaming/telemetry', (_req, res) => {
+  res.status(200).json(getStreamingSnapshot());
+});
+
+const streamingTelemetryLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/streaming/telemetry', streamingTelemetryLimiter, (req: RawBodyRequest, res) => {
+  const signature = req.header('x-webhook-signature');
+  const signed = WEBHOOK_SECRET
+    ? verifyWebhookSignature(req.rawBody ?? '', signature, WEBHOOK_SECRET)
+    : process.env.NODE_ENV !== 'production';
+  if (!signed) return res.status(401).json({ error: 'INVALID_SIGNATURE' });
+
+  const parsed = StreamingTelemetrySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_TELEMETRY', issues: parsed.error.issues });
+  }
+
+  try {
+    const telemetry = upsertStreamingTelemetry(parsed.data);
+    broadcastStreamingTelemetry();
+    return res.status(202).json(telemetry);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'STREAMING_NODE_CAPACITY') {
+      return res.status(429).json({ error: error.message });
+    }
+    return res.status(500).json({ error: 'TELEMETRY_INGEST_FAILED' });
+  }
+});
+
 // ── Broadcast helper: push unified state to every open client ──
 function broadcastState(): void {
   const msg = JSON.stringify({ type: 'STATE_UPDATE', payload: snapshot() });
@@ -70,6 +110,16 @@ function broadcastState(): void {
     if (client.readyState === WebSocket.OPEN) {
       client.send(msg);
     }
+  }
+}
+
+function broadcastStreamingTelemetry(): void {
+  const msg = JSON.stringify({
+    type: 'STREAMING_TELEMETRY',
+    payload: getStreamingSnapshot(),
+  });
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN) client.send(msg);
   }
 }
 
@@ -474,6 +524,7 @@ wss.on('connection', (ws: LiveSocket) => {
 
   // Send the current unified state immediately on connect.
   ws.send(JSON.stringify({ type: 'STATE_UPDATE', payload: snapshot() }));
+  ws.send(JSON.stringify({ type: 'STREAMING_TELEMETRY', payload: getStreamingSnapshot() }));
 
   ws.on('message', async (data) => {
     let raw: string;

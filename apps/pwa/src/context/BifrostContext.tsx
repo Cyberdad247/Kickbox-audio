@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { StreamingTelemetrySnapshot } from '../lib/streamingTelemetry';
 
 // Mirrors the Bifrost gateway's unified state payload.
 export interface SovereignState {
@@ -66,6 +67,7 @@ function buildPlan(raw: string): PendingPlan | null {
 interface BifrostContextValue {
   connected: boolean;
   state: SovereignState | null;
+  streamingTelemetry: StreamingTelemetrySnapshot | null;
   sendVoiceCommand: (payload: string) => VoiceDispatchResult;
   pendingPlan: PendingPlan | null;
   approvePlan: () => void;
@@ -81,6 +83,9 @@ const BIFROST_URL = process.env.NEXT_PUBLIC_BIFROST_URL ?? 'ws://localhost:3001'
 export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<SovereignState | null>(null);
+  const [streamingTelemetry, setStreamingTelemetry] = useState<StreamingTelemetrySnapshot | null>(
+    null,
+  );
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -129,6 +134,9 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'STATE_UPDATE') setState(msg.payload as SovereignState);
+          if (msg.type === 'STREAMING_TELEMETRY') {
+            setStreamingTelemetry(msg.payload as StreamingTelemetrySnapshot);
+          }
         } catch {
           // ignore malformed frame
         }
@@ -183,6 +191,7 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
       value={{
         connected,
         state,
+        streamingTelemetry,
         sendVoiceCommand,
         pendingPlan,
         approvePlan,

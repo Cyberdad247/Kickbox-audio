@@ -21,6 +21,18 @@ describe('parseCommand (Task 2.3 NLP)', () => {
     expect(parseCommand('order espresso')).toEqual({ action: 'order', item: 'espresso' });
   });
 
+  it('parses streaming viewer queries locally', () => {
+    expect(parseCommand('How many live viewers?')).toEqual({ action: 'streaming_viewers' });
+    expect(parseCommand("what's the viewers count")).toEqual({ action: 'streaming_viewers' });
+  });
+
+  it('parses channel health queries without inventing channel telemetry', () => {
+    expect(parseCommand('Is channel 5 down?')).toEqual({
+      action: 'streaming_health',
+      channel: '5',
+    });
+  });
+
   it('falls back to unknown for unrecognized input', () => {
     expect(parseCommand('do a backflip')).toEqual({ action: 'unknown', raw: 'do a backflip' });
   });

@@ -10,6 +10,7 @@ import { WebSocket } from 'ws';
 let server: Server;
 let wss: import('ws').WebSocketServer;
 let url: string;
+let httpUrl: string;
 
 beforeAll(async () => {
   // Bind a dedicated test port (server.ts treats 0 as falsy → use a real one).
@@ -22,6 +23,7 @@ beforeAll(async () => {
   }
   const addr = server.address() as AddressInfo;
   url = `ws://127.0.0.1:${addr.port}`;
+  httpUrl = `http://127.0.0.1:${addr.port}`;
 });
 
 afterAll(async () => {
@@ -50,5 +52,46 @@ describe('Bifrost WebSocket gateway', () => {
     expect(typeof frame.payload.portfolioValuation).toBe('number');
     expect(frame.payload.portfolioValuation).toBe(14_200_000);
     expect(typeof frame.payload.updatedAt).toBe('string');
+  });
+
+  it('ingests streaming telemetry and broadcasts the aggregate snapshot', async () => {
+    const ws = new WebSocket(url);
+    const telemetryFrame = new Promise<{ type: string; payload: Record<string, unknown> }>(
+      (resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('no telemetry update within 4s')), 4000);
+        ws.on('message', (data) => {
+          const frame = JSON.parse(data.toString());
+          if (frame.type === 'STREAMING_TELEMETRY' && frame.payload.totalViewers === 2126) {
+            clearTimeout(timer);
+            resolve(frame);
+          }
+        });
+        ws.on('error', reject);
+      },
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+
+    const response = await fetch(`${httpUrl}/api/streaming/telemetry`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        nodeId: 'test-edge-east',
+        region: 'NA-East',
+        status: 'healthy',
+        viewers: 2126,
+        bitrateKbps: 6400,
+        packetLossPct: 0.2,
+        latencyMs: 68,
+        loadPct: 62,
+      }),
+    });
+    expect(response.status).toBe(202);
+    const frame = await telemetryFrame;
+    expect(frame.payload.healthyNodes).toBe(1);
+    ws.close();
   });
 });
