@@ -77,6 +77,10 @@ Purpose: hand a clear handoff to the next Codex resume without re-deriving the a
 | **5.6** | ⏳ | Tailscale auth key (`tskey-auth-...`) + sovereign ruling on A/B/C below | `mcp-query` is plain HTTP; only app-layer Tailscale host allowlist exists |
 | **5.7** | ⬜ | — | Skeleton in `packages/benchmark/` |
 
+### Receipt scope note
+
+Receipt `2026-07-vault-transfer-rec-01` covers Vault_Ω + Raven_Ω + Echo_Ω under the **original** `signedAt: 2026-07-16T00:01:38Z` via a SCOPE BROADENING at commit [`0ea19d93…`](https://github.com/Cyberdad247/Kickbox-audio/commit/0ea19d93160e468c3dc36adce07e9ee99963fecb) — disclosed in that commit's body verbatim. NOT a fresh re-signing. See the receipt's `approvalScope` field for the broadened scope text.
+
 ### Task 5.1 — Prereqs & Command Sequence
 
 1. Container: `docker run -d --name sovereign-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16-alpine`
