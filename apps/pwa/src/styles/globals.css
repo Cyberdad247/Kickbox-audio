@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-obsidian font-sans text-white antialiased;
+  @apply bg-void-950 font-sans text-white antialiased;
 }
 
 /* Thin gold scrollbar to match the Sovereign Aura chrome. */
