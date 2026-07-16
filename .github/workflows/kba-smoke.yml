@@ -41,6 +41,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install tailscale CLI on runner (5.6-C sub-criterion #3)
+        # Path B ruling: commits 1fa274a8 (docs/task.md Sovereign Ruling) +
+        # 51b1ef1f (docs/blueprint.md line 8 evidence-boundary) +
+        # 41e7cd9 (scripts/ops/tailscale-serve.sh).
+        # Installs tailscale to /usr/bin/tailscale (on default $PATH) so
+        # future 5.6-C verification steps can call `tailscale serve status
+        # --json` from this runner. This step does NOT authenticate — no
+        # tskey-auth-... (sovereign-side env-only per Path B ruling).
+        # Binary-only install via the official Tailscale Linux install
+        # script (cross-distro, ~15-30s on ubuntu-latest, well within the
+        # 8-minute job timeout).
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          tailscale --version
+
       - uses: actions/setup-node@v4
         # 2026-06-27 promotion: bump to Node 22 LTS — current LTS since
         # 2024-10-29. Resolves the EBADENGINE warnings on @prisma/client
