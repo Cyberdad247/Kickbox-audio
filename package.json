@@ -21,6 +21,7 @@
     "db:migrate": "npm run migrate --workspace=@sovereign/db",
     "db:migrate:dev": "npm run migrate:dev --workspace=@sovereign/db",
     "db:seed": "npm run seed --workspace=@sovereign/db",
+    "db:seed:baseline": "npm run seed:baseline --workspace=@sovereign/db",
     "benchmark": "npm run start --workspace=@sovereign/benchmark",
     "probe:smtp": "node scripts/ops/live-smtp-relay-probe.mjs",
     "probe:smtp:live": "AALIYAH_MTA_DRY_RUN=0 node scripts/ops/live-smtp-relay-probe.mjs"
