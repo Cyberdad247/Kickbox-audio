@@ -1,19 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import Image from 'next/image';
 import type { AvatarRuntimeProfile } from '../../lib/avatarRuntime';
 
-// Ambassador Lakisha — an animated living-presence avatar backed by a looping
-// /assets/lakisha_avatar.mp4; the audio-reactive SVG/CSS presence (rings)
-// rides on top as a live overlay so she still pulses violet while speaking
-// even while the video loops underneath. This is the sole avatar surface —
-// the old bottom-right video HUD was removed.
-//
-// The still poster is set as a CSS background on the frame itself (not just
-// the <video poster> attribute) so it's guaranteed visible any time the video
-// doesn't render — load error, autoplay blocked, or a stall that never fires
-// `onError` at all (seen in some installed-PWA contexts). It never depends on
-// the <video> element's own lifecycle.
+// LaKesha pill avatar — a compact image-first surface that keeps voice, sync,
+// and Bifrost state in one reusable control. The executive portrait is
+// reliable on every device; the runtime profile still controls presence motion.
 export function LakishaAvatar({
   speaking,
   connected,
@@ -25,77 +17,61 @@ export function LakishaAvatar({
   onSync: () => void;
   runtimeProfile: AvatarRuntimeProfile;
 }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [videoFailed, setVideoFailed] = useState(false);
-  const useVideo = !videoFailed && runtimeProfile.videoMode !== 'poster-only';
+  const animatePresence = speaking && runtimeProfile.videoMode === 'full-motion';
 
   return (
     <div
-      className="border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold"
+      className="flex items-center gap-2 rounded-full border border-gold/50 bg-smoke-900/90 p-2 pr-3 shadow-gold backdrop-blur-md"
       style={{ width: runtimeProfile.shellWidth }}
+      aria-label="LaKesha KBA executive assistant avatar"
     >
-      <div
-        className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-void-950 bg-cover bg-top"
-        style={{ backgroundImage: 'url(/assets/lakisha_avatar_poster.png)' }}
-      >
-        {useVideo && (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ objectPosition: runtimeProfile.objectPosition }}
-            src="/assets/lakisha_avatar.mp4"
-            poster="/assets/lakisha_avatar_poster.png"
-            muted
-            autoPlay={runtimeProfile.videoMode === 'full-motion'}
-            loop
-            playsInline
-            preload={runtimeProfile.videoMode === 'full-motion' ? 'auto' : 'metadata'}
-            onError={() => setVideoFailed(true)}
-          />
-        )}
-        {/* concentric presence rings — pulse violet over the video while speaking.
-            No solid orb/eyes here anymore: that was a face-substitute for when
-            there was no video asset; with real video underneath it just masked
-            her face, so only the reactive rings remain. */}
-        <div className="absolute inset-0 flex items-center justify-center">
+      <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-void-950">
+        <Image
+          src="/assets/LaKesha.png"
+          alt="LaKesha, KBA Services AI executive assistant"
+          fill
+          priority
+          sizes="64px"
+          className="object-cover"
+          style={{ objectPosition: runtimeProfile.objectPosition }}
+        />
+        {/* Reactive presence ring; reduced-motion profiles keep it static. */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {speaking && (
             <>
-              <span className="absolute h-24 w-24 animate-ping rounded-full border border-violet/40" />
-              <span className="absolute h-32 w-32 animate-pulse rounded-full border border-violet/20" />
+              <span
+                className={`absolute inset-0 rounded-full border border-violet/50 ${animatePresence ? 'animate-ping' : ''}`}
+              />
+              <span className="absolute inset-1 rounded-full border border-violet/25" />
             </>
           )}
         </div>
         {/* scanline sheen */}
         <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,rgba(0,0,0,0.18)_4px)] opacity-40" />
       </div>
-      <div className="px-3 py-2">
-        <div className="flex items-center justify-between">
-          <div className="leading-tight">
-            <p className="font-display text-gold-royal text-sm tracking-minted">Lakisha</p>
-            <p className="text-[9px] text-white/35 uppercase tracking-[0.18em]">Ambassador</p>
-          </div>
-          <button
-            type="button"
-            onClick={onSync}
-            aria-label="Sync with Bifrost bridge"
-            title="Sync with Bifrost bridge"
-            className="rounded-full border border-gold/40 p-1 text-gold-light transition-colors hover:border-violet hover:text-violet-light"
-          >
-            <SyncIcon className="h-3 w-3" />
-          </button>
-        </div>
-        <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate font-display text-sm tracking-minted text-gold-royal">LaKesha</p>
+        <p className="truncate text-[9px] uppercase tracking-[0.14em] text-white/40">
+          KBA executive assistant
+        </p>
+        <div className="mt-1 flex items-center gap-1.5">
           <span
             className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-violet shadow-glow' : connected ? 'bg-gold-royal' : 'bg-white/25'}`}
           />
-          <span className="text-[9px] uppercase tracking-[0.14em] text-white/45">
-            {connected ? 'Persistent avatar online' : 'Bifrost disconnected'}
+          <span className="truncate text-[8px] uppercase tracking-[0.1em] text-white/45">
+            {connected ? 'Online' : 'Bridge offline'} · {runtimeProfile.deviceClass}
           </span>
         </div>
-        <div className="mt-1 font-mono text-[8px] uppercase tracking-[0.14em] text-white/30">
-          {runtimeProfile.deviceClass} | {runtimeProfile.videoMode}
-        </div>
       </div>
+      <button
+        type="button"
+        onClick={onSync}
+        aria-label="Sync LaKesha with Bifrost bridge"
+        title="Sync LaKesha with Bifrost bridge"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/40 text-gold-light transition-colors hover:border-violet hover:text-violet-light"
+      >
+        <SyncIcon className="h-3 w-3" />
+      </button>
     </div>
   );
 }
