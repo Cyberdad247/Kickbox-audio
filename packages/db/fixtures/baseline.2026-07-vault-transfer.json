@@ -1,0 +1,31 @@
+{
+  "valuationTotalUSD": 14200000,
+  "sovereignApprovalRef": "2026-07-vault-transfer-rec-01",
+  "approvedBy": "Cyberdad247@gmail.com",
+  "journalEntries": [
+    {
+      "memo": "Inbound vault transfer / Stock issuance for operating capital (equity source: s3://vault/docs/board-resolution-001.pdf)",
+      "sourceDocument": "s3://vault/docs/board-resolution-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01",
+      "idempotencyKey": "JE-INITIAL-FUNDING",
+      "lines": [
+        {
+          "side": "debit",
+          "account": "Cash: Operating - Sovereign Bank",
+          "amount": 14200000,
+          "memo": "Inbound vault transfer",
+          "idempotencyKey": "JE-INITIAL-FUNDING:debit"
+        },
+        {
+          "side": "credit",
+          "account": "Common Stock (Authorized 10M shares)",
+          "amount": 14200000,
+          "memo": "Stock issuance for operating capital (equity source: s3://vault/docs/board-resolution-001.pdf)",
+          "idempotencyKey": "JE-INITIAL-FUNDING:credit"
+        }
+      ]
+    }
+  ],
+  "shippingManifests": [],
+  "streamingNodes": []
+}
