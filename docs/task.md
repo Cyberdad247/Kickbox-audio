@@ -74,7 +74,7 @@ Purpose: hand a clear handoff to the next Codex resume without re-deriving the a
 | **5.3** | ⬜ | — | Spec scaffold pending in `apps/pwa/e2e/` |
 | **5.4** | ✅ | — | Commit `test(cms): AaliyahComposer draft→publish round-trip integration test` |
 | **5.5** | ✅ | — | Commit `feat(ops): live-smtp-relay-probe.mjs` |
-| **5.6** | 🟡 | Tailscale auth key (`tskey-auth-...`) — **RULING: Path B** (Tailscale `serve` gate); ruling recorded in "Sovereign Ruling" subsection below; commit author = CODEOWNERS-maintainer; implementation pending `scripts/ops/tailscale-serve.sh` + CI runner `tailscale` binary | `mcp-query` is plain HTTP; only app-layer Tailscale host allowlist exists; mTLS gate deferred to Tailscale daemon |
+| **5.6** | 🟢 | Tailscale auth key (`tskey-auth-...`) — **RULING: Path B** (Tailscale `serve` gate); ruling recorded in "Sovereign Ruling" subsection below; commit author = CODEOWNERS-maintainer; **5.6-C LIVE**: 3 of 5 sub-criteria closed via commits `41e7cd9` (tailscale-serve.sh) + `29017d8` (kba-smoke.yml runner binary) + sovereign-side live run on Cybertronia; sub-criteria #2 (tskey env-only, by-design uncommitted) + #5 (second-device integration test) remain sovereign-side | `mcp-query` is plain HTTP; only app-layer Tailscale host allowlist exists; mTLS gate deferred to Tailscale daemon; **Path B ACTIVE on Cybertronia**: `cybertronia.tailcd0c29.ts.net:443` → `http://localhost:7800` |
 | **5.7** | ⬜ | — | Skeleton in `packages/benchmark/` |
 
 ### Receipt scope note
@@ -230,12 +230,15 @@ Sovereign ruling governs any move to public Funnel.
 - ✅ `git log -1 --format='%ae' <this-sha>` returns CODEOWNERS-maintainer email
 - 🟡 `docs/blueprint.md` line 8 evidence-boundary update — surfaced as separate follow-up (not in this commit per sovereign's single-file ruling)
 
-**5.6-C (implementation) remains PENDING** — requires:
-- Sovereign-side Tailscale auth key (`tskey-auth-...`) — **NOT to be committed** to repo
-- `scripts/ops/tailscale-serve.sh` authored (executable shell wrapper around `tailscale serve https / http://localhost:<mcp-port>`)
-- `.github/workflows/kba-smoke.yml` runner updated with `tailscale` binary on `$PATH` (via `tailscale/tailscale-action@vX` or equivalent)
-- `tailscale serve status` JSON shows the `*.ts.net` host with non-empty `CertFile` / `CertDomain`
-- Live integration test: `mcp-query` reachable from a second tailnet device via the `*.ts.net` URL, returns 200 on `/health`
+**5.6-C (implementation) status — 2026-07-16 sovereign-side live run on Cybertronia:**
+
+| # | Sub-criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | `scripts/ops/tailscale-serve.sh` authored | ✅ CLOSED | commit `41e7cd9` (feat(ops): tailscale-serve.sh — 5.6-C Path B implementation start) |
+| 2 | sovereign-side Tailscale auth key (`tskey-auth-...`) | 🟡 SOVEREIGN ENV | Tailscale daemon already authenticated on Cybertronia; tskey not needed this run (script preflight handles both states); by-design NOT committed to repo |
+| 3 | `.github/workflows/kba-smoke.yml` runner `tailscale` binary on `$PATH` | ✅ CLOSED | commit `29017d8` (ci(kba-smoke): install tailscale CLI on runner — 5.6-C sub-criterion #3) |
+| 4 | `tailscale serve status` JSON shows `*.ts.net` host with non-empty cert | ✅ CLOSED | live run on Cybertronia: CertDomain=`cybertronia.tailcd0c29.ts.net`; status JSON shape `{"TCP":{"443":{"HTTPS":true}},"Web":{"cybertronia.tailcd0c29.ts.net:443":{"Handlers":{"/":{"Proxy":"http://localhost:7800"}}}}}`; HTTPS probe `curl -sIL https://cybertronia.tailcd0c29.ts.net/tools/list` returns `HTTP/2 405` (expected — JSON-RPC requires POST); JSON-RPC POST `/` returns valid `{"jsonrpc":"2.0","id":1,"result":{"tools":[...]}}`; local `curl http://localhost:7800/health` returns `{"status":"ok","multivoice":"off","ollama":"off"}` |
+| 5 | Live integration test from a second tailnet device via `*.ts.net` URL | 🟡 SOVEREIGN | Sovereign-side command (from any second device on the tailnet): `curl -sIL https://cybertronia.tailcd0c29.ts.net/health` and `curl -s -X POST -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","method":"tools/list","id":1}' https://cybertronia.tailcd0c29.ts.net/` |
 
 ### Cross-Task Dependency
 
@@ -268,8 +271,11 @@ A Codex resume **must not** mark 5.1, 5.2, or 5.6 complete without round-trippin
 - **5.6-C (implementation) complete when:** for the chosen path, the code artifacts exist on origin
   (e.g., `scripts/ops/tailscale-serve.sh` for Path B), `tailscale serve status` JSON shows the
   `*.ts.net` host with non-empty `CertFile` / `CertDomain`, AND the live integration test from a
-  second tailnet device returns 200 on the gated endpoint. **5.6-C PENDING** — Tailscale auth key
-  has not yet been provisioned sovereign-side, and `scripts/ops/tailscale-serve.sh` does not yet exist.
+  second tailnet device returns 200 on the gated endpoint. **5.6-C: 3 of 5 sub-criteria CLOSED**
+  (commit `41e7cd9` + commit `29017d8` + live sovereign-side run on Cybertronia). Sub-criteria
+  #2 (tskey env-only, by-design uncommitted) and #5 (sovereign-side second-device curl) remain.
+  See the 5.6-C status table in "Task 5.6 — Sovereign Ruling" above for the full per-criterion
+  evidence (CertDomain + status JSON shape + HTTPS probe output).
 
 Pasted `[SYSTEM: TRANSCENDENCE COMPLETE]`-style output, fabricated commit SHAs, or claimed
 `npm run build` success without a corresponding artifact on disk are **not** completion evidence.
