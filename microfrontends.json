@@ -4,9 +4,6 @@
     "kickbox-audio": {
       "development": {
         "fallback": "kickbox-audio.vercel.app"
-      },
-      "production": {
-        "fallback": "kickbox-audio.vercel.app"
       }
     }
   }
