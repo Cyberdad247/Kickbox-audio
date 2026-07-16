@@ -84,6 +84,8 @@ The `deriveFixtureId` function is `sha256(approvalRef + "::" + idempotencyKey)` 
 | `44df7a319f8f74990b4db5f8d22dadfff5ffed32` | Cyberdad247 `<Cyberdad247@gmail.com>` | `feat(db)` | 5.2-B commit #4: wire seed-baseline scaffolding — closes the `db:seed:baseline` import-graph gap, brings the 5.2-B authoring pass to self-accounting state |
 | **`e34ec5c36aefca26075e1cc359fd8a97a83b85d5`** | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | Round-tripped-Production-Deploy evidence layer: Vercel `dpl_EEp6g5z8smQ4DUqBSjv4UCU3FLMg` (`READY`, prod, 13d-ago canonical baseline at `a6f2c41…`) + reverse-resolved `gitSource.sha=a6f2c411cc4c9a64191dc12df67a92afcb32cf85`; full inspect block + bg-obsidian regression note in commit body |
 | `<FUTURE>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (amend) | Live psql evidence swap — see [Future amend hook](#future-amend-hook-live-psql-evidence) below |
+| `f0f9a2a…` | Cyberdad247 `<Cyberdad247@gmail.com>` | `docs(receipts)` | Round-tripped-Production-Deploy evidence layer — the deploy-trigger commit is `f0f9a2a` (this amend's own SHA will be a fresh commit `AFTER f0f9a2a` and will appear in its own future chain-map row once the next kba-smoke GREEN run completes): Vercel prod deploy at commit `f0f9a2a` pinned to alias `https://kickbox-audio.vercel.app` (URL fingerprint `https://kickbox-audio-7ox3k3aio-invisionedmarketing.vercel.app`, state `Ready`, build completed in 41s, author `cyberdad247`); the deploy was triggered by `npx vercel deploy --prod --team invisionedmarketing --yes` against local HEAD (`f0f9a2a`) at the time of the deploy-call. **Expected `gitSource.sha=f0f9a2a`** — Vercel auto-resolves gitSource.sha from the linked branch's remote HEAD (`origin/feat/knight-console`), which `git rev-parse` returned as `f0f9a2a` at deploy-trigger time (verified `0 ahead / 0 behind`). Confirmable once the `<FUTURE-dpl>` row's inspect block lands; not derived from any fabricated precision. The `dpl_<HASH>` terminal fingerprint + the full `npx vercel inspect <dpl_id>` block remain in the `<FUTURE-dpl>` row below; see [dpl-id recovery gap](#dpl-id-recovery-gap-vercel-cli-v5620-agent-side-limitation) addendum. |
+| `<FUTURE-dpl>` | Cyberdad247 `<Cyberdad247@gmail.com>` | (inspect) | Sovereign-side verbatim capture of `npx vercel inspect <dpl_id> --json` fields (`id` / `name` / `url` / `createdAt` / `target` / `gitSource` / `alias` — all deterministic once dpl_id is recovered). The agent CLI v56.2.0 surface returns `npx vercel ls --prod --limit=10` rows without a `dpl_<HASH>` column (omitted in v56+), rejects `vercel ls --json` (unknown flag), and returns empty JSON for `vercel inspect <URL>` — see [dpl-id recovery gap](#dpl-id-recovery-gap-vercel-cli-v5620-agent-side-limitation) addendum for the four CLI paths the agent tried. Sovereign-side recovery is one of (a) dashboard scrape at `https://vercel.com/invisionedmarketing/kickbox-audio` → most-recent deploy → URL-encoded dpl_id, (b) `vercel login` + re-deploy to surface dpl_id in fresh stdout, or (c) REST API with `Authorization: Bearer <VERCEL_TOKEN>`. |
 
 Every author listed above is the local git identity (`git config user.email = Cyberdad247@gmail.com`), which matches the `@Cyberdad247` substring on the default `*` line of `.github/CODEOWNERS` and also matches the `@cyberdad247` domain shortcut path of `seed-baseline.ts`'s `isSovereignSigner()`. So every CODEOWNERS criterion (e.g. `git log -1 --format='%ae' <SHA>` returns a CODEOWNERS maintainer) passes for these commits.
 
@@ -98,6 +100,23 @@ When the sovereign-side live apply fires on a Docker-enabled host (or alt runtim
 - The git SHA + author of the LIVE-APPLY-triggering commit, IF the sovereign-side apply produces one (apply doesn't leak a git commit by itself; the linking anchor would be the originating branch + HEAD).
 
 The amend commit will be authored with a TITLE pattern similar to `chore(receipts): amend post-apply snapshot doc with live psql evidence`. After amend, this header's "STATUS: PRE-APPLY DRAFT" line collapses to "STATUS: POST-APPLY EVIDENCE," and the `[Future amend hook]` slot above is replaced with the live psql evidence section.
+
+## dpl-id recovery gap (Vercel CLI v56.2.0 agent-side limitation)
+
+Unlike the prior `e34ec5c3` row (where the user paste-back-supplied `dpl_EEp6g5z8smQ4DUqBSjv4UCU3FLMg` arrived complete with the URL `vercel https://vercel.com/invisionedmarketing/kickbox-audio/EEp6g5z8smQ4DUqBSjv4UCU3FLMg`), the `f0f9a2a` deploy above was triggered agent-side via `npx vercel deploy --prod --team invisionedmarketing --yes` and the `dpl_<HASH>` token does not surface in Vercel CLI v56.2.0's non-interactive deploy stdout. Recovery paths the agent attempted and their outcomes:
+
+- `npx vercel ls --prod --limit=10` — table format omits the `dpl_<HASH>` column in v56+ (only URL fingerprint, state, age, author visible).
+- `npx vercel ls --prod --json` — rejected by v56.2.0 (`unknown flag`).
+- `npx vercel inspect <URL>` (against both `kickbox-audio-7ox3k3aio-invisionedmarketing.vercel.app` and `kickbox-audio.vercel.app`) — empty JSON.
+- `npx vercel alias ls --limit=10` — listed project aliases but no alias→dpl_id pairing.
+
+Per AGENTS.md Rule 6 this amend refuses to fabricate a `dpl_<HASH>` or `gitSource.sha=<HASH>` field that the agent cannot reproduce from CLI output. The `dpl_<HASH>` row above (`<FUTURE-dpl>`) is uncovered; sovereign-side recovery is one of:
+
+1. **Dashboard scrape.** Open `https://vercel.com/invisionedmarketing/kickbox-audio` and copy the most-recent deploy's `dpl_<HASH>` from the URL (the Vercel dashboard URL format encodes dpl_id in the path).
+2. **Inspect by URL after auth refresh.** Re-run `npx vercel deploy --prod --team invisionedmarketing --yes` once (creates a SECOND fingerprint; `dpl_id` may now surface in fresh stdout); then `npx vercel inspect <new_dpl_id> --json`. Side-effect: a real production re-deploy is issued.
+3. **REST API.** `Authorization: Bearer <VERCEL_TOKEN>` minted sovereign-side at `vercel.com/account/tokens`; then `curl https://api.vercel.com/v1/deployments?limit=1&teamId=invisionedmarketing` resolves `dpl_<HASH>` deterministically.
+
+Once the dpl_id is pasted back into `<FUTURE-dpl>` and a follow-up amend commit lands, this section becomes obsolete and the inspect JSON fields (`gitSource.sha`, `createdAt`, `target`, `alias[]`, `state`, `name`, `url`) populate the chain-map row.
 
 ## Rule 6 non-fabrication disclosure
 
