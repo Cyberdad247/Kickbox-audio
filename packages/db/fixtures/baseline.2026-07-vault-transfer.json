@@ -26,6 +26,29 @@
       ]
     }
   ],
-  "shippingManifests": [],
-  "streamingNodes": []
+  "shippingManifests": [
+    {
+      "idempotencyKey": "MAN-INITIAL-EVAULT-001",
+      "carrier": "Sovereign Carrier Co.",
+      "origin": "Cleveland, OH",
+      "destination": "Newark, NJ",
+      "cargoDescription": "Initial inventory loadout (operations gear + compute pallet)",
+      "estimatedValue": 250000,
+      "contactEmail": "ops@sovereign.kba.invalid",
+      "notificationSequenceIdempotencyKey": "NOTIFY-MAN-INITIAL-EVAULT-001",
+      "sourceDocument": "s3://vault/docs/shipping-manifest-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01",
+      "active": true
+    }
+  ],
+  "streamingNodes": [
+    {
+      "idempotencyKey": "NODE-PHASE-1-STREAM-001",
+      "nodeGroupId": "kba-phase-1-stream",
+      "purpose": "Phase-1 knight swarm telemetry fan-in",
+      "expectedDailyVolume": 1440,
+      "sourceDocument": "s3://vault/docs/streaming-node-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01"
+    }
+  ]
 }
