@@ -29,9 +29,11 @@ export const dispatchPlumberAction = defineAction({
     // Isomorphic execution payload simulation
     const ticketId = `PLUMB-${Math.floor(1000 + Math.random() * 9000)}`;
     const timestamp = new Date().toISOString();
-    
-    console.log(`[ISOMORPHIC ACTION] Dispatching plumber to ${unit}. Issue: ${issue}. Priority: ${priority}`);
-    
+
+    console.log(
+      `[ISOMORPHIC ACTION] Dispatching plumber to ${unit}. Issue: ${issue}. Priority: ${priority}`,
+    );
+
     return {
       status: 'DISPATCHED',
       timestamp,

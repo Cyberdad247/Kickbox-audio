@@ -1,0 +1,148 @@
+name: KBA HMAC Probe
+
+# Surgical path-filter gate for the PWA↔Bifrost HMAC auth layer. The probe
+# script (scripts/ops/probe-hmac-e2e.sh) boots bifrost + PWA on ephemeral
+# free ports and exercises two round-trips:
+#
+#   PROBE 1 — PWA → /api/cms/template/render with NO x-webhook-* headers
+#             (PWA mints via /api/bifrost/proxy-sign and forwards transparently)
+#   PROBE 2 — Direct POST /api/cms/content/publish with body-bound HMAC
+#
+# Exit non-zero on any failure. Designed to run BEFORE merge via branch
+# protection on feat/** branches.
+#
+# Path filter is explicit-listed (NOT a glob) because @actions/glob
+# expansion behavior for nested **/route.ts in apps/pwa/src/app/api/cms/
+# is harder to verify than enumerating each file the user named. The eleven
+# entries below cover EXACTLY the surfaces that touch the proxy-auth
+# contract — the first pair self-triggers on probe-file changes, the next
+# nine gate proxy-auth surfaces (5 bifrost + 1 pwa lib + 3 expanded cms
+# routes, expanded from the original 7-entry brace spec per AGENTS.md).
+# Add a new proxy-auth surface to the latter group whenever one lands.
+#
+# Lives in a SEPARATE workflow file rather than extending kba-smoke.yml:
+# the existing hitl-handshake job should keep firing on EVERY feat/** PR
+# (no path restriction). A workflow-level pull_request.paths filter on
+# kba-smoke.yml would have inadvertently narrowed that contract.
+
+on:
+  # `push:` is the defense-in-depth axis (mirrors kba-smoke.yml).
+  # `pull_request.branches:` matches the BASE branch of the PR (NOT head) — see
+  # AGENTS.md "pull_request triggers filter on BASE" learn-rule. PRs entering
+  # `main` are the canonical pre-merge gate; PRs entering another `feat/**`
+  # branch are an in-flight sibling-merge safety net. Combined coverage:
+  #   - direct pushes to feat/** (no PR yet) → push block fires
+  #   - PR targeting main → pull_request block fires
+  #   - PR targeting another feat/** → pull_request block fires
+  # `paths:` lists are intentionally duplicated (DRY violation; GitHub does
+  # not honour YAML anchors in on: keys reliably across all runners).
+  push:
+    branches: ['feat/**']
+    paths:
+      - '.github/workflows/kba-hmac-probe.yml'
+      - 'scripts/ops/probe-hmac-e2e.sh'
+      - 'apps/bifrost/src/security.ts'
+      - 'apps/bifrost/src/server.ts'
+      - 'apps/bifrost/src/issuance.ts'
+      - 'apps/bifrost/src/cms.ts'
+      - 'apps/bifrost/src/smtpRelay.ts'
+      - 'apps/pwa/src/lib/proxyAuth.ts'
+      - 'apps/pwa/src/app/api/cms/template/render/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/create-draft/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/publish/route.ts'
+  pull_request:
+    branches: ['main', 'feat/**']
+    paths:
+      # Self-trigger: include the workflow file + script so probe-only PRs bootstrap.
+      - '.github/workflows/kba-hmac-probe.yml'
+      - 'scripts/ops/probe-hmac-e2e.sh'
+      # The nine proxy-auth surfaces (5 bifrost + 1 pwa lib + 3 expanded
+      # cms routes) — explicit-listed per AGENTS.md so @actions/glob
+      # expansion of nested **/route.ts globs is never ambiguous. Add a new
+      # entry here whenever a new proxy-auth surface lands.
+      - 'apps/bifrost/src/security.ts'
+      - 'apps/bifrost/src/server.ts'
+      - 'apps/bifrost/src/issuance.ts'
+      - 'apps/bifrost/src/cms.ts'
+      - 'apps/bifrost/src/smtpRelay.ts'
+      - 'apps/pwa/src/lib/proxyAuth.ts'
+      - 'apps/pwa/src/app/api/cms/template/render/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/create-draft/route.ts'
+      - 'apps/pwa/src/app/api/cms/content/publish/route.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  probe-hmac-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Same secret used by kba-smoke.yml:hitl-handshake so the two gates stay
+      # consistent. The probe script's own default matches this if WEBHOOK_SECRET
+      # is unset, but pinning here documents the contract.
+      WEBHOOK_SECRET: kba-smoke-secret
+
+      # Safe-by-default: leave AALIYAH_MTA_DRY_RUN unset so the publish probe
+      # exercises dispatchToLocalMta's dry-run envelope path instead of opening
+      # a real TCP connection to a local MTA. The HMAC validation signal is
+      # orthogonal to SMTP transport; CI time and surface area benefit from
+      # defaulting to dry-run. Local developers can flip DRY_RUN=false and
+      # point AALIYAH_MTA_HOST/PORT at scripts/ops/mock-smtp.cjs for the
+      # real-SMTP handshake probe.
+      AALIYAH_MTA_HOST: 127.0.0.1
+      AALIYAH_MTA_PORT: '25'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install monorepo deps
+        # Prisma postinstall must run so @prisma/client + @sovereign/db
+        # workspace links generate their client outputs.
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        # Same step shape as kba-smoke.yml — see its expanded comment for the
+        # EBADENGINE / TS2694 history on placing this step explicitly.
+        run: npm run db:generate
+
+      - name: Build @sovereign/db workspace
+        # Same shape as kba-smoke.yml so the @sovereign/db dist/{js,d.ts}
+        # is populated for downstream workspace imports.
+        run: npm run build --workspace=@sovereign/db
+
+      - name: Run HMAC end-to-end probe
+        # The script owns bifrost + PWA lifecycle (boot via npm run dev, poll
+        # /health + /, run both probes, tear down via EXIT/INT/TERM trap, dump
+        # stdio on failure). Exit codes:
+        #   0  both probes passed
+        #   1  probe 1 failed (PWA render path)
+        #   2  probe 2 failed (direct publish + body-bound HMAC)
+        #   3  both probes failed
+        #   4  setup failure (port allocation, missing dep)
+        run: bash scripts/ops/probe-hmac-e2e.sh
+
+      - name: Upload probe stdio on failure
+        # The script dumps stdio tails to /tmp on failure, but job-level
+        # timeout (10 min) can cut those off. Always upload so the artifacts
+        # survive even when the step itself fails.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kba-hmac-probe-stdio
+          path: |
+            /tmp/probe-bifrost.log
+            /tmp/probe-pwa.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -71,10 +71,15 @@ export function OverviewTab() {
             <p className="text-[11px] text-white/40 uppercase tracking-[0.2em]">
               Total Portfolio Valuation
             </p>
-            <p className="mt-3 font-display text-7xl text-gold-royal tracking-minted">
+            <p
+              className="mt-3 font-display text-7xl text-gold-royal tracking-minted"
+              suppressHydrationWarning
+            >
               {compactCurrency(valuation)}
             </p>
-            <p className="mt-2 text-sm text-white/40">{fullCurrency(valuation)}</p>
+            <p className="mt-2 text-sm text-white/40" suppressHydrationWarning>
+              {fullCurrency(valuation)}
+            </p>
           </div>
           <div className="text-right">
             <span className="text-violet-light text-sm">+12.4% QTD</span>

@@ -26,6 +26,8 @@
     "./ceo.jsonld",
     "./cal.jsonld",
     "./mail.jsonld",
+    "./codex.jsonld",
+    "./avatar.jsonld",
     "./prop.jsonld",
     "./maint.jsonld",
     "./rent.jsonld",

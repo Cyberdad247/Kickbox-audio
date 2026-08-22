@@ -13,6 +13,13 @@ out/
 *.tsbuildinfo
 benchmark-report.json
 
+# Rust / WASM build artifacts
+packages/wasm-pills/target/
+packages/wasm-pills/pkg/
+
+# Audit worktree (ops scripts only, not project source)
+audit-kickbox-audio/
+
 # Vercel local link state (machine-specific)
 .vercel/
 
@@ -22,3 +29,9 @@ benchmark-report.json
 # OS / editor
 .DS_Store
 *.log
+
+.vercel
+# Local env files (never commit secrets; .env.example templates stay tracked)
+.env
+.env.*
+!.env.example

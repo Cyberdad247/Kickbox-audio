@@ -1,0 +1,54 @@
+{
+  "valuationTotalUSD": 14200000,
+  "sovereignApprovalRef": "2026-07-vault-transfer-rec-01",
+  "approvedBy": "Cyberdad247@gmail.com",
+  "journalEntries": [
+    {
+      "memo": "Inbound vault transfer / Stock issuance for operating capital (equity source: s3://vault/docs/board-resolution-001.pdf)",
+      "sourceDocument": "s3://vault/docs/board-resolution-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01",
+      "idempotencyKey": "JE-INITIAL-FUNDING",
+      "lines": [
+        {
+          "side": "debit",
+          "account": "Cash: Operating - Sovereign Bank",
+          "amount": 14200000,
+          "memo": "Inbound vault transfer",
+          "idempotencyKey": "JE-INITIAL-FUNDING:debit"
+        },
+        {
+          "side": "credit",
+          "account": "Common Stock (Authorized 10M shares)",
+          "amount": 14200000,
+          "memo": "Stock issuance for operating capital (equity source: s3://vault/docs/board-resolution-001.pdf)",
+          "idempotencyKey": "JE-INITIAL-FUNDING:credit"
+        }
+      ]
+    }
+  ],
+  "shippingManifests": [
+    {
+      "idempotencyKey": "MAN-INITIAL-EVAULT-001",
+      "carrier": "Sovereign Carrier Co.",
+      "origin": "Cleveland, OH",
+      "destination": "Newark, NJ",
+      "cargoDescription": "Initial inventory loadout (operations gear + compute pallet)",
+      "estimatedValue": 250000,
+      "contactEmail": "ops@sovereign.kba.invalid",
+      "notificationSequenceIdempotencyKey": "NOTIFY-MAN-INITIAL-EVAULT-001",
+      "sourceDocument": "s3://vault/docs/shipping-manifest-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01",
+      "active": true
+    }
+  ],
+  "streamingNodes": [
+    {
+      "idempotencyKey": "NODE-PHASE-1-STREAM-001",
+      "nodeGroupId": "kba-phase-1-stream",
+      "purpose": "Phase-1 knight swarm telemetry fan-in",
+      "expectedDailyVolume": 1440,
+      "sourceDocument": "s3://vault/docs/streaming-node-001.pdf",
+      "approvalRef": "2026-07-vault-transfer-rec-01"
+    }
+  ]
+}

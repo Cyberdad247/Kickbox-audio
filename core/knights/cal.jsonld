@@ -16,7 +16,11 @@
   "skill_graph_tier": "S3_Contextual",
   "bifrost_connection": {
     "tunnel": "planned_mTLS_Tunnel_0x002",
-    "confirmed_controls": ["hmac_webhook_validation", "tailscale_remote_mcp_guard", "local_first_rezero"]
+    "confirmed_controls": [
+      "hmac_webhook_validation",
+      "tailscale_remote_mcp_guard",
+      "local_first_rezero"
+    ]
   },
   "embedded_proxy": "tiny_llm_cache_v1",
   "ingress_policy": {
@@ -24,7 +28,11 @@
     "allow_direct_ingress": false,
     "human_gate": ["Andre", "Pam"]
   },
-  "responsibilities": ["calendar conflict detection", "reminder sequencing", "appointment handoff packets"],
+  "responsibilities": [
+    "calendar conflict detection",
+    "reminder sequencing",
+    "appointment handoff packets"
+  ],
   "escalation": {
     "simple": "Nano-Squire lookup",
     "analytical": "Excalibur Kernel via Bifrost",

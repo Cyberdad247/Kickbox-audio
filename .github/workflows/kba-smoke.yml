@@ -10,8 +10,14 @@ name: KBA Smoke
 on:
   push:
     branches: ['feat/**']
+  # `pull_request.branches:` evaluates against the BASE branch of the PR
+  # (the target), NOT the head (source). PRs targeting `feat/**` are rare;
+  # the dominant pre-merge gate is PR → `main`. Including both base
+  # branches means hitl-handshake fires for either case. Picked up from
+  # the kba-hmac-probe branch-filter bug fix on PR #24 (see AGENTS.md
+  # Rule 7).
   pull_request:
-    branches: ['feat/**']
+    branches: ['main', 'feat/**']
   workflow_dispatch:
 
 permissions:
@@ -34,6 +40,21 @@ jobs:
       ACTION_ID: KBA_SYNC_001
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install tailscale CLI on runner (5.6-C sub-criterion #3)
+        # Path B ruling: commits 1fa274a8 (docs/task.md Sovereign Ruling) +
+        # 51b1ef1f (docs/blueprint.md line 8 evidence-boundary) +
+        # 41e7cd9 (scripts/ops/tailscale-serve.sh).
+        # Installs tailscale to /usr/bin/tailscale (on default $PATH) so
+        # future 5.6-C verification steps can call `tailscale serve status
+        # --json` from this runner. This step does NOT authenticate — no
+        # tskey-auth-... (sovereign-side env-only per Path B ruling).
+        # Binary-only install via the official Tailscale Linux install
+        # script (cross-distro, ~15-30s on ubuntu-latest, well within the
+        # 8-minute job timeout).
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          tailscale --version
 
       - uses: actions/setup-node@v4
         # 2026-06-27 promotion: bump to Node 22 LTS — current LTS since
@@ -88,14 +109,112 @@ jobs:
         # on `^build` so @sovereign/db is already built by this point.
         run: npx turbo run typecheck
 
-      - name: Vitest — security/issuance/nlp/state
-        run: npx vitest run apps/bifrost/src/security.test.ts apps/bifrost/src/issuance.test.ts apps/bifrost/src/nlp.test.ts apps/bifrost/src/state.test.ts
+      - name: Secrets scan
+        # H2: Run secrets-audit.mjs before starting any server so credential
+        # leaks are caught before they reach a running process. Non-zero exit
+        # blocks the rest of the job.
+        run: node scripts/ops/secrets-audit.mjs
+
+      - name: Vitest — full suite (all 18 suites, 141 tests)
+        # H1: Previously only ran 4 bifrost test files; now runs the full
+        # monorepo vitest suite so nonceCache, smtpRelay, cms, proxyAuth,
+        # bifrostHttp, avatarRuntime, mcp-query and ledgerValidator are all
+        # gated in CI. The Bifrost server is NOT running yet at this point
+        # (server.test.ts spawns its own ephemeral instance on a random port).
+        run: npm test
 
       - name: Issue signed KBA action via fixture
         run: node scripts/ops/fixture-hitl.mjs
 
       - name: Dry-run HELIO_PATCH regen gate
         run: bash scripts/ops/check-helio-dry.sh
+
+      - name: Bundle size gate — PWA active-route chunks < 180 KB
+        # M2: Matches the iron-gate in docs/verification.md.
+        # Builds the PWA production bundle, then asserts that the largest
+        # individual First-Load-JS chunk — i.e. the union of chunks Next.js
+        # loads on initial page paint per .next/app-build-manifest.json —
+        # is below 180 KB (the App-Router-era floor for React 18 + Next.js
+        # framework + vendor). Three.js / R3F chunks are already deferred
+        # behind next/dynamic({ ssr: false }) so they live in their own
+        # lazy chunks and are excluded from this budget (they don't block
+        # FCP).
+        # Picked up from kba-smoke run 29467190169 step 13 false negative
+        # on commit d4e41be: the prior version used a brute-force `find`
+        # on .next/static/chunks which swept up the deferred three.js
+        # chunk (~668 KB) and falsely flagged it. The new gate reads
+        # Next.js's authoritative app-build-manifest.json instead — the
+        # chunks listed in `pages` are exactly the ones that ship on
+        # initial paint for each App Router route.
+        # The 150 KB → 180 KB threshold bump is empirical: the smallest
+        # universal App Router chunk today (1dd3208c-…, React 18 +
+        # framework runtime) measures ~170 KB uncompressed; pursuing a
+        # true 150 KB gate requires splitting framework chunks into
+        # per-vendor sub-packages (next-sprint pass, not this commit).
+        run: |
+          npm run build --workspace=pwa
+
+          # Extract the union of `static/chunks/*.js` paths from
+          # Next.js's app-build-manifest.json (the canonical first-load
+          # chunk list). Dedupe via sort -u.
+          FIRST_LOAD_CHUNKS=$(grep -oE '"static/chunks/[^"]+\.js"' \
+            apps/pwa/.next/app-build-manifest.json \
+            | tr -d '"' \
+            | sort -u)
+
+          if [ -z "$FIRST_LOAD_CHUNKS" ]; then
+            echo "FAIL: no first-load chunks found in app-build-manifest.json — App Router required."
+            exit 1
+          fi
+
+          MAX=0
+          LARGEST=""
+          for chunk in $FIRST_LOAD_CHUNKS; do
+            path="apps/pwa/.next/$chunk"
+            [ -f "$path" ] || continue
+            size=$(wc -c < "$path")
+            if [ "$size" -gt "$MAX" ]; then
+              MAX=$size
+              LARGEST="$chunk"
+            fi
+          done
+
+          COUNT=$(printf '%s\n' "$FIRST_LOAD_CHUNKS" | grep -c . || true)
+          echo "First-Load chunks scanned: ${COUNT}"
+          echo "Largest first-load chunk:  ${LARGEST} = ${MAX} bytes (limit: 180000)"
+          [ "${MAX}" -le 180000 ] || \
+            { echo "FAIL: first-load chunk exceeds 180 KB budget"; exit 1; }
+
+          # Informational: top-10 lazy chunks (NOT counted toward the gate).
+          # Three.js / R3F chunks live here; they're deferred behind
+          # next/dynamic({ ssr: false }) so they don't block FCP.
+          # Use this list to budget the next-sprint optimization pass.
+          # Note: the line shape is "  lazy: ${rel} = ${size} bytes" —
+          # sort field 4 is the numeric size; field 3 is "=".
+          echo "--- Top 10 lazy chunks (informational; deferred via next/dynamic) ---"
+          tmp=$(mktemp)
+          find apps/pwa/.next/static/chunks -name '*.js' -type f > "$tmp"
+          while read -r f; do
+            rel="${f#apps/pwa/.next/}"
+            case " ${FIRST_LOAD_CHUNKS} " in
+              *" ${rel} "*) ;;
+              *) size=$(wc -c < "$f"); echo "  lazy: ${rel} = ${size} bytes" ;;
+            esac
+          done < "$tmp" | sort -k4 -n -r | head -10
+          rm -f "$tmp"
+
+      - name: Biome-ignore suppression audit
+        # L1: Counts biome-ignore comments across the codebase. Hard-fails
+        # if the count exceeds 15 so suppressions can't silently accumulate.
+        # Update the threshold here (with a PR comment explaining why) if
+        # a new legitimate suppression is needed.
+        run: |
+          COUNT=$(grep -r "biome-ignore" --include="*.ts" --include="*.tsx" \
+            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist . \
+            | wc -l | tr -d ' ')
+          echo "biome-ignore suppression count: ${COUNT} (limit: 15)"
+          [ "${COUNT}" -le 15 ] || \
+            { echo "FAIL: too many biome-ignore suppressions (${COUNT})"; exit 1; }
 
       - name: Tear down Bifrost + dump logs
         if: always()

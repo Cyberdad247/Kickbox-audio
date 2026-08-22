@@ -16,6 +16,8 @@ export type Command =
   | { action: 'add_transaction'; amount: number }
   | { action: 'remind'; who: string }
   | { action: 'order'; item: string }
+  | { action: 'streaming_viewers' }
+  | { action: 'streaming_health'; channel: string }
   | { action: 'kba'; domain: KbaDomain; raw: string }
   | { action: 'unknown'; raw: string };
 
@@ -25,6 +27,17 @@ export function parseCommand(input: string): Command {
   const tx = text.match(/^add\s+transaction\s+\$?([\d,]+(?:\.\d+)?)/);
   if (tx) {
     return { action: 'add_transaction', amount: Number(tx[1].replace(/,/g, '')) };
+  }
+
+  if (
+    /^(how many|what(?:'s| is the))\s+(?:the\s+)?(?:live\s+)?viewers?(?:\s+count)?\b/.test(text)
+  ) {
+    return { action: 'streaming_viewers' };
+  }
+
+  const channelHealth = text.match(/^is\s+channel\s+([a-z0-9-]+)\s+(?:down|live|healthy)\??$/);
+  if (channelHealth) {
+    return { action: 'streaming_health', channel: channelHealth[1] };
   }
 
   // KBA Cartridge bridge — server.ts emits `kba KBA_<DOMAIN>_<discriminator>`

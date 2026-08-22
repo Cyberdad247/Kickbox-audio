@@ -38,8 +38,7 @@ const serverTs = safeRead('apps/bifrost/src/server.ts') ?? '';
 const mcpTs = safeRead('apps/bifrost/src/mcp.ts') ?? '';
 
 // design_tokens_conformance: LakishaHUD must use Gold/Violet, not red/amber.
-const bannedToken =
-  /\b(?:bg|text|border)-(?:red|amber)-(?:\d{2,3}\/?\d{0,3})\b/g;
+const bannedToken = /\b(?:bg|text|border)-(?:red|amber)-(?:\d{2,3}\/?\d{0,3})\b/g;
 const designViolations = [];
 lakishaHud.split('\n').forEach((line, idx) => {
   const m = line.match(bannedToken);
@@ -60,8 +59,7 @@ const hasKineticDynamic =
 // security_conformance: HMAC + Tailscale guard signed-off.
 const hasHmac = /verifyWebhookSignature/.test(securityTs) && /timingSafeEqual/.test(securityTs);
 const hasWebhookRoute = /app\.post\(['"]\/webhook\/sms['"]/.test(serverTs);
-const hasTailscale =
-  /assertTailscaleEndpoint|TS_MAGICDNS|TS_CGNAT/.test(mcpTs);
+const hasTailscale = /assertTailscaleEndpoint|TS_MAGICDNS|TS_CGNAT/.test(mcpTs);
 const hasEmptySecretFallback = /process\.env\.WEBHOOK_SECRET\s*\?\?\s*['"]['"]/.test(serverTs);
 
 const securityPass = hasHmac && hasWebhookRoute && hasTailscale;
@@ -117,7 +115,7 @@ const out = {
 };
 
 const target = resolve(root, 'HELIO_PATCH.json');
-const payload = JSON.stringify(out, null, 2) + '\n';
+const payload = `${JSON.stringify(out, null, 2)}\n`;
 
 if (dryRun) {
   process.stdout.write(payload);

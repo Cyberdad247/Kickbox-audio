@@ -1,57 +1,98 @@
 'use client';
 
-// Ambassador Lakisha — an animated living-presence avatar. No video asset yet, so
-// this is an audio-reactive SVG/CSS presence that pulses violet while speaking and
-// holds a calm gold glow at rest. Drop a <video> in later behind the same frame.
-export function LakishaAvatar({ speaking, connected }: { speaking: boolean; connected: boolean }) {
+import Image from 'next/image';
+import type { AvatarRuntimeProfile } from '../../lib/avatarRuntime';
+
+// LaKesha pill avatar — a compact image-first surface that keeps voice, sync,
+// and Bifrost state in one reusable control. The executive portrait is
+// reliable on every device; the runtime profile still controls presence motion.
+export function LakishaAvatar({
+  speaking,
+  connected,
+  onSync,
+  runtimeProfile,
+}: {
+  speaking: boolean;
+  connected: boolean;
+  onSync: () => void;
+  runtimeProfile: AvatarRuntimeProfile;
+}) {
+  const animatePresence = speaking && runtimeProfile.videoMode === 'full-motion';
+
   return (
-    <div className="w-56 border border-gold/50 bg-smoke-900/85 backdrop-blur-md shadow-gold">
-      <div className="relative aspect-square overflow-hidden bg-gradient-to-b from-smoke-800 to-obsidian">
-        {/* concentric presence rings */}
-        <div className="absolute inset-0 flex items-center justify-center">
+    <div
+      className="flex items-center gap-2 rounded-full border border-gold/50 bg-smoke-900/90 p-2 pr-3 shadow-gold backdrop-blur-md"
+      style={{ width: runtimeProfile.shellWidth }}
+      aria-label="LaKesha KBA executive assistant avatar"
+    >
+      <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-void-950">
+        <Image
+          src="/assets/LaKesha.png"
+          alt="LaKesha, KBA Services AI executive assistant"
+          fill
+          priority
+          sizes="64px"
+          className="object-cover"
+          style={{ objectPosition: runtimeProfile.objectPosition }}
+        />
+        {/* Reactive presence ring; reduced-motion profiles keep it static. */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {speaking && (
             <>
-              <span className="absolute h-24 w-24 animate-ping rounded-full border border-violet/40" />
-              <span className="absolute h-32 w-32 animate-pulse rounded-full border border-violet/20" />
+              <span
+                className={`absolute inset-0 rounded-full border border-violet/50 ${animatePresence ? 'animate-ping' : ''}`}
+              />
+              <span className="absolute inset-1 rounded-full border border-violet/25" />
             </>
           )}
-          {/* the orb */}
-          <div
-            className={`h-20 w-20 rounded-full transition-all duration-300 ${
-              speaking
-                ? 'bg-violet/40 shadow-[0_0_40px_rgba(157,78,221,0.8)]'
-                : connected
-                  ? 'bg-gold/20 shadow-gold'
-                  : 'bg-white/5'
-            }`}
-            style={{
-              background: speaking
-                ? 'radial-gradient(circle at 35% 30%, #e0b6ff, #9D4EDD 55%, transparent 75%)'
-                : 'radial-gradient(circle at 35% 30%, #FFD700, #D4AF37 55%, transparent 78%)',
-            }}
-          />
-          {/* abstract eyes */}
-          <div className="absolute flex gap-3" style={{ transform: 'translateY(-2px)' }}>
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-white' : 'bg-obsidian/70'}`}
-            />
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-white' : 'bg-obsidian/70'}`}
-            />
-          </div>
         </div>
         {/* scanline sheen */}
         <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,rgba(0,0,0,0.18)_4px)] opacity-40" />
       </div>
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="leading-tight">
-          <p className="font-display text-gold-royal text-sm tracking-minted">Lakisha</p>
-          <p className="text-[9px] text-white/35 uppercase tracking-[0.18em]">Ambassador</p>
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate font-display text-sm tracking-minted text-gold-royal">LaKesha</p>
+        <p className="truncate text-[9px] uppercase tracking-[0.14em] text-white/40">
+          KBA executive assistant
+        </p>
+        <div className="mt-1 flex items-center gap-1.5">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${speaking ? 'bg-violet shadow-glow' : connected ? 'bg-gold-royal' : 'bg-white/25'}`}
+          />
+          <span className="truncate text-[8px] uppercase tracking-[0.1em] text-white/45">
+            {connected ? 'Online' : 'Bridge offline'} · {runtimeProfile.deviceClass}
+          </span>
         </div>
-        <span
-          className={`h-2 w-2 rounded-full ${speaking ? 'bg-violet shadow-glow' : connected ? 'bg-gold-royal' : 'bg-white/25'}`}
-        />
       </div>
+      <button
+        type="button"
+        onClick={onSync}
+        aria-label="Sync LaKesha with Bifrost bridge"
+        title="Sync LaKesha with Bifrost bridge"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/40 text-gold-light transition-colors hover:border-violet hover:text-violet-light"
+      >
+        <SyncIcon className="h-3 w-3" />
+      </button>
     </div>
+  );
+}
+
+function SyncIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20 20v-5h-5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.5 15a8 8 0 0 0 14 3.5M19.5 9a8 8 0 0 0-14-3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

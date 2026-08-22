@@ -1,11 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  deleteMemoryEntry,
-  loadMemoryEntries,
-  type MemoryEntry,
-} from '../lib/portalBridge';
+import { type MemoryEntry, deleteMemoryEntry, loadMemoryEntries } from '../lib/portalBridge';
 
 // Lakisha "Learn With Me" curator. Reads `audit-kickbox-audio/apps/pwa/public/memory.md`
 // (served from `/memory.md` via Next.js public dir), lists each `- [date]` line
@@ -31,7 +27,6 @@ export function LearnWithMe() {
         setStatus('ready');
       })
       .catch(() => {
-        // Don't flip to error after an unmount-triggered abort.
         if (!controller.signal.aborted) setStatus('error');
       });
     return () => controller.abort();
@@ -41,8 +36,7 @@ export function LearnWithMe() {
     setRemoving(line);
     const persisted = await deleteMemoryEntry(line);
     if (!persisted) {
-      // Local-state fallback until /api/memory/delete lands.
-      setEntries((rows) => rows.filter((r) => r.line !== line));
+      setEntries((rows) => rows.filter((row) => row.line !== line));
     }
     setRemoving(null);
   }, []);
@@ -52,20 +46,20 @@ export function LearnWithMe() {
       <header className="mb-3 flex items-center justify-between">
         <h2 className="font-serif text-sm tracking-executive text-gold-royal">Learn With Me</h2>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-white/40">
-          {status} · {entries.length} entries
+          {status} | {entries.length} entries
         </span>
       </header>
       {status === 'loading' && (
-        <p className="font-mono text-xs text-white/50">// loading memory.md…</p>
+        <p className="font-mono text-xs text-white/50">{'// loading memory.md...'}</p>
       )}
       {status === 'error' && (
         <p className="font-mono text-xs text-gold-light">
-          // /memory.md unreachable; check apps/pwa/public/memory.md
+          {'// /memory.md unreachable; check apps/pwa/public/memory.md'}
         </p>
       )}
       {status === 'ready' && entries.length === 0 && (
         <p className="font-mono text-xs text-white/50">
-          // no learned aspects yet — append to memory.md
+          {'// no learned aspects yet - append to memory.md'}
         </p>
       )}
       <ul className="space-y-2">
@@ -82,7 +76,7 @@ export function LearnWithMe() {
               disabled={removing === entry.line}
               className="shrink-0 border border-gold/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-gold-light transition-colors hover:bg-violet/15 disabled:opacity-40"
             >
-              {removing === entry.line ? '…' : 'DELETE'}
+              {removing === entry.line ? '...' : 'DELETE'}
             </button>
           </li>
         ))}

@@ -57,9 +57,15 @@ function Get-TailnetIp {
 
 # Ensure cloudflared (portable, no account)
 function Ensure-Cloudflared {
-  if (Get-Command cloudflared -ErrorAction SilentlyContinue) {
-    $script:Cloudflared = (Get-Command cloudflared).Source
+  if (Test-Path $Cloudflared) {
     return
+  }
+  if (Get-Command cloudflared -ErrorAction SilentlyContinue) {
+    $cmd = Get-Command cloudflared
+    if ($cmd.Source -like "*.exe") {
+      $script:Cloudflared = $cmd.Source
+      return
+    }
   }
   if (-not (Test-Path $Cloudflared)) {
     Log "cloudflared not found -- downloading portable binary..."

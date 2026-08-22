@@ -3,6 +3,7 @@
 import { Float, Sparkles } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
+import type { Group, InstancedMesh } from 'three';
 import * as THREE from 'three';
 import { type WeatherCondition, useClevelandWeather } from '../../hooks/useClevelandWeather';
 
@@ -12,8 +13,7 @@ const VOID = '#050507'; // matches the canonical obsidian token (tailwind.config
 
 // Highly performant falling rain — one InstancedMesh, one draw call.
 function Rain({ count, color }: { count: number; color: string }) {
-  // Typed loosely (any) to stay robust against @types/three copy duplication.
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const drops = useMemo(
     () =>
@@ -51,7 +51,7 @@ function Rain({ count, color }: { count: number; color: string }) {
 
 // Distant brutalist monoliths — slow rotation gives the void structural depth.
 function Monoliths() {
-  const groupRef = useRef<any>(null);
+  const groupRef = useRef<Group>(null);
   const slabs = useMemo(
     () =>
       Array.from({ length: 9 }, (_, i) => ({
@@ -127,6 +127,7 @@ export default function KineticCanvas() {
   const { condition, isDay } = useClevelandWeather();
   return (
     <Canvas
+      className="pointer-events-none fixed inset-0 -z-10 h-screen w-screen"
       camera={{ position: [0, 0, 18], fov: 32 }}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
       dpr={[1, 1.5]}

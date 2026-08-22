@@ -25,6 +25,9 @@ describe('ledgerValidator pure helper (Vault_Ω double-entry)', () => {
   });
 
   it('allows missing or empty data (non-Transaction passthrough equivalent)', () => {
-    expect(() => validateTransactionBatchBalance({})).not.toThrow();
+    // Cast needed: the tightened signature requires { data: ... }, but the runtime
+    // guard inside validateTransactionBatchBalance handles missing data gracefully.
+    // biome-ignore lint/suspicious/noExplicitAny: intentional passthrough probe
+    expect(() => validateTransactionBatchBalance({} as any)).not.toThrow();
   });
 });

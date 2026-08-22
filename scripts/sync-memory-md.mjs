@@ -16,10 +16,10 @@
 //   2  one or both target files do not exist
 //   3  --fix refused (CI=true or --reverse-mirror also drifting)
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -29,8 +29,12 @@ const mirrorPath = resolve(root, 'apps/pwa/public/memory.md');
 
 if (!existsSync(sourcePath) || !existsSync(mirrorPath)) {
   console.error('[sync-memory-md] missing target file(s):');
-  console.error(`  source (root): ${sourcePath} (${existsSync(sourcePath) ? 'EXISTS' : 'MISSING'})`);
-  console.error(`  mirror (public): ${mirrorPath} (${existsSync(mirrorPath) ? 'EXISTS' : 'MISSING'})`);
+  console.error(
+    `  source (root): ${sourcePath} (${existsSync(sourcePath) ? 'EXISTS' : 'MISSING'})`,
+  );
+  console.error(
+    `  mirror (public): ${mirrorPath} (${existsSync(mirrorPath) ? 'EXISTS' : 'MISSING'})`,
+  );
   process.exit(2);
 }
 
@@ -67,7 +71,9 @@ const wantsFix = process.argv.includes('--fix');
 const isCI = process.env.CI === 'true' || process.env.CI === '1';
 
 if (wantsFix && isCI) {
-  console.error('[sync-memory-md] REFUSING --fix: detected CI=true; reconcile manually and re-run.');
+  console.error(
+    '[sync-memory-md] REFUSING --fix: detected CI=true; reconcile manually and re-run.',
+  );
   process.exit(3);
 }
 

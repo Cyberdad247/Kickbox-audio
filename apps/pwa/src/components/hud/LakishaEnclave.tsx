@@ -1,89 +1,206 @@
 'use client';
 
+import type { FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useBifrost } from '../../context/BifrostContext';
+import { useAvatarRuntimeProfile } from '../../hooks/useAvatarRuntimeProfile';
 import { useLakishaVoice } from '../../hooks/useLakishaVoice';
+import { QUERY_BUDGET_MS, TTFA_BUDGET_MS, budgetStatus, formatMs } from '../../lib/telemetry';
 import { LakishaAvatar } from './LakishaAvatar';
 
-// Ambassador Lakisha — video-avatar presence + persistent voice enclave
-// (bottom-right). Shares useLakishaVoice with the bottom-center HUD: recognition
-// primary, VAD-only failsafe, so if one input path fails the other keeps her live.
+// Ambassador Lakisha — draggable video-avatar presence (bottom-left by default)
+// with a short speak-or-text bar attached directly under the video frame. This
+// is now the ONLY Lakisha surface on the page (replaces both the old
+// bottom-center text HUD and the old bottom-right video HUD): toggle-listen
+// recognition + VAD failsafe, or type — client's choice — plus a manual sync
+// button to force a fresh Bifrost bridge connection.
 export function LakishaEnclave() {
-  const { connected, connect, isSpeaking, mode, error } = useLakishaVoice({ continuous: true });
+  const { connected, reconnect } = useBifrost();
+  const runtimeProfile = useAvatarRuntimeProfile();
+  const {
+    input,
+    setInput,
+    error,
+    listening,
+    voiceInputSupported,
+    mode,
+    speaking,
+    toggleListening,
+    dispatch,
+    ttfaMs,
+    queryMs,
+  } = useLakishaVoice();
 
-  const status = isSpeaking
-    ? 'Lakisha Active'
-    : mode === 'vad-only'
-      ? 'VAD Only'
-      : 'Awaiting Audio';
+  // Draggable HUD state.
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
+  const isInteractiveTarget = (target: EventTarget | null) =>
+    target instanceof HTMLElement && !!target.closest('button, input, form');
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isInteractiveTarget(e.target)) return;
+    setDragging(true);
+    dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    setPosition({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
+  }, []);
+
+  const handleMouseUp = useCallback(() => setDragging(false), []);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isInteractiveTarget(e.target)) return;
+    setDragging(true);
+    const touch = e.touches[0];
+    dragStartRef.current = { x: touch.clientX - position.x, y: touch.clientY - position.y };
+  };
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    const touch = e.touches[0];
+    setPosition({
+      x: touch.clientX - dragStartRef.current.x,
+      y: touch.clientY - dragStartRef.current.y,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [dragging, handleMouseMove, handleMouseUp, handleTouchMove]);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    dispatch(input);
+  };
 
   return (
-    <div className="fixed right-8 bottom-8 z-[60] flex flex-col items-end gap-2">
-      <LakishaAvatar speaking={isSpeaking} connected={connected} />
-      <div
-        className={`flex w-56 items-center gap-3 border border-gold bg-smoke-800/85 px-4 py-3 backdrop-blur-md transition-shadow duration-200 ${
-          isSpeaking ? 'animate-pulse shadow-glow-lg' : 'shadow-none'
-        }`}
+    <div
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+      style={{
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        cursor: dragging ? 'grabbing' : 'grab',
+      }}
+      className="fixed bottom-8 left-8 z-[60] flex flex-col items-start select-none"
+    >
+      <LakishaAvatar
+        speaking={speaking}
+        connected={connected}
+        onSync={reconnect}
+        runtimeProfile={runtimeProfile}
+      />
+
+      {/* Attached speak-or-text bar — same width as the avatar frame, no gap,
+          shared top border dropped so the two read as one card. */}
+      <form
+        onSubmit={submit}
+        className="flex items-center gap-1.5 border border-t-0 border-gold/50 bg-smoke-900/85 px-2.5 py-2 backdrop-blur-md shadow-gold"
+        style={{ width: runtimeProfile.shellWidth }}
       >
-        {!connected ? (
-          // The Gilded Gate — autoplay bypass.
+        {voiceInputSupported && (
           <button
             type="button"
-            onClick={connect}
-            className="flex items-center gap-2 text-gold text-xs uppercase tracking-widest transition-colors hover:text-gold-royal"
+            onClick={toggleListening}
+            disabled={!connected}
+            aria-pressed={listening}
+            aria-label={listening ? 'Stop listening' : 'Speak to Lakisha'}
+            title={
+              !connected
+                ? 'Bifrost disconnected. Sync Lakisha first.'
+                : mode === 'local-asr'
+                  ? 'Speak to Lakisha (offline mode)'
+                  : 'Speak to Lakisha'
+            }
+            className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              listening
+                ? 'border-violet bg-violet/20 text-violet-light'
+                : 'border-gold/40 text-gold-light hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/20'
+            }`}
           >
-            <MicIcon className="h-4 w-4" />
-            {error ?? 'Tap to Connect'}
+            {listening && (
+              <span className="absolute inset-0 animate-ping rounded-full bg-violet/30" />
+            )}
+            <MicIcon className="h-3.5 w-3.5" />
           </button>
-        ) : (
-          // The Active HUD.
-          <>
-            <span
-              className={`relative flex h-2.5 w-2.5 ${isSpeaking ? 'text-violet-light' : 'text-white/40'}`}
-            >
-              {isSpeaking && (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet opacity-70" />
-              )}
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-current" />
-            </span>
-
-            <Waveform active={isSpeaking} />
-
-            <span
-              className={`text-xs uppercase tracking-widest ${
-                isSpeaking ? 'text-violet-light' : 'text-white/50'
-              }`}
-            >
-              {status}
-            </span>
-          </>
         )}
-      </div>
+
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={
+            listening
+              ? mode === 'local-asr'
+                ? 'Listening (offline)…'
+                : 'Listening…'
+              : 'Speak or type…'
+          }
+          className="w-full min-w-0 rounded-sm border border-white/10 bg-void-900 px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-violet focus:outline-none"
+        />
+
+        <button
+          type="submit"
+          disabled={!connected || !input.trim()}
+          aria-label="Send"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet text-white transition-opacity disabled:opacity-40"
+        >
+          <SendIcon className="h-3.5 w-3.5" />
+        </button>
+      </form>
+
+      {/* Telemetry readout — ttfaMs/queryMs were already computed by
+          useLakishaVoice but had zero consumers before this. Only shown once
+          there's a real measurement (after the first dispatch/speak cycle),
+          attached below the input bar as the same seamless card. */}
+      {(ttfaMs != null || queryMs != null) && (
+        <div
+          className="flex items-center justify-between gap-2 border border-t-0 border-gold/30 bg-smoke-900/60 px-2.5 py-1"
+          style={{ width: runtimeProfile.shellWidth }}
+        >
+          <TelemetryMetric label="TTFA" ms={ttfaMs} budget={TTFA_BUDGET_MS} />
+          <TelemetryMetric label="Query" ms={queryMs} budget={QUERY_BUDGET_MS} />
+        </div>
+      )}
+
+      {(error || !connected) && (
+        <div
+          className="border border-t-0 border-gold/20 bg-void-900/90 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.12em] text-white/45"
+          style={{ width: runtimeProfile.shellWidth }}
+        >
+          {error ?? 'Governance uplink paused. Sync Lakisha to resume dispatch.'}
+        </div>
+      )}
     </div>
   );
 }
 
-const WAVE_BARS = [
-  { id: 'w1', h: 0.4 },
-  { id: 'w2', h: 0.85 },
-  { id: 'w3', h: 0.55 },
-  { id: 'w4', h: 1 },
-  { id: 'w5', h: 0.7 },
-];
-
-function Waveform({ active }: { active: boolean }) {
+function TelemetryMetric({
+  label,
+  ms,
+  budget,
+}: { label: string; ms: number | null; budget: number }) {
+  const status = budgetStatus(ms, budget);
+  const color =
+    status === 'breach' ? 'text-red-400' : status === 'warn' ? 'text-amber-300' : 'text-white/45';
   return (
-    <span className="flex h-5 items-center gap-0.5" aria-hidden="true">
-      {WAVE_BARS.map((bar, i) => (
-        <span
-          key={bar.id}
-          className={`w-0.5 rounded-full transition-all duration-150 ${
-            active ? 'animate-pulse bg-violet' : 'bg-white/25'
-          }`}
-          style={{
-            height: `${(active ? bar.h : 0.3) * 100}%`,
-            animationDelay: `${i * 90}ms`,
-          }}
-        />
-      ))}
+    <span className={`flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] ${color}`}>
+      <span
+        className={`h-1 w-1 rounded-full ${
+          status === 'breach' ? 'bg-red-400' : status === 'warn' ? 'bg-amber-400' : 'bg-white/30'
+        }`}
+      />
+      {label} {formatMs(ms)}
     </span>
   );
 }
@@ -101,6 +218,21 @@ function MicIcon({ className }: { className?: string }) {
       <rect x="9" y="3" width="6" height="11" rx="3" />
       <path d="M5 11a7 7 0 0 0 14 0" strokeLinecap="round" />
       <line x1="12" y1="18" x2="12" y2="21" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SendIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 12 20 4l-6 16-3-7-7-3Z" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 # Kickbox Audio Genesis Knight Registry
 
-This registry stores planned JSON-LD artifacts for the Core Ten Knights.
+This registry stores JSON-LD artifacts for the core and specialist knights.
 
 ## Evidence Boundary
 

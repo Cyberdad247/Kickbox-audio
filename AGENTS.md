@@ -9,7 +9,7 @@ security, secrets, HUMAN_GATE, and provenance rules, defer to the parent.
 
 ## Identity & Scope
 
-- **Project:** `kickbox-audio` — Lakisha Voice OS / PWA WebRTC audit + Bifrost
+- **Project:** `kickbox-audio` — Lakisha Voice OS / PWA WebSocket audit + Bifrost
   bridge integration
 - **Active branch:** `feat/pwa-lakisha-audit-applied`
 - **HEAD:** see `git --git-dir=.git rev-parse HEAD` (5 commits ahead of
@@ -55,7 +55,7 @@ audit-kickbox-audio/
 │   │   │   │   └── hud/
 │   │   │   │       └── LakishaEnclave.tsx
 │   │   │   ├── context/
-│   │   │   │   └── BifrostContext.tsx     # WebRTC state + audio bridge
+│   │   │   │   └── BifrostContext.tsx     # WebSocket state + audio bridge
 │   │   │   └── ...
 │   │   ├── tailwind.config.ts
 │   │   ├── tsconfig.json
@@ -124,7 +124,7 @@ appear in the rendered tree, not the runic router.
 | **Lakisha Enclave** | `LakishaEnclave.tsx` | `apps/pwa/src/components/hud/` (currently unmounted) | Upstream pre-rebase voice enclave; available if re-enabled |
 | **KineticCanvas** | `3d/KineticCanvas.tsx` | `app/page.tsx` (`-z-10`) | WebGL particle/weather background |
 | **KineticBackground** | `3d/KineticBackground.tsx` | (orphaned; sibling to KineticCanvas) | Wrapper for dual-layer backdrop — see S1 below |
-| **Bifrost Provider** | `context/BifrostContext.tsx` | `app/layout.tsx` | WebRTC connection state + audio bridge |
+| **Bifrost Provider** | `context/BifrostContext.tsx` | `app/layout.tsx` | WebSocket connection state + audio bridge |
 | **Dashboard** | `Dashboard.tsx` | (currently unmounted) | Nav + LakishaHUD mount via routing |
 
 ---

@@ -1,0 +1,44 @@
+{
+  "@context": {
+    "@vocab": "https://kickbox.audio/schema/knight#",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description",
+    "repository": "https://schema.org/codeRepository"
+  },
+  "@type": "Artifact",
+  "@id": "urn:kickbox-audio:knight:AVATAR_012",
+  "knight_id": "AVATAR_012",
+  "name": "Lady Lakesha Runtime",
+  "role": "Avatar Inference and Screen-Fit Auditor",
+  "repository": "./core/knights/avatar.md",
+  "logic_framework": "Runtime Profiling",
+  "drive": "frame the avatar correctly on the first render.",
+  "skill_graph_tier": "S3_Contextual",
+  "bifrost_connection": {
+    "tunnel": "lakisha_runtime_profile_0x012",
+    "confirmed_controls": [
+      "responsive_shell_width_profile",
+      "poster_fallback_mode",
+      "save_data_reduced_motion",
+      "playwright_video_continuity_probe"
+    ]
+  },
+  "embedded_proxy": "avatar_runtime_profile_v1",
+  "ingress_policy": {
+    "primary": "Lakisha",
+    "allow_direct_ingress": true,
+    "human_gate": ["Sovereign"]
+  },
+  "responsibilities": [
+    "dynamic video mode selection",
+    "hardware-aware screen sizing",
+    "poster fallback continuity",
+    "avatar runtime telemetry"
+  ],
+  "escalation": {
+    "simple": "Lakisha poster fallback",
+    "analytical": "Sir Codex runtime audit",
+    "high_priority": "Ambassador Lakisha"
+  },
+  "evidence_class": "confirmed"
+}

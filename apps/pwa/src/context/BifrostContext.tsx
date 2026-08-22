@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { StreamingTelemetrySnapshot } from '../lib/streamingTelemetry';
 
 // Mirrors the Bifrost gateway's unified state payload.
 export interface SovereignState {
@@ -24,6 +25,11 @@ export interface PendingPlan {
   detail: string;
   amount?: number;
   risk: 'low' | 'medium' | 'high';
+}
+
+export interface VoiceDispatchResult {
+  ok: boolean;
+  status: 'sent' | 'pending_approval' | 'disconnected';
 }
 
 function buildPlan(raw: string): PendingPlan | null {
@@ -61,10 +67,13 @@ function buildPlan(raw: string): PendingPlan | null {
 interface BifrostContextValue {
   connected: boolean;
   state: SovereignState | null;
-  sendVoiceCommand: (payload: string) => void;
+  streamingTelemetry: StreamingTelemetrySnapshot | null;
+  sendVoiceCommand: (payload: string) => VoiceDispatchResult;
   pendingPlan: PendingPlan | null;
   approvePlan: () => void;
   rejectPlan: () => void;
+  reconnect: () => void;
+  dispatchError: string | null;
 }
 
 const BifrostContext = createContext<BifrostContextValue | null>(null);
@@ -74,10 +83,20 @@ const BIFROST_URL = process.env.NEXT_PUBLIC_BIFROST_URL ?? 'ws://localhost:3001'
 export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<SovereignState | null>(null);
+  const [streamingTelemetry, setStreamingTelemetry] = useState<StreamingTelemetrySnapshot | null>(
+    null,
+  );
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Bumping this tears down the current socket (if any) and opens a fresh one
+  // immediately, bypassing the 2s auto-retry backoff — the manual "sync with
+  // Bifrost bridge" action.
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const reconnect = useCallback(() => setReconnectNonce((n) => n + 1), []);
 
   useEffect(() => {
+    void reconnectNonce;
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
@@ -85,16 +104,39 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
       const ws = new WebSocket(BIFROST_URL);
       wsRef.current = ws;
 
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => {
+        setConnected(true);
+        setDispatchError(null);
+      };
       ws.onclose = () => {
         setConnected(false);
         if (!closed) reconnectTimer = setTimeout(connect, 2000);
       };
-      ws.onerror = () => ws.close();
+      // Defensive: a stale NEXT_PUBLIC_BIFROST_URL (e.g. the golden-zinc tunnel
+      // from the first supervisor run) can briefly fire onopen before onerror
+      // if DNS resolves to a cached A-record. Flipping connected=false in
+      // onerror closes that race window and prevents the HUD from showing a
+      // false-positive 'Bifrost connected' against a dead endpoint. Setting
+      // dispatchError surfaces the dead state through the existing UI channel
+      // (LakishaEnclave already reads `error ?? 'Governance uplink paused...'`
+      // from this same context value), so the user sees the disconnect even
+      // when the WS handshake briefly succeeds against a stale DNS A-record.
+      // Copy family mirrors existing strings ('Bifrost bridge offline',
+      // 'Governance uplink paused', 'Bifrost mesh' in SettingsTab) — picked
+      // 'Bifrost mesh unreachable' to match the canonical 'Bifrost mesh'
+      // noun and the '…ing' progressive form used elsewhere.
+      ws.onerror = () => {
+        setConnected(false);
+        setDispatchError('Bifrost mesh unreachable. Retrying…');
+        ws.close();
+      };
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'STATE_UPDATE') setState(msg.payload as SovereignState);
+          if (msg.type === 'STREAMING_TELEMETRY') {
+            setStreamingTelemetry(msg.payload as StreamingTelemetrySnapshot);
+          }
         } catch {
           // ignore malformed frame
         }
@@ -107,32 +149,38 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };
-  }, []);
+  }, [reconnectNonce]);
 
-  const rawSend = useCallback((payload: string) => {
+  const rawSend = useCallback((payload: string): VoiceDispatchResult => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
+      setDispatchError(null);
       ws.send(JSON.stringify({ type: 'VOICE_COMMAND', payload }));
+      return { ok: true, status: 'sent' };
     }
+    setDispatchError('Bifrost bridge offline. Sync Lakisha before dispatch.');
+    return { ok: false, status: 'disconnected' };
   }, []);
 
   // Gate financial/destructive intents behind a Plan Card; everything else sends.
   const sendVoiceCommand = useCallback(
-    (payload: string) => {
+    (payload: string): VoiceDispatchResult => {
       const plan = buildPlan(payload);
       if (plan) {
+        setDispatchError(null);
         setPendingPlan(plan);
-        return;
+        return { ok: true, status: 'pending_approval' };
       }
-      rawSend(payload);
+      return rawSend(payload);
     },
     [rawSend],
   );
 
   const approvePlan = useCallback(() => {
     setPendingPlan((plan) => {
-      if (plan) rawSend(plan.raw);
-      return null;
+      if (!plan) return null;
+      const result = rawSend(plan.raw);
+      return result.ok ? null : plan;
     });
   }, [rawSend]);
 
@@ -140,7 +188,17 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BifrostContext.Provider
-      value={{ connected, state, sendVoiceCommand, pendingPlan, approvePlan, rejectPlan }}
+      value={{
+        connected,
+        state,
+        streamingTelemetry,
+        sendVoiceCommand,
+        pendingPlan,
+        approvePlan,
+        rejectPlan,
+        reconnect,
+        dispatchError,
+      }}
     >
       {children}
     </BifrostContext.Provider>
