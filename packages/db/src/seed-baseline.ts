@@ -42,6 +42,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
 import { type BaselineFixture, BaselineFixtureSpec, deriveFixtureId } from './baselineFixture';
+import { Prisma } from '@prisma/client';
 import { prisma } from './index';
 
 const APPROVED_ENV = 'SOVEREIGN_BASELINE_APPROVED';
