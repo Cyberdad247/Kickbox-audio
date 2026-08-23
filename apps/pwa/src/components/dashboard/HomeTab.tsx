@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AaliyahComposer } from './AaliyahComposer';
 
 interface EmailMessage {
   id: string;
@@ -125,8 +124,8 @@ export function HomeTab() {
     // Simulating deep research search retrieval
     setTimeout(() => {
       setResearchResults([
-        '[RESEARCH BRIEF] Cleveland Heights power grid load peaks at 14:00. Advise Jalen to shift heavy backup operations to 02:00.',
-        '[RESEARCH BRIEF] Sandusky city council proposed 1.5% tax incentive for local restoration projects. Nia should apply for Obsidian tower units.',
+        `[RESEARCH BRIEF] Cleveland Heights power grid load peaks at 14:00. Advise Jalen to shift heavy backup operations to 02:00.`,
+        `[RESEARCH BRIEF] Sandusky city council proposed 1.5% tax incentive for local restoration projects. Nia should apply for Obsidian tower units.`,
       ]);
       setSearching(false);
     }, 800);
@@ -166,31 +165,29 @@ export function HomeTab() {
 
           <ul className="mt-4 space-y-3">
             {aspects.map((asp) => (
-              <li key={asp.id}>
-                <button
-                  type="button"
-                  onClick={() => toggleAspect(asp.id)}
-                  className="group flex w-full items-center gap-3 text-left"
+              <li
+                key={asp.id}
+                onClick={() => toggleAspect(asp.id)}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <div
+                  className={`w-4 h-4 border flex items-center justify-center transition-colors ${
+                    asp.checked
+                      ? 'border-gold-royal bg-gold-royal text-[#050507]'
+                      : 'border-gold/30 group-hover:border-violet'
+                  }`}
                 >
-                  <div
-                    className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                      asp.checked
-                        ? 'border-gold-royal bg-gold-royal text-[#050507]'
-                        : 'border-gold/30 group-hover:border-violet'
-                    }`}
-                  >
-                    {asp.checked && <span className="text-[10px] font-bold">✓</span>}
-                  </div>
-                  <span
-                    className={`font-mono text-xs transition-colors ${
-                      asp.checked
-                        ? 'text-white/40 line-through'
-                        : 'text-white/80 group-hover:text-white'
-                    }`}
-                  >
-                    {asp.text}
-                  </span>
-                </button>
+                  {asp.checked && <span className="text-[10px] font-bold">✓</span>}
+                </div>
+                <span
+                  className={`font-mono text-xs transition-colors ${
+                    asp.checked
+                      ? 'text-white/40 line-through'
+                      : 'text-white/80 group-hover:text-white'
+                  }`}
+                >
+                  {asp.text}
+                </span>
               </li>
             ))}
           </ul>
@@ -234,8 +231,6 @@ export function HomeTab() {
               </li>
             ))}
           </ul>
-
-          <AaliyahComposer />
         </section>
       </div>
 
@@ -364,9 +359,9 @@ export function HomeTab() {
 
           {researchResults.length > 0 && (
             <div className="mt-4 space-y-3">
-              {researchResults.map((res) => (
+              {researchResults.map((res, idx) => (
                 <div
-                  key={res}
+                  key={idx}
                   className="border border-white/5 bg-[#050505] p-3 flex justify-between items-start gap-4"
                 >
                   <p className="font-mono text-xs text-white/80 leading-relaxed">{res}</p>

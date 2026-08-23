@@ -8,6 +8,7 @@ export function StreamingTab() {
   const liveViewers =
     streamingTelemetry?.totalViewers ??
     STREAM_NODES.reduce((total, node) => total + node.viewers, 0);
+
   const demoNodes = STREAM_NODES.map((node) => ({
     nodeId: `demo-${node.region.toLowerCase()}`,
     region: node.region,
@@ -19,6 +20,7 @@ export function StreamingTab() {
     loadPct: node.load * 100,
     lastSeenAt: '',
   }));
+
   const nodes = streamingTelemetry?.nodes ?? demoNodes;
 
   return (
@@ -26,10 +28,10 @@ export function StreamingTab() {
       <div className="flex items-center justify-between border border-gold/20 bg-smoke-900/60 px-6 py-4 backdrop-blur-sm">
         <div>
           <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-            KBA Streaming Live
+            KBA Streaming · Live
           </span>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-white/30">
-            {streamingTelemetry && connected ? 'Bifrost telemetry' : 'Demo fixture'}
+            {streamingTelemetry && connected ? 'Bifrost Telemetry' : 'Demo Fixture'}
           </p>
         </div>
         <div className="text-right">
@@ -51,9 +53,15 @@ export function StreamingTab() {
             className="border border-gold/20 bg-smoke-800/80 p-6 backdrop-blur-sm transition-shadow hover:shadow-gold"
           >
             <div className="flex items-center justify-between">
-              <p className="font-display text-lg text-white">Edge - {node.region}</p>
+              <p className="font-display text-lg text-white">Edge · {node.region}</p>
               <span
-                className={`text-xs uppercase tracking-wider ${node.status === 'healthy' ? 'text-violet-light' : node.status === 'degraded' ? 'text-gold-light' : 'text-white/40'}`}
+                className={`text-xs uppercase tracking-wider ${
+                  node.status === 'healthy'
+                    ? 'text-violet-light'
+                    : node.status === 'degraded'
+                      ? 'text-gold-light'
+                      : 'text-white/40'
+                }`}
               >
                 {node.status === 'healthy' ? 'Live' : node.status}
               </span>
@@ -75,3 +83,4 @@ export function StreamingTab() {
     </div>
   );
 }
+

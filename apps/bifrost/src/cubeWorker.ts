@@ -26,12 +26,8 @@ async function run(): Promise<void> {
       await prisma.echoLog.create({ data: { message: `Reminder set for ${cmd.who}` } });
     } else if (cmd.action === 'order') {
       await prisma.echoLog.create({ data: { message: `Order placed: ${cmd.item}` } });
-    } else if (cmd.action === 'streaming_viewers' || cmd.action === 'streaming_health') {
-      await prisma.echoLog.create({ data: { message: `Streaming query: ${cmd.action}` } });
-    } else if (cmd.action === 'unknown') {
-      await prisma.echoLog.create({ data: { message: `Unrecognized command: ${cmd.raw}` } });
     } else {
-      await prisma.echoLog.create({ data: { message: `KBA command: ${cmd.action}` } });
+      await prisma.echoLog.create({ data: { message: `Unrecognized command: ${cmd.raw}` } });
     }
 
     const result: CubeResult = { taskId: task.id, command: cmd, persisted: true };

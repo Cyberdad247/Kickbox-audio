@@ -1,11 +1,37 @@
 // HYBRID_VOICE_ASSISTANT_vMAX · //IGNITE
-// On-device speech synthesis (browser SpeechSynthesis API). Local-first, zero
-// network, sub-500ms time-to-first-audio. Responses are renormalized to pure
-// semantic signal — terse, no conversational fluff.
-
+// On-device speech synthesis and Web Audio API enclaves.
 import type { SovereignState } from '../context/BifrostContext';
 
-const isBrowser = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+const isBrowser = () => typeof window !== 'undefined';
+const hasSpeechSynthesis = () => isBrowser() && 'speechSynthesis' in window;
+const hasWebAudio = () => isBrowser() && ('AudioContext' in window || 'webkitAudioContext' in window);
+
+// Web Audio API Pipeline (Zero-Copy Target)
+let audioCtx: AudioContext | null = null;
+let masterGain: GainNode | null = null;
+let analyser: AnalyserNode | null = null;
+
+export function initAudioEnclave() {
+  if (!hasWebAudio() || audioCtx) return;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  audioCtx = new AudioContextClass({ sampleRate: 48000 }); // 48kHz RMS Lock
+  
+  masterGain = audioCtx.createGain();
+  analyser = audioCtx.createAnalyser();
+  
+  analyser.fftSize = 2048;
+  masterGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  
+  // Resume context if suspended due to browser autoplay policies
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+export function getAudioAnalyser(): AnalyserNode | null {
+  return analyser;
+}
 
 const money = (n: number) =>
   new Intl.NumberFormat('en-US', {
@@ -40,10 +66,13 @@ export interface SpeakOptions {
  * cancelled so the latest signal always wins (//REZERO-friendly).
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
-  if (!isBrowser() || !text) return;
+  if (!hasSpeechSynthesis() || !text) return;
+  
+  // Initialize Web Audio Context if not ready
+  if (!audioCtx) initAudioEnclave();
+  
   const synth = window.speechSynthesis;
   synth.cancel();
-
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US';
   u.rate = opts.rate ?? 1.05;
@@ -52,16 +81,15 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
   if (voice) u.voice = voice;
   if (opts.onStart) u.onstart = opts.onStart;
   if (opts.onEnd) u.onend = opts.onEnd;
-
   synth.speak(u);
 }
 
 export function cancelSpeech(): void {
-  if (isBrowser()) window.speechSynthesis.cancel();
+  if (hasSpeechSynthesis()) window.speechSynthesis.cancel();
 }
 
 export function speechSupported(): boolean {
-  return isBrowser();
+  return hasSpeechSynthesis();
 }
 
 /** Terse spoken confirmation derived from the unified state (pure signal). */

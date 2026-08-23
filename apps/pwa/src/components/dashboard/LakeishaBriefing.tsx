@@ -171,7 +171,7 @@ export function LakeishaBriefing() {
           Knight Task Registry
         </h2>
         <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/45">
-          Dynamic workflow execution logs for the active sovereign and specialist agents
+          Dynamic workflow execution logs for the 10 Sovereign Agents
         </p>
 
         <div className="mt-6 overflow-x-auto">

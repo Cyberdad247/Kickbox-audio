@@ -72,12 +72,13 @@ export function MemoryVault() {
 
   return (
     <div className="space-y-6">
+      {/* ── Memory Ingestion Form ────────────────────────────── */}
       <form
         onSubmit={handleAdd}
         className="border border-gold/20 bg-[#16161E]/70 p-6 backdrop-blur-xl"
       >
         <h2 className="font-serif text-sm uppercase tracking-[0.16em] text-gold-royal">
-          Learn With Me | Aspect Ingestion
+          Learn With Me · Aspect Ingestion
         </h2>
         <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/45">
           Record persistent repository observations directly into memory.md
@@ -90,18 +91,19 @@ export function MemoryVault() {
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Enter a new learned aspect (e.g. Lakisha HUD bottom-center positioning)..."
             disabled={adding}
-            className="flex-1 border border-gold/20 bg-[#050505] px-4 py-2 font-mono text-xs text-white outline-none placeholder-white/20 focus:border-violet/60"
+            className="flex-1 border border-gold/20 bg-[#050505] px-4 py-2 font-mono text-xs text-white placeholder-white/20 outline-none focus:border-violet/60"
           />
           <button
             type="submit"
             disabled={adding || !inputText.trim()}
             className="border border-gold/40 bg-[#050505]/75 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-gold-light transition-colors hover:border-violet hover:text-violet-light disabled:opacity-40"
           >
-            {adding ? 'Ingesting...' : 'Ingest Aspect'}
+            {adding ? 'Ingesting…' : 'Ingest Aspect'}
           </button>
         </div>
       </form>
 
+      {/* ── Memory Inventory List ────────────────────────────── */}
       <div className="border border-gold/20 bg-[#16161E]/70 p-6 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-sm uppercase tracking-[0.16em] text-gold-royal">
@@ -114,16 +116,14 @@ export function MemoryVault() {
 
         {error && (
           <div className="mt-4 border border-violet/30 bg-violet/5 px-4 py-2 font-mono text-xs text-violet-light">
-            {`// ERROR: ${error}`}
+            // ERROR: {error}
           </div>
         )}
 
         {loading ? (
-          <p className="mt-4 font-mono text-xs text-white/50">{'// Reading memory.md index...'}</p>
+          <p className="mt-4 font-mono text-xs text-white/50">// Reading memory.md index…</p>
         ) : entries.length === 0 ? (
-          <p className="mt-4 font-mono text-xs text-white/40">
-            {'// Zero learned aspects recorded.'}
-          </p>
+          <p className="mt-4 font-mono text-xs text-white/40">// Zero learned aspects recorded.</p>
         ) : (
           <ul className="mt-4 divide-y divide-white/5">
             {entries.map((entry) => (
@@ -132,8 +132,8 @@ export function MemoryVault() {
                 className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0"
               >
                 <div className="flex items-start gap-3 font-mono text-xs">
-                  <span className="select-none text-gold-light">[{entry.line}]</span>
-                  <span className="leading-relaxed text-white/80">{entry.text}</span>
+                  <span className="text-gold-light select-none">[{entry.line}]</span>
+                  <span className="text-white/80 leading-relaxed">{entry.text}</span>
                 </div>
                 <button
                   type="button"
@@ -141,7 +141,7 @@ export function MemoryVault() {
                   disabled={deletingLine === entry.line}
                   className="shrink-0 border border-gold/25 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-gold-light transition-all hover:border-violet hover:bg-violet/10 hover:text-violet-light disabled:opacity-30"
                 >
-                  {deletingLine === entry.line ? 'Wiping...' : 'Wipe'}
+                  {deletingLine === entry.line ? 'Wiping…' : 'Wipe'}
                 </button>
               </li>
             ))}

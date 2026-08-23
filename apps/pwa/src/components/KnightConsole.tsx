@@ -4,6 +4,8 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
 import type { Knight } from '../lib/realm-data';
 
+import { VoiceRecordingControl } from './VoiceRecordingControl';
+
 interface LogLine {
   id: number;
   kind: 'sys' | 'out' | 'ack';
@@ -28,7 +30,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
     {
       id: 1,
       kind: 'sys',
-      text: `${knight.name} online - ${knight.title} | ${knight.domain}`,
+      text: `${knight.name} online — ${knight.title} | ${knight.domain}`,
       t: stamp(),
     },
     { id: 2, kind: 'sys', text: knight.task, t: stamp() },
@@ -52,6 +54,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
     if (!directive) return;
     const id = idRef.current;
     idRef.current += 2;
+
     const result = sendVoiceCommand(`dispatch ${knight.id} ${directive}`);
     setLog((lines) => [
       ...lines,
@@ -60,11 +63,12 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
         id: id + 1,
         kind: result.ok ? 'ack' : 'sys',
         text: result.ok
-          ? `${knight.name} acknowledged - routing through Bifrost.`
-          : 'Bifrost offline - directive not dispatched.',
+          ? `${knight.name} acknowledged — routing through Bifrost.`
+          : 'Bifrost offline — directive not dispatched.',
         t: stamp(),
       },
     ]);
+
     if (result.ok) setInput('');
     requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }));
   };
@@ -99,12 +103,12 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
               aria-label="Close"
               className="text-xl leading-none text-white/40 transition-colors hover:text-white"
             >
-              x
+              ×
             </button>
           </div>
         </div>
 
-        <div className="h-72 overflow-y-auto px-6 py-4 text-sm">
+        <div className="h-72 overflow-y-auto px-6 py-4 text-sm font-mono">
           {log.map((line) => (
             <div key={line.id} className="flex gap-3 py-1">
               <span className="shrink-0 tabular-nums text-[11px] text-white/25">{line.t}</span>
@@ -117,7 +121,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
                       : 'text-white/55'
                 }
               >
-                {line.kind === 'out' ? '> ' : line.kind === 'ack' ? '+ ' : '. '}
+                {line.kind === 'out' ? '> ' : line.kind === 'ack' ? '+ ' : '· '}
                 {line.text}
               </span>
             </div>
@@ -125,7 +129,19 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
           <div ref={endRef} />
         </div>
 
-        <form onSubmit={dispatch} className="flex gap-3 border-gold/20 border-t px-6 py-4">
+        <form onSubmit={dispatch} className="flex items-center gap-3 border-gold/20 border-t px-6 py-4">
+          <VoiceRecordingControl 
+            onRecordingComplete={(blob) => {
+              // Stub for audio logic
+              const id = idRef.current;
+              idRef.current += 2;
+              setLog((lines) => [
+                ...lines,
+                { id, kind: 'out', text: '[Audio snippet recorded]', t: stamp() },
+                { id: id + 1, kind: 'sys', text: 'Processing audio...', t: stamp() }
+              ]);
+            }} 
+          />
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -135,7 +151,7 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
           <button
             type="submit"
             disabled={!connected}
-            className="bg-violet px-5 py-2.5 text-sm uppercase tracking-widest text-white shadow-glow transition-opacity disabled:opacity-40"
+            className="bg-violet px-5 py-2.5 text-sm uppercase tracking-widest text-white shadow-glow transition-opacity hover:bg-violet/90 disabled:opacity-40"
           >
             Dispatch
           </button>

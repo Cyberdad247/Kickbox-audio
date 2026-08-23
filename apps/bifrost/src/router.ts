@@ -5,7 +5,6 @@
 
 import { type CallOptions, CompilationError, callRemoteMcp } from './mcp';
 import { type Command, parseCommand } from './nlp';
-import { getStreamingSnapshot } from './streaming';
 
 export type Lane = 'LOCAL_TOOLS' | 'REMOTE_MCP';
 
@@ -41,13 +40,7 @@ export async function route(raw: string, cfg: RouterConfig = {}): Promise<RouteO
   const lane = classify(command);
 
   if (lane === 'LOCAL_TOOLS') {
-    return {
-      lane,
-      command,
-      response: localResponse(command),
-      rezeroed: false,
-      latencyMs: now() - start,
-    };
+    return { lane, command, response: null, rezeroed: false, latencyMs: now() - start };
   }
 
   // REMOTE_MCP bypass — Tailscale only, budgeted, //REZERO on any failure.
@@ -74,20 +67,6 @@ export async function route(raw: string, cfg: RouterConfig = {}): Promise<RouteO
         : `remote failure: ${(err as Error).message}`;
     return rezero(command, reason, start, now);
   }
-}
-
-function localResponse(command: Command): string | null {
-  if (command.action === 'streaming_viewers') {
-    const telemetry = getStreamingSnapshot();
-    return `${telemetry.totalViewers.toLocaleString('en-US')} viewers across ${telemetry.healthyNodes} healthy edge nodes.`;
-  }
-
-  if (command.action === 'streaming_health') {
-    const telemetry = getStreamingSnapshot();
-    return `Channel ${command.channel} has aggregate edge coverage from ${telemetry.healthyNodes} healthy nodes; channel-level availability is not yet reported.`;
-  }
-
-  return null;
 }
 
 // //REZERO -> collapse back to the local tools lane.

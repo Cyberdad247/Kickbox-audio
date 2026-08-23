@@ -5,7 +5,13 @@
 import http from 'node:http';
 import { answerQuery } from './query';
 
-const PORT = Number(process.env.PORT) || 7800;
+const PORT =
+  Number(
+    process.env.MCP_PORT ||
+      (process.env.PORT && process.env.PORT !== '3000' && process.env.PORT !== '3001'
+        ? process.env.PORT
+        : undefined),
+  ) || 7800;
 const MULTIVOICE_URL = process.env.MULTIVOICE_URL;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL;
 const OLLAMA_URL = process.env.OLLAMA_URL;
@@ -108,9 +114,25 @@ export const server = http.createServer((req, res) => {
 
 // Bind all interfaces so the Tailscale IP is reachable.
 if (require.main === module) {
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[mcp-query] Port ${PORT} in use; continuing gracefully.`);
+    } else {
+      console.error('[mcp-query] Server error:', err);
+    }
+  });
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `mcp-query server on :${PORT} (multivoice=${MULTIVOICE_URL ? 'on' : 'off'}, ollama=${OLLAMA_MODEL ?? 'off'})`,
     );
   });
+
+  const shutdown = (signal: string) => {
+    console.log(`[mcp-query] ${signal} received — shutting down server...`);
+    server.close(() => process.exit(0));
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

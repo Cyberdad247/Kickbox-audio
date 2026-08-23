@@ -17,7 +17,7 @@
 //
 // Exits:
 //   0  clean
-//   1  >= 1 real hit
+//   1  ≥ 1 real hit
 //   2  invocation error (no path to .)
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -42,7 +42,7 @@ const PATTERNS = [
   { name: 'PEM Private Key', re: /BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY/ },
   { name: 'GitHub Action JWT', re: /Bearer\s+eyJ[A-Za-z0-9_-]{16,}\./ },
 ];
-const ENV_HIT = /^[A-Z][A-Z0-9_]+=["']?[A-Za-z0-9._\\/\-:]{16,}["']?\s*$/m;
+const ENV_HIT = /^[A-Z][A-Z0-9_]+=[\"']?[A-Za-z0-9._\\/\-:]{16,}[\"']?\s*$/m;
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -65,7 +65,6 @@ for (const file of walk(ROOT)) {
   const base = file.split(/[\\/]/).pop() ?? '';
   if (base === '.env.example') continue;
   if (/\.(png|jpe?g|gif|webp|woff2?|map|pdf|zip|ico|mp[34]|wav)$/i.test(rel)) continue;
-
   let text;
   try {
     const st = statSync(file);
@@ -77,27 +76,27 @@ for (const file of walk(ROOT)) {
   scannedFiles.push(rel);
 
   for (const { name, re } of PATTERNS) {
-    const match = text.match(re);
-    if (!match) continue;
-    const before = text.slice(0, match.index ?? 0);
+    const m = text.match(re);
+    if (!m) continue;
+    const before = text.slice(0, m.index ?? 0);
     const lineNum = before.split('\n').length;
     hits.push({
       file: rel,
       line: lineNum,
       rule: name,
-      sample: `${match[0].slice(0, 16)}...`.replace(/\n/g, ' '),
+      sample: (m[0].slice(0, 16) + '…').replace(/\n/g, ' '),
     });
   }
 
   if (/^\.env(\..+)?$/.test(base)) {
-    const match = text.match(ENV_HIT);
-    if (match) {
-      const lineNum = text.slice(0, match.index ?? 0).split('\n').length;
+    const m = text.match(ENV_HIT);
+    if (m) {
+      const lineNum = text.slice(0, m.index ?? 0).split('\n').length;
       hits.push({
         file: rel,
         line: lineNum,
         rule: 'live .env value',
-        sample: `${match[0].slice(0, 24)}...`,
+        sample: m[0].slice(0, 24) + '…',
       });
     }
   }
@@ -105,7 +104,7 @@ for (const file of walk(ROOT)) {
 
 const ts = new Date().toISOString();
 const lines = [];
-lines.push('# Secret scan - /audit-kickbox-audio');
+lines.push('# Secret scan — /audit-kickbox-audio');
 lines.push('');
 lines.push(`Generated: ${ts}`);
 lines.push(
@@ -116,7 +115,7 @@ lines.push('');
 if (hits.length === 0) {
   lines.push('## Result');
   lines.push('');
-  lines.push('**CLEAN** - no AWS access keys, GitHub PATs, OpenAI / Anthropic keys,');
+  lines.push('**CLEAN** — no AWS access keys, GitHub PATs, OpenAI / Anthropic keys,');
   lines.push('PEM private keys, GitHub-Action JWTs, or populated `.env` files in tracked');
   lines.push('source code under `/audit-kickbox-audio`. The branch is **safe to promote');
   lines.push('to production** with respect to AGENTS.md Rule 5.');
@@ -136,13 +135,13 @@ if (hits.length === 0) {
   lines.push('');
   lines.push('## Remediation ladder (when real hits appear)');
   lines.push('');
-  lines.push('1. **Triage** - confirm real vs false positive (most hits fall into');
+  lines.push('1. **Triage** — confirm real vs false positive (most hits fall into');
   lines.push('   `.audit-false-positives.txt`).');
-  lines.push('2. **Rotate** - `camelot keys set <name> <secret>` then strip literal.');
-  lines.push('3. **Redact-history** - `git filter-repo --invert-paths --path <file>`');
+  lines.push('2. **Rotate** — `camelot keys set <name> <secret>` then strip literal.');
+  lines.push('3. **Redact-history** — `git filter-repo --invert-paths --path <file>`');
   lines.push('   for verified leaked credentials; coordinate with Cyberdad247 to');
   lines.push('   force-push the cleaned history.');
-  lines.push('4. **Block-CI** - run this audit in PR check; non-zero RC blocks merge.');
+  lines.push('4. **Block-CI** — run this audit in PR check; non-zero RC blocks merge.');
   lines.push('');
   lines.push('## Policy');
   lines.push('');
@@ -154,8 +153,8 @@ if (hits.length === 0) {
   lines.push('');
   lines.push('| File | Line | Rule | Sample |');
   lines.push('|---|---|---|---|');
-  for (const hit of hits) {
-    lines.push(`| \`${hit.file}\` | ${hit.line} | ${hit.rule} | \`${hit.sample}\` |`);
+  for (const h of hits) {
+    lines.push(`| \`${h.file}\` | ${h.line} | ${h.rule} | \`${h.sample}\` |`);
   }
   lines.push('');
   lines.push('Follow Remediation ladder above before merging.');
@@ -170,7 +169,7 @@ if (outIdx !== -1) {
   }
   writeFileSync(path, lines.join('\n'), 'utf8');
   console.log(
-    `[secrets-audit] ${hits.length === 0 ? 'CLEAN' : `${hits.length} HITS`} - wrote plan to ${path}`,
+    `[secrets-audit] ${hits.length === 0 ? 'CLEAN' : hits.length + ' HITS'} — wrote plan to ${path}`,
   );
 } else {
   console.log(lines.join('\n'));

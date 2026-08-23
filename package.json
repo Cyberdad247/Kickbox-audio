@@ -2,7 +2,6 @@
   "name": "sovereign-system",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "npm@11.11.0",
   "description": "Sovereign System monorepo — PWA + Bifrost gateway + Prisma DB (Vault_Ω / Raven_Ω / Echo_Ω)",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
@@ -21,14 +20,12 @@
     "db:migrate": "npm run migrate --workspace=@sovereign/db",
     "db:migrate:dev": "npm run migrate:dev --workspace=@sovereign/db",
     "db:seed": "npm run seed --workspace=@sovereign/db",
-    "db:seed:baseline": "npm run seed:baseline --workspace=@sovereign/db",
-    "benchmark": "npm run start --workspace=@sovereign/benchmark",
-    "probe:smtp": "node scripts/ops/live-smtp-relay-probe.mjs",
-    "probe:smtp:live": "AALIYAH_MTA_DRY_RUN=0 node scripts/ops/live-smtp-relay-probe.mjs"
+    "benchmark": "npm run start --workspace=@sovereign/benchmark"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/node": "^20.10.5",
+    "@types/qrcode": "^1.5.6",
     "prisma": "^5.22.0",
     "turbo": "^2.3.3",
     "typescript": "^5.3.3",
@@ -41,6 +38,17 @@
     "@types/three": "0.185.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
-  }
+    "@prisma/client": "^5.22.0",
+    "@radix-ui/react-popover": "^1.1.23",
+    "@tabler/icons-react": "^3.46.0",
+    "@tanstack/react-query": "^5.101.4",
+    "@tiptap/core": "^3.30.1",
+    "@tiptap/extension-list": "^3.30.1",
+    "firebase": "^12.18.0",
+    "i18next": "^26.4.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "zustand": "^5.0.15"
+  },
+  "packageManager": "bun@1.0.0"
 }

@@ -51,6 +51,7 @@ export function upsertStreamingTelemetry(
     ...telemetry,
     lastSeenAt: new Date(now).toISOString(),
   });
+
   return getStreamingSnapshot(now);
 }
 
@@ -59,6 +60,7 @@ export function getStreamingSnapshot(now = Date.now()): StreamingTelemetrySnapsh
     const stale = now - Date.parse(node.lastSeenAt) > STREAMING_STALE_AFTER_MS;
     return stale && node.status !== 'offline' ? { ...node, status: 'offline' as const } : node;
   });
+
   const activeNodes = currentNodes.filter((node) => node.status !== 'offline');
 
   return {

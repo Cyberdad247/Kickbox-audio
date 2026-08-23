@@ -115,7 +115,7 @@ const out = {
 };
 
 const target = resolve(root, 'HELIO_PATCH.json');
-const payload = `${JSON.stringify(out, null, 2)}\n`;
+const payload = JSON.stringify(out, null, 2) + '\n';
 
 if (dryRun) {
   process.stdout.write(payload);

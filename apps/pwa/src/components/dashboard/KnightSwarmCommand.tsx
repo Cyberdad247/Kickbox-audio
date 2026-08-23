@@ -168,7 +168,7 @@ export function KnightSwarmCommand() {
           if (k.status === 'PROCESSING') {
             if (k.id === 'KNIGHT_MAIL_003') {
               const num = Number.parseInt(k.currentMetricValue, 10);
-              return { ...k, currentMetricValue: String(Number.isNaN(num) ? 142 : num + 1) };
+              return { ...k, currentMetricValue: String(isNaN(num) ? 142 : num + 1) };
             }
             if (k.id === 'KNIGHT_STREAM_007') {
               const val = Number.parseFloat(k.currentMetricValue.replace('%', ''));
@@ -186,9 +186,7 @@ export function KnightSwarmCommand() {
   const handleExecuteActionOverride = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeInstruction.trim()) return;
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[EXEC]: Injecting Sovereign instruction to Merlin DAG: ', activeInstruction);
-    }
+    console.log('[EXEC]: Injecting Sovereign instruction to Merlin DAG: ', activeInstruction);
     setActiveInstruction('');
   };
 
@@ -203,8 +201,8 @@ export function KnightSwarmCommand() {
               KOA REALM Swarm Workforce Matrix
             </h1>
           </div>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.25em] text-[#9D4EDD]">
-            {'CONCURRENCY ARCHITECTURE v1000 // AUTHORITY: VASHAWN O. HEAD (VIZION)'}
+          <p className="text-[10px] font-mono tracking-[0.25em] text-[#9D4EDD] uppercase mt-1">
+            CONCURRENCY ARCHITECTURE v1000 // AUTHORITY: VASHAWN O. HEAD (VIZION)
           </p>
         </div>
 
@@ -231,7 +229,6 @@ export function KnightSwarmCommand() {
             <div className="flex flex-wrap gap-2 text-[10px] font-mono">
               {['all', 'PROCESSING', 'IDLE', 'PENDING_HITL'].map((tab) => (
                 <button
-                  type="button"
                   key={tab}
                   onClick={() => setSelectedDomain(tab)}
                   className={`px-3 py-1 border uppercase tracking-wider transition-colors ${
@@ -368,14 +365,12 @@ export function KnightSwarmCommand() {
 
               <div className="space-y-2">
                 <button
-                  type="button"
                   onClick={() => setHitlProposal(null)}
                   className="w-full bg-[#9D4EDD] text-white py-3 rounded-none font-bold hover:bg-[#FFD700] hover:text-black transition-all shadow-[0_0_15px_rgba(157,78,221,0.2)]"
                 >
                   Authorize Loop
                 </button>
                 <button
-                  type="button"
                   onClick={() => setHitlProposal(null)}
                   className="w-full border border-gray-700 text-gray-400 py-3 rounded-none hover:border-red-500 hover:text-red-500 transition-all font-mono text-[10px] uppercase"
                 >

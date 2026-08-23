@@ -11,8 +11,8 @@
       "**/dist/**",
       "**/node_modules/**",
       "**/migrations/**",
-      "packages/wasm-pills/pkg/**",
-      "packages/wasm-pills/target/**",
+      "patch-*.js",
+      "*.patch",
       "package-lock.json"
     ]
   },

@@ -1,9 +1,7 @@
-export type StreamingNodeStatus = 'healthy' | 'degraded' | 'offline';
-
 export interface StreamingNodeSnapshot {
   nodeId: string;
   region: string;
-  status: StreamingNodeStatus;
+  status: 'healthy' | 'degraded' | 'offline';
   viewers: number;
   bitrateKbps: number;
   packetLossPct: number;

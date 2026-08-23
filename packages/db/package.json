@@ -14,13 +14,11 @@
     "migrate": "prisma migrate deploy --schema=schema.prisma",
     "migrate:dev": "prisma migrate dev --schema=schema.prisma",
     "seed": "tsx src/seed.ts",
-    "seed:baseline": "tsx src/seed-baseline.ts",
     "studio": "prisma studio --schema=schema.prisma",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
-    "zod": "4.4.3"
+    "@prisma/client": "^5.22.0"
   },
   "devDependencies": {
     "prisma": "^5.22.0",

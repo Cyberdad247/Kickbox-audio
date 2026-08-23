@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-void-950 font-sans text-white antialiased;
+  @apply bg-obsidian font-sans text-white antialiased;
 }
 
 /* Thin gold scrollbar to match the Sovereign Aura chrome. */
@@ -19,4 +19,159 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(212, 175, 55, 0.25);
   border-radius: 4px;
+}
+
+/* Tactile Physical Cartridge Dock Snap & Pulse animations */
+@keyframes dockSnap {
+  0% {
+    transform: scale(0.96) translateX(-2px);
+  }
+  50% {
+    transform: scale(1.03) translateX(3px);
+  }
+  100% {
+    transform: scale(1) translateX(0);
+  }
+}
+
+@keyframes dockGlowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(0, 240, 255, 0.5);
+  }
+}
+
+.animate-dock-snap {
+  animation: dockSnap 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-dock-glow {
+  animation: dockGlowPulse 2.5s infinite ease-in-out;
+}
+
+/* Sovereign Aura OODA Loop Pulse & Beam Animations */
+@keyframes oodaAuraPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.2), inset 0 0 6px rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 215, 0, 0.65), 0 0 36px rgba(212, 175, 55, 0.35), inset 0 0 14px rgba(255, 215, 0, 0.2);
+    border-color: rgba(255, 228, 77, 0.95);
+  }
+}
+
+@keyframes oodaBeamScan {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes oodaPillGlow {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.3));
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.75), 0 0 28px rgba(212, 175, 55, 0.45);
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.65));
+  }
+}
+
+.animate-ooda-aura {
+  animation: oodaAuraPulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-ooda-beam {
+  animation: oodaBeamScan 1.8s linear infinite;
+}
+
+.animate-ooda-pill {
+  animation: oodaPillGlow 1.8s ease-in-out infinite;
+}
+
+/* Glow Pass Traveling Beam & Connector Line Animations */
+@keyframes glowPassHorizontal {
+  0% {
+    left: -40%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes glowPassPulse {
+  0%, 100% {
+    opacity: 0.25;
+    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.2));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(212, 175, 55, 0.55));
+  }
+}
+
+@keyframes connectorDashFlow {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes glowPassReverse {
+  0% {
+    right: -40%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    right: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-glow-pass {
+  animation: glowPassHorizontal 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-glow-pass-reverse {
+  animation: glowPassReverse 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-glow-pass-fast {
+  animation: glowPassHorizontal 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-connector-pulse {
+  animation: glowPassPulse 1.6s ease-in-out infinite;
+}
+
+.animate-dash-flow {
+  animation: connectorDashFlow 1s linear infinite;
 }

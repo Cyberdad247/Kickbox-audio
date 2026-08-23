@@ -12,15 +12,6 @@
  *     longest-lived issuer. Earlier-issued entries are evicted lazily on
  *     the next claim attempt for the same key. There is no background
  *     sweeper because the LRU bound is the actual memory cap.
- *
- * Test seam:
- *   - `__resetNonceCacheForTests` clears the cache so suites start isolated.
- *
- * Defense strategy:
- *   - Single-process Bifrost is fine for in-memory state. If we ever
- *     horizontally scale, replace this singleton with a Redis-backed
- *     `claimOnce` (signature-as-key, SETNX with PX TTL). The interface
- *     stays the same.
  */
 
 const MAX_ENTRIES = 4096;
@@ -34,12 +25,12 @@ const cache = new Map<string, CacheEntry>();
 
 /**
  * Atomically claims a nonce once. Returns `true` on the first call within
- * the TTL window, `false` on every subsequent duplicate call. The TTL is
- * reread from clock insensitivity to test-injected `now`.
+ * the TTL window, `false` on every subsequent duplicate call.
  */
 export function claimOnce(key: string, options: { ttlMs?: number; now?: number } = {}): boolean {
   const now = options.now ?? Date.now();
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+
   const existing = cache.get(key);
   if (existing !== undefined) {
     if (existing.expiresAt > now) {

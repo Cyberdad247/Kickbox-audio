@@ -4,17 +4,17 @@ import express, { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
-import { renderCmsTemplate } from './cms';
-import { issueProxySignedAction, issueSignedAction } from './issuance';
+import {
+  createAuthHandshake,
+  getHandshakeStatus,
+  resendAuthHandshake,
+  verifyAuthHandshake,
+} from './authHandshake';
+import { geminiRouter, setupLiveWebsocket } from './gemini';
+import { issueSignedAction } from './issuance';
 import { MicrocubicMatrix } from './microcubic';
 import { type RouteOutcome, route } from './router';
-import {
-  SignatureError,
-  requireBifrostProxySignature,
-  verifyActionSignature,
-  verifyWebhookSignature,
-} from './security';
-import { dispatchToLocalMta } from './smtpRelay';
+import { SignatureError, verifyActionSignature, verifyWebhookSignature } from './security';
 import { applyCommand, setRouteTelemetry, snapshot } from './state';
 import {
   StreamingTelemetrySchema,
@@ -32,7 +32,11 @@ interface RawBodyRequest extends Request {
   rawBody?: string;
 }
 
-const PORT = Number(process.env.PORT) || 3001;
+const PORT =
+  Number(
+    process.env.BIFROST_PORT ||
+      (process.env.PORT && process.env.PORT !== '3000' ? process.env.PORT : undefined),
+  ) || 3001;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? '';
 
 // Cap inbound frame size (16 KB) — commands are tiny; reject oversized payloads
@@ -42,6 +46,10 @@ const MAX_WS_PAYLOAD = 16 * 1024;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, maxPayload: MAX_WS_PAYLOAD });
+
+// Setup Gemini API and Live WebSocket endpoints
+app.use('/api', geminiRouter);
+setupLiveWebsocket(wss);
 
 // Microcubic Matrix — each command runs in an isolated worker_threads microcube
 // (Zero Docker). Cubes own DB side effects; this thread owns state + broadcast.
@@ -84,22 +92,20 @@ app.post('/api/streaming/telemetry', streamingTelemetryLimiter, (req: RawBodyReq
   const signed = WEBHOOK_SECRET
     ? verifyWebhookSignature(req.rawBody ?? '', signature, WEBHOOK_SECRET)
     : process.env.NODE_ENV !== 'production';
+
   if (!signed) return res.status(401).json({ error: 'INVALID_SIGNATURE' });
 
   const parsed = StreamingTelemetrySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_TELEMETRY', issues: parsed.error.issues });
+    return res.status(400).json({ error: 'INVALID_PAYLOAD', details: parsed.error.issues });
   }
 
   try {
-    const telemetry = upsertStreamingTelemetry(parsed.data);
+    const snapshotResult = upsertStreamingTelemetry(parsed.data);
     broadcastStreamingTelemetry();
-    return res.status(202).json(telemetry);
+    return res.status(200).json({ status: 'ACCEPTED', snapshot: snapshotResult });
   } catch (error) {
-    if (error instanceof Error && error.message === 'STREAMING_NODE_CAPACITY') {
-      return res.status(429).json({ error: error.message });
-    }
-    return res.status(500).json({ error: 'TELEMETRY_INGEST_FAILED' });
+    return res.status(507).json({ error: (error as Error).message });
   }
 });
 
@@ -119,7 +125,9 @@ function broadcastStreamingTelemetry(): void {
     payload: getStreamingSnapshot(),
   });
   for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(msg);
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
   }
 }
 
@@ -172,62 +180,6 @@ const hitlLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-});
-
-const cmsLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Distinct budget from issueLimiter (KBA) — proxy-sign is hit at ~2 trips per
-// user click (render + draft + publish, cache-collapsed), and concurrent PWA
-// users across tabs would otherwise starve the issue budget.
-const proxySignLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const CmsTemplateRenderSchema = z.object({
-  template_id: z.enum(['tpl_followup_01', 'tpl_welcome_01']),
-  contact_context: z
-    .object({
-      contact_email: z.string().email().optional(),
-      contact_name: z.string().min(1).max(120).optional(),
-      intent: z.string().min(1).max(400).optional(),
-    })
-    .default({}),
-});
-
-const CmsDraftSchema = z.object({
-  contact: z.object({
-    email: z.string().email(),
-    name: z.string().min(1).max(120).optional(),
-  }),
-  html: z.string().min(1),
-  metadata: z.record(z.string(), z.unknown()).default({}),
-  status: z.enum(['approved', 'pending_approval']).default('pending_approval'),
-  subject: z.string().min(1).max(240),
-  template_id: z.enum(['tpl_followup_01', 'tpl_welcome_01']),
-  text: z.string().min(1),
-});
-
-const CmsPublishSchema = z.object({
-  approval: z.object({
-    approved_by: z.string().min(1).max(120),
-    confirmed: z.literal(true),
-  }),
-  draft_id: z.string().min(1),
-  html: z.string().min(1),
-  subject: z.string().min(1).max(240),
-  text: z.string().min(1),
-  to: z.object({
-    email: z.string().email(),
-    name: z.string().min(1).max(120).optional(),
-  }),
 });
 
 const IssueBodySchema = z.object({
@@ -312,189 +264,6 @@ app.post('/api/bifrost/hitl', hitlLimiter, async (req, res) => {
   });
 });
 
-async function getPrisma() {
-  const mod = await import('@sovereign/db');
-  return mod.prisma;
-}
-
-app.post(
-  '/api/cms/template/render',
-  cmsLimiter,
-  requireBifrostProxySignature(),
-  async (req, res) => {
-    const parsed = CmsTemplateRenderSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-    }
-
-    try {
-      const rendered = renderCmsTemplate(parsed.data.template_id, parsed.data.contact_context);
-      res.status(200).json(rendered);
-    } catch (error) {
-      console.error('[CMS/render] failed:', error);
-      res.status(500).json({ error: 'RENDER_FAILED' });
-    }
-  },
-);
-
-app.post(
-  '/api/cms/content/create-draft',
-  cmsLimiter,
-  requireBifrostProxySignature(),
-  async (req, res) => {
-    const parsed = CmsDraftSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-    }
-
-    const draftId = randomUUID();
-    const { contact, html, metadata, status, subject, template_id, text } = parsed.data;
-
-    try {
-      const prisma = await getPrisma();
-      await prisma.contact.upsert({
-        where: { email: contact.email },
-        update: { name: contact.name },
-        create: { email: contact.email, name: contact.name },
-      });
-      await prisma.echoLog.create({
-        data: {
-          message: JSON.stringify({
-            contact,
-            draftId,
-            html,
-            metadata,
-            stage: 'cms_draft',
-            status,
-            subject,
-            template_id,
-            text,
-            timestamp: new Date().toISOString(),
-          }),
-        },
-      });
-
-      res.status(200).json({
-        contact,
-        draft_id: draftId,
-        metadata,
-        status,
-        subject,
-        template_id,
-      });
-    } catch (error) {
-      console.error('[CMS/create-draft] failed:', error);
-      res.status(500).json({ error: 'DRAFT_CREATE_FAILED' });
-    }
-  },
-);
-
-app.post(
-  '/api/cms/content/publish',
-  cmsLimiter,
-  requireBifrostProxySignature({ bindBody: true }),
-  async (req, res) => {
-    const parsed = CmsPublishSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-    }
-
-    const { approval, draft_id, html, subject, text, to } = parsed.data;
-    try {
-      const dispatch = await dispatchToLocalMta({
-        bodyHtml: html,
-        bodyText: text,
-        subject,
-        toAddress: to.email,
-      });
-
-      const prisma = await getPrisma();
-      await prisma.messageThread.upsert({
-        where: { channel_handle: { channel: 'email', handle: to.email } },
-        update: {
-          messages: {
-            create: {
-              body: text,
-              direction: 'outbound',
-            },
-          },
-        },
-        create: {
-          channel: 'email',
-          handle: to.email,
-          messages: {
-            create: [
-              {
-                body: text,
-                direction: 'outbound',
-              },
-            ],
-          },
-        },
-      });
-      await prisma.echoLog.create({
-        data: {
-          message: JSON.stringify({
-            approvedBy: approval.approved_by,
-            draftId: draft_id,
-            relay: dispatch.relay,
-            stage: 'cms_publish',
-            subject,
-            timestamp: new Date().toISOString(),
-            to,
-            transport: dispatch.dryRun ? 'dry-run' : 'smtp',
-          }),
-        },
-      });
-
-      res.status(200).json({
-        approved_by: approval.approved_by,
-        draft_id,
-        relay: dispatch.relay,
-        recipient: dispatch.recipient,
-        transport: dispatch.dryRun ? 'dry-run' : 'smtp',
-      });
-    } catch (error) {
-      console.error('[CMS/publish] failed:', error);
-      res.status(500).json({ error: 'PUBLISH_FAILED' });
-    }
-  },
-);
-
-// ── PWA proxy HMAC mint endpoint — issues a 10-min signed bundle the PWA
-// attaches as x-webhook-* headers on every /api/cms/* call. Open-and-rate-
-// limited (mirrors /api/bifrost/issue) — closure is enforced by the network
-// boundary (Tailscale / private deployment) and by the verify-side signature
-// check on /api/cms/*. See `requireBifrostProxySignature({ bindBody })`.
-const ProxySignBodySchema = z.object({
-  actionId: z
-    .string()
-    .regex(
-      /^CMS__(RENDER|DRAFT|PUBLISH)__[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-      'actionId must match CMS__<VERB>__<uuid>',
-    ),
-  rawBody: z.string().optional(),
-});
-
-app.post('/api/bifrost/proxy-sign', proxySignLimiter, async (req, res) => {
-  const parsed = ProxySignBodySchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_BODY', issues: parsed.error.issues });
-  }
-  try {
-    const signed =
-      parsed.data.rawBody !== undefined
-        ? issueProxySignedAction(parsed.data.actionId, WEBHOOK_SECRET, {
-            rawBody: parsed.data.rawBody,
-          })
-        : issueProxySignedAction(parsed.data.actionId, WEBHOOK_SECRET);
-    res.status(200).json(signed);
-  } catch (err) {
-    console.error('[Bifrost/proxy-sign] issuance failed:', err);
-    res.status(500).json({ error: 'ISSUANCE_FAILED' });
-  }
-});
-
 app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
   const signature = req.header('x-webhook-signature');
   if (!verifyWebhookSignature(req.rawBody ?? '', signature, WEBHOOK_SECRET)) {
@@ -515,8 +284,118 @@ app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
   });
 });
 
+// ── 5-Minute TTL Biometric & Secret Vault Authorization Handshake Routes ──
+const authHandshakeLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const GenerateHandshakeSchema = z.object({
+  tenantId: z.string().min(1, 'tenantId is required').max(64),
+  tenantHandle: z.string().min(1, 'tenantHandle is required').max(64),
+  channel: z.enum(['email', 'sms', 'biometric_push']).optional().default('email'),
+  recipient: z.string().max(128).optional(),
+});
+
+const VerifyHandshakeSchema = z.object({
+  sessionId: z.string().min(4, 'sessionId is required'),
+  code: z.string().min(4, 'code is required').max(16),
+});
+
+const ResendHandshakeSchema = z.object({
+  sessionId: z.string().min(4, 'sessionId is required'),
+  channel: z.enum(['email', 'sms', 'biometric_push']).optional(),
+});
+
+/**
+ * POST /api/auth/handshake/generate
+ * Initiates a 5-minute TTL handshake session and dispatches randomized code.
+ */
+app.post('/api/auth/handshake/generate', authHandshakeLimiter, (req, res) => {
+  const parsed = GenerateHandshakeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_REQUEST', issues: parsed.error.issues });
+  }
+
+  try {
+    const { session, code } = createAuthHandshake(parsed.data);
+    res.status(200).json({
+      status: 'DISPATCHED',
+      session,
+      code, // Dev/sandbox helper
+    });
+  } catch (err) {
+    console.error('[Bifrost/auth/generate] Failed:', err);
+    res.status(500).json({ error: 'HANDSHAKE_GENERATION_FAILED' });
+  }
+});
+
+/**
+ * POST /api/auth/handshake/verify
+ * Validates candidate authorization code against 5-minute TTL state.
+ */
+app.post('/api/auth/handshake/verify', authHandshakeLimiter, (req, res) => {
+  const parsed = VerifyHandshakeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_REQUEST', issues: parsed.error.issues });
+  }
+
+  const { sessionId, code } = parsed.data;
+  const result = verifyAuthHandshake(sessionId, code);
+
+  if (!result.verified) {
+    const statusCode = result.error === 'NOT_FOUND' ? 404 : result.error === 'EXPIRED' ? 410 : 401;
+    return res.status(statusCode).json(result);
+  }
+
+  res.status(200).json(result);
+});
+
+/**
+ * GET /api/auth/handshake/status/:sessionId
+ * Queries real-time TTL status and remaining seconds.
+ */
+app.get('/api/auth/handshake/status/:sessionId', authHandshakeLimiter, (req, res) => {
+  const { sessionId } = req.params;
+  const status = getHandshakeStatus(sessionId);
+
+  if (!status) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Handshake session not found.' });
+  }
+
+  res.status(200).json(status);
+});
+
+/**
+ * POST /api/auth/handshake/resend
+ * Regenerates code and resets the 5-minute TTL.
+ */
+app.post('/api/auth/handshake/resend', authHandshakeLimiter, (req, res) => {
+  const parsed = ResendHandshakeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'INVALID_REQUEST', issues: parsed.error.issues });
+  }
+
+  const { sessionId, channel } = parsed.data;
+  const result = resendAuthHandshake(sessionId, channel);
+
+  if (!result) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Handshake session not found.' });
+  }
+
+  res.status(200).json({
+    status: 'RESENT',
+    session: result.session,
+    code: result.code,
+  });
+});
+
 // ── WebSocket: command intake + heartbeat ──
-wss.on('connection', (ws: LiveSocket) => {
+wss.on('connection', (ws: LiveSocket, req: http.IncomingMessage) => {
+  if (req.url === '/live') return; // Handled by gemini.ts setupLiveWebsocket
+
   ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;
@@ -556,6 +435,21 @@ const interval = setInterval(() => {
 }, 30_000);
 
 wss.on('close', () => clearInterval(interval));
+wss.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`[bifrost wss] Port ${PORT} already in use; proceeding gracefully.`);
+  } else {
+    console.error('[bifrost wss] Error:', err);
+  }
+});
+
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`[bifrost] Port ${PORT} already in use; proceeding gracefully.`);
+  } else {
+    console.error('[bifrost] Server error:', err);
+  }
+});
 
 server.listen(PORT, () => {
   console.log(`Bifrost gateway listening on port ${PORT}`);

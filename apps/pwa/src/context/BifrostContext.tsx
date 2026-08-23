@@ -66,22 +66,37 @@ function buildPlan(raw: string): PendingPlan | null {
 
 interface BifrostContextValue {
   connected: boolean;
+  isReconnecting: boolean;
+  reconnectAttempts: number;
+  lastAttemptTime: number | null;
   state: SovereignState | null;
   streamingTelemetry: StreamingTelemetrySnapshot | null;
   sendVoiceCommand: (payload: string) => VoiceDispatchResult;
+  reconnectNow: () => void;
+  reconnect: () => void;
   pendingPlan: PendingPlan | null;
   approvePlan: () => void;
   rejectPlan: () => void;
-  reconnect: () => void;
   dispatchError: string | null;
 }
 
 const BifrostContext = createContext<BifrostContextValue | null>(null);
 
-const BIFROST_URL = process.env.NEXT_PUBLIC_BIFROST_URL ?? 'ws://localhost:3001';
+const getWsUrl = () => {
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/bifrost-ws`;
+  }
+  return 'ws://localhost:3001';
+};
+
+const BIFROST_URL = process.env.NEXT_PUBLIC_BIFROST_URL ?? getWsUrl();
 
 export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
   const [state, setState] = useState<SovereignState | null>(null);
   const [streamingTelemetry, setStreamingTelemetry] = useState<StreamingTelemetrySnapshot | null>(
     null,
@@ -89,47 +104,48 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  // Bumping this tears down the current socket (if any) and opens a fresh one
-  // immediately, bypassing the 2s auto-retry backoff — the manual "sync with
-  // Bifrost bridge" action.
+  const closedRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reconnectNonce, setReconnectNonce] = useState(0);
+
   const reconnect = useCallback(() => setReconnectNonce((n) => n + 1), []);
 
-  useEffect(() => {
-    void reconnectNonce;
-    let closed = false;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
+  const connect = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-    const connect = () => {
+    setIsReconnecting(true);
+    setLastAttemptTime(Date.now());
+    setReconnectAttempts((prev) => prev + 1);
+
+    try {
       const ws = new WebSocket(BIFROST_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setConnected(true);
+        setIsReconnecting(false);
+        setReconnectAttempts(0);
         setDispatchError(null);
       };
+
       ws.onclose = () => {
         setConnected(false);
-        if (!closed) reconnectTimer = setTimeout(connect, 2000);
+        if (!closedRef.current) {
+          setIsReconnecting(true);
+          reconnectTimerRef.current = setTimeout(connect, 3000);
+        } else {
+          setIsReconnecting(false);
+        }
       };
-      // Defensive: a stale NEXT_PUBLIC_BIFROST_URL (e.g. the golden-zinc tunnel
-      // from the first supervisor run) can briefly fire onopen before onerror
-      // if DNS resolves to a cached A-record. Flipping connected=false in
-      // onerror closes that race window and prevents the HUD from showing a
-      // false-positive 'Bifrost connected' against a dead endpoint. Setting
-      // dispatchError surfaces the dead state through the existing UI channel
-      // (LakishaEnclave already reads `error ?? 'Governance uplink paused...'`
-      // from this same context value), so the user sees the disconnect even
-      // when the WS handshake briefly succeeds against a stale DNS A-record.
-      // Copy family mirrors existing strings ('Bifrost bridge offline',
-      // 'Governance uplink paused', 'Bifrost mesh' in SettingsTab) — picked
-      // 'Bifrost mesh unreachable' to match the canonical 'Bifrost mesh'
-      // noun and the '…ing' progressive form used elsewhere.
+
       ws.onerror = () => {
         setConnected(false);
-        setDispatchError('Bifrost mesh unreachable. Retrying…');
+        setDispatchError('Bifrost mesh unreachable. Retrying...');
         ws.close();
       };
+
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
@@ -141,15 +157,37 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
           // ignore malformed frame
         }
       };
-    };
+    } catch {
+      setIsReconnecting(false);
+    }
+  }, []);
 
+  useEffect(() => {
+    closedRef.current = false;
     connect();
+
     return () => {
-      closed = true;
-      clearTimeout(reconnectTimer);
+      closedRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
       wsRef.current?.close();
     };
-  }, [reconnectNonce]);
+  }, [connect, reconnectNonce]);
+
+  const reconnectNow = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+    }
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        // ignore
+      }
+    }
+    connect();
+  }, [connect]);
 
   const rawSend = useCallback((payload: string): VoiceDispatchResult => {
     const ws = wsRef.current;
@@ -190,13 +228,17 @@ export function BifrostProvider({ children }: { children: React.ReactNode }) {
     <BifrostContext.Provider
       value={{
         connected,
+        isReconnecting,
+        reconnectAttempts,
+        lastAttemptTime,
         state,
         streamingTelemetry,
         sendVoiceCommand,
+        reconnectNow,
+        reconnect,
         pendingPlan,
         approvePlan,
         rejectPlan,
-        reconnect,
         dispatchError,
       }}
     >
@@ -210,3 +252,4 @@ export function useBifrost(): BifrostContextValue {
   if (!ctx) throw new Error('useBifrost must be used within a BifrostProvider');
   return ctx;
 }
+

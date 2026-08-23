@@ -1,11 +1,8 @@
-const path = require('node:path');
+const path = require('path');
 const webpack = require('webpack');
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   webpack: (config, { isServer }) => {
     config.plugins.push(
       new webpack.IgnorePlugin({
@@ -39,6 +36,22 @@ const nextConfig = {
     }
 
     return config;
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/bifrost/:path*',
+        destination: 'http://localhost:3001/api/bifrost/:path*',
+      },
+      {
+        source: '/webhook/:path*',
+        destination: 'http://localhost:3001/webhook/:path*',
+      },
+      {
+        source: '/bifrost-ws',
+        destination: 'http://localhost:3001',
+      },
+    ];
   },
 };
 

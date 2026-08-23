@@ -1,5 +1,16 @@
-import { defineAction } from '@agent-native/core';
 import { z } from 'zod';
+
+export interface ActionDefinition<TInput, TOutput> {
+  description: string;
+  schema: z.ZodType<TInput>;
+  run: (input: TInput) => Promise<TOutput>;
+}
+
+export function defineAction<TInput, TOutput>(
+  def: ActionDefinition<TInput, TOutput>,
+): ActionDefinition<TInput, TOutput> {
+  return def;
+}
 
 export interface DispatchPlumberResult {
   status: string;

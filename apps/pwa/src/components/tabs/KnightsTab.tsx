@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useBifrost } from '../../context/BifrostContext';
 import { KNIGHTS, type Knight } from '../../lib/realm-data';
 import { KnightConsole } from '../KnightConsole';
 
@@ -11,13 +12,10 @@ const statusDot: Record<Knight['status'], string> = {
 };
 
 function KnightCard({ knight, onOpen }: { knight: Knight; onOpen: () => void }) {
+  const { sendVoiceCommand, connected } = useBifrost();
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex flex-col border border-gold/20 bg-smoke-800/80 p-5 text-left backdrop-blur-sm transition-shadow hover:border-gold/40 hover:shadow-gold"
-    >
-      <div className="flex w-full items-start justify-between">
+    <div className="flex flex-col border border-gold/20 bg-smoke-800/80 p-5 backdrop-blur-sm transition-shadow hover:border-gold/40 hover:shadow-gold">
+      <div className="flex items-start justify-between">
         <div>
           <p className="font-display text-2xl text-gold-royal tracking-minted">{knight.name}</p>
           <p className="mt-0.5 text-[11px] text-white/40 uppercase tracking-[0.16em]">
@@ -30,10 +28,24 @@ function KnightCard({ knight, onOpen }: { knight: Knight; onOpen: () => void }) 
         </span>
       </div>
       <p className="mt-4 flex-1 text-sm text-white/55">{knight.task}</p>
-      <span className="mt-4 self-start border border-violet/50 px-3 py-1.5 text-[11px] text-violet-light uppercase tracking-widest transition-colors group-hover:bg-violet/15">
-        Open Console
-      </span>
-    </button>
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="border border-gold/40 bg-gold/5 px-3 py-1.5 text-[11px] text-gold-light uppercase tracking-widest transition-colors hover:bg-gold/15"
+        >
+          Console
+        </button>
+        <button
+          type="button"
+          disabled={!connected}
+          onClick={() => sendVoiceCommand(`dispatch ${knight.id}`)}
+          className="border border-violet/50 px-3 py-1.5 text-[11px] text-violet-light uppercase tracking-widest transition-colors hover:bg-violet/15 disabled:opacity-40"
+        >
+          Dispatch
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -60,3 +72,4 @@ export function KnightsTab() {
     </div>
   );
 }
+
