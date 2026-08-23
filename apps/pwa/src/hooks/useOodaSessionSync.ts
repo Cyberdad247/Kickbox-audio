@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import type { OodaStageId, DiagnosticEvent, OodaStateTransition } from '../components/dashboard/OODADiagnosticVisualizer';
+import { useCallback, useEffect, useState } from 'react';
+import type {
+  DiagnosticEvent,
+  OodaStageId,
+  OodaStateTransition,
+} from '../components/dashboard/OODADiagnosticVisualizer';
 
 export interface OodaSessionState {
   selectedStageId: OodaStageId;
@@ -42,13 +46,22 @@ export function useOodaSessionSync(defaultState: {
         return {
           selectedStageId: parsed.selectedStageId || defaultState.selectedStageId,
           activeRunningStage: parsed.activeRunningStage || defaultState.activeRunningStage,
-          isAutoLooping: parsed.isAutoLooping !== undefined ? parsed.isAutoLooping : defaultState.isAutoLooping,
+          isAutoLooping:
+            parsed.isAutoLooping !== undefined ? parsed.isAutoLooping : defaultState.isAutoLooping,
           loopCycleCount: parsed.loopCycleCount || defaultState.loopCycleCount,
-          simulatedMutationLines: parsed.simulatedMutationLines || defaultState.simulatedMutationLines,
+          simulatedMutationLines:
+            parsed.simulatedMutationLines || defaultState.simulatedMutationLines,
           filterType: parsed.filterType || defaultState.filterType,
-          isMinimized: parsed.isMinimized !== undefined ? parsed.isMinimized : defaultState.isMinimized,
-          events: Array.isArray(parsed.events) && parsed.events.length > 0 ? parsed.events : (defaultState.events || []),
-          transitions: Array.isArray(parsed.transitions) && parsed.transitions.length > 0 ? parsed.transitions : fallbackTransitions,
+          isMinimized:
+            parsed.isMinimized !== undefined ? parsed.isMinimized : defaultState.isMinimized,
+          events:
+            Array.isArray(parsed.events) && parsed.events.length > 0
+              ? parsed.events
+              : defaultState.events || [],
+          transitions:
+            Array.isArray(parsed.transitions) && parsed.transitions.length > 0
+              ? parsed.transitions
+              : fallbackTransitions,
         };
       }
     } catch (e) {
@@ -67,16 +80,23 @@ export function useOodaSessionSync(defaultState: {
     }
   }, [state]);
 
-  const updateState = useCallback((patch: Partial<OodaSessionState> | ((prev: OodaSessionState) => OodaSessionState)) => {
-    setState((prev) => {
-      const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch };
-      return {
-        ...next,
-        events: Array.isArray(next.events) ? next.events : (prev.events || defaultState.events || []),
-        transitions: Array.isArray(next.transitions) ? next.transitions : (prev.transitions || fallbackTransitions || []),
-      };
-    });
-  }, [defaultState.events, fallbackTransitions]);
+  const updateState = useCallback(
+    (patch: Partial<OodaSessionState> | ((prev: OodaSessionState) => OodaSessionState)) => {
+      setState((prev) => {
+        const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch };
+        return {
+          ...next,
+          events: Array.isArray(next.events)
+            ? next.events
+            : prev.events || defaultState.events || [],
+          transitions: Array.isArray(next.transitions)
+            ? next.transitions
+            : prev.transitions || fallbackTransitions || [],
+        };
+      });
+    },
+    [defaultState.events, fallbackTransitions],
+  );
 
   const resetState = useCallback((initialFallback: OodaSessionState) => {
     setState(initialFallback);

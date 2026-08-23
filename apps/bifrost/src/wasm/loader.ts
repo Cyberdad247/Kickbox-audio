@@ -10,7 +10,7 @@ export async function getWasmInstance() {
   const module = await WebAssembly.instantiate(wasmBuffer, {
     env: {
       memory: new WebAssembly.Memory({ initial: 256, maximum: 256, shared: true }),
-    }
+    },
   });
   wasmInstance = module.instance;
   return wasmInstance;

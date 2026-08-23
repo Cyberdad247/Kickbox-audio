@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
+import type React from 'react';
 import OODADiagnosticVisualizer, {
-  OodaStageId,
-  OodaStageInfo,
-  DiagnosticEvent,
-  OodaStateTransition,
-  OODADiagnosticVisualizerProps,
+  type OodaStageId,
+  type OodaStageInfo,
+  type DiagnosticEvent,
+  type OodaStateTransition,
+  type OODADiagnosticVisualizerProps,
 } from './OODADiagnosticVisualizer';
 
 export type {

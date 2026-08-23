@@ -464,13 +464,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
                 ...t,
                 configuration: { ...t.configuration, ...config } as TenantConfiguration,
               }
-            : t
-        )
+            : t,
+        ),
       );
     },
-    [activeTenant.id]
+    [activeTenant.id],
   );
-
 
   return (
     <TenantContext.Provider

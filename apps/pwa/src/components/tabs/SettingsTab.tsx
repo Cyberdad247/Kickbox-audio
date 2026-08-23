@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useActivityLog } from '../../context/ActivityLogContext';
 import { useBifrost } from '../../context/BifrostContext';
 import { useMacros } from '../../context/MacroContext';
-import { useActivityLog } from '../../context/ActivityLogContext';
 import { ActivityLogDisplay } from '../capsule/ActivityLogDisplay';
 
 function Toggle({
@@ -45,12 +45,13 @@ const AVAILABLE_TABS = [
 
 export function SettingsTab() {
   const { connected } = useBifrost();
-  const { macros, openMacroModal, toggleMacro, executeMacro, activeExecution, createMacro } = useMacros();
+  const { macros, openMacroModal, toggleMacro, executeMacro, activeExecution, createMacro } =
+    useMacros();
   const { logs, logActivity, clearLogs } = useActivityLog();
   const [voice, setVoice] = useState(true);
   const [motion, setMotion] = useState(true);
   const [purged, setPurged] = useState(false);
-  
+
   // Navigation Voice Mapping State
   const [phrase, setPhrase] = useState('');
   const [targetTab, setTargetTab] = useState('overview');
@@ -80,7 +81,7 @@ export function SettingsTab() {
           label: 'Voice Response',
           payload: `Opening ${targetTab}.`,
           delayMs: 100,
-        }
+        },
       ],
     });
     setPhrase('');
@@ -116,13 +117,17 @@ export function SettingsTab() {
       const payloadString = JSON.stringify(logs);
       const encoder = new TextEncoder();
       const data = encoder.encode(payloadString);
-      
+
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const signature = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
       // Simulated encrypted payload
-      const base64Payload = btoa(Array.from(data).map(b => String.fromCharCode(b)).join(''));
+      const base64Payload = btoa(
+        Array.from(data)
+          .map((b) => String.fromCharCode(b))
+          .join(''),
+      );
 
       const exportData = {
         header: {
@@ -213,7 +218,9 @@ export function SettingsTab() {
         </p>
         <form onSubmit={handleAddNavMapping} className="flex flex-col sm:flex-row gap-3 items-end">
           <div className="flex-1 w-full space-y-1">
-            <label className="text-[10px] text-white/40 uppercase tracking-widest">Trigger Phrase</label>
+            <label className="text-[10px] text-white/40 uppercase tracking-widest">
+              Trigger Phrase
+            </label>
             <input
               type="text"
               placeholder="e.g. 'show me the money'"
@@ -223,14 +230,18 @@ export function SettingsTab() {
             />
           </div>
           <div className="flex-1 w-full space-y-1">
-            <label className="text-[10px] text-white/40 uppercase tracking-widest">Target View</label>
+            <label className="text-[10px] text-white/40 uppercase tracking-widest">
+              Target View
+            </label>
             <select
               value={targetTab}
               onChange={(e) => setTargetTab(e.target.value)}
               className="w-full border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-cyan-400 focus:outline-none transition-colors appearance-none"
             >
-              {AVAILABLE_TABS.map(tab => (
-                <option key={tab} value={tab}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</option>
+              {AVAILABLE_TABS.map((tab) => (
+                <option key={tab} value={tab}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </option>
               ))}
             </select>
           </div>
@@ -317,13 +328,11 @@ export function SettingsTab() {
           })}
         </div>
       </div>
-    
 
       {/* Activity / Audit Log Section */}
       <div className="mt-8">
         <ActivityLogDisplay embedded={true} maxEntries={20} />
       </div>
-
     </div>
   );
 }

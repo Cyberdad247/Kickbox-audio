@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTenant } from '../context/TenantContext';
 
 export function useWakeWord(onWakeWordDetected: () => void, isMainListening: boolean) {
@@ -6,10 +6,10 @@ export function useWakeWord(onWakeWordDetected: () => void, isMainListening: boo
   const config = activeTenant.configuration;
   const isEnabled = config?.wakeWordEnabled ?? false;
   const targetWord = (config?.wakeWord || 'lakisha').toLowerCase().trim();
-  
+
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const recognitionRef = useRef<any>(null);
   const callbackRef = useRef(onWakeWordDetected);
 
@@ -19,7 +19,8 @@ export function useWakeWord(onWakeWordDetected: () => void, isMainListening: boo
 
   const startListening = useCallback(() => {
     if (typeof window === 'undefined') return;
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setError('Speech Recognition not supported');
       return;
@@ -35,13 +36,13 @@ export function useWakeWord(onWakeWordDetected: () => void, isMainListening: boo
       recognition.onresult = (event: any) => {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript.toLowerCase();
-          
+
           if (transcript.includes(targetWord)) {
             console.log('Wake word detected:', targetWord);
             if (callbackRef.current) {
               callbackRef.current();
             }
-            
+
             // Stop and restart to clear the transcript buffer
             recognition.stop();
             break;
@@ -95,7 +96,7 @@ export function useWakeWord(onWakeWordDetected: () => void, isMainListening: boo
     } else {
       stopListening();
     }
-    
+
     return () => {
       stopListening();
     };

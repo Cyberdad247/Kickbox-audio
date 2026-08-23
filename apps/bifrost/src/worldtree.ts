@@ -1,12 +1,12 @@
-// CAMELOT-OS: Worldtree Cloudbrain Bridge (Sir Helio)
-import { DriftAdaptiveCRDT } from './crdt_ledger';
 import fs from 'fs';
 import path from 'path';
+// CAMELOT-OS: Worldtree Cloudbrain Bridge (Sir Helio)
+import { DriftAdaptiveCRDT } from './crdt_ledger';
 
 export class WorldtreeCloudbrain {
   private crdt = new DriftAdaptiveCRDT();
   private agentMemoryPath = path.resolve(process.cwd(), '.agent/memory_slabs');
-  
+
   constructor() {
     if (!fs.existsSync(this.agentMemoryPath)) {
       fs.mkdirSync(this.agentMemoryPath, { recursive: true });
@@ -19,13 +19,13 @@ export class WorldtreeCloudbrain {
     // Simulated deep-read and NotebookLM ingestion
     const memoryKey = `repo:${path.basename(repoPath)}:context`;
     const vectorData = new Array(1536).fill(0).map(() => Math.random());
-    
+
     const op = this.crdt.ingestMemory(
       memoryKey,
       { status: 'mapped', timestamp: Date.now(), depth: '1M_tokens' },
-      vectorData
+      vectorData,
     );
-    
+
     this.persistToSlab(op);
     return op;
   }
@@ -41,7 +41,7 @@ export class WorldtreeCloudbrain {
     return {
       status: 'SYNC_COMPLETE',
       ledgerSize: Object.keys(this.crdt.getSnapshot()).length,
-      latencyMs: 14.2
+      latencyMs: 14.2,
     };
   }
 }

@@ -39,7 +39,8 @@ export async function listGoogleSpreadsheets(accessToken: string): Promise<any[]
   const params = new URLSearchParams({
     q,
     pageSize: '50',
-    fields: 'files(id, name, mimeType, size, modifiedTime, createdTime, description, webViewLink, iconLink)',
+    fields:
+      'files(id, name, mimeType, size, modifiedTime, createdTime, description, webViewLink, iconLink)',
     orderBy: 'modifiedTime desc',
   });
 
@@ -61,13 +62,13 @@ export async function listGoogleSpreadsheets(accessToken: string): Promise<any[]
  */
 export async function getSpreadsheetMetadata(
   accessToken: string,
-  spreadsheetId: string
+  spreadsheetId: string,
 ): Promise<GoogleSpreadsheetMetadata> {
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=spreadsheetId,properties.title,spreadsheetUrl,sheets.properties`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
-    }
+    },
   );
 
   if (!res.ok) {
@@ -79,7 +80,8 @@ export async function getSpreadsheetMetadata(
   return {
     spreadsheetId: raw.spreadsheetId,
     title: raw.properties?.title || 'Untitled Spreadsheet',
-    spreadsheetUrl: raw.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+    spreadsheetUrl:
+      raw.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     sheets: (raw.sheets || []).map((s: any) => ({
       sheetId: s.properties?.sheetId,
       title: s.properties?.title || 'Sheet1',
@@ -96,19 +98,21 @@ export async function getSpreadsheetMetadata(
 export async function getSpreadsheetValues(
   accessToken: string,
   spreadsheetId: string,
-  range = 'Sheet1!A1:Z100'
+  range = 'Sheet1!A1:Z100',
 ): Promise<GoogleValueRange> {
   const encodedRange = encodeURIComponent(range);
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
-    }
+    },
   );
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to fetch spreadsheet range ${range} (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to fetch spreadsheet range ${range} (${res.status})`,
+    );
   }
 
   return res.json();
@@ -121,7 +125,7 @@ export async function updateSpreadsheetValues(
   accessToken: string,
   spreadsheetId: string,
   range: string,
-  values: any[][]
+  values: any[][],
 ): Promise<any> {
   const encodedRange = encodeURIComponent(range);
   const body = {
@@ -139,7 +143,7 @@ export async function updateSpreadsheetValues(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-    }
+    },
   );
 
   if (!res.ok) {
@@ -157,7 +161,7 @@ export async function appendSpreadsheetRow(
   accessToken: string,
   spreadsheetId: string,
   range: string,
-  rowValues: any[]
+  rowValues: any[],
 ): Promise<any> {
   const encodedRange = encodeURIComponent(range);
   const body = {
@@ -175,7 +179,7 @@ export async function appendSpreadsheetRow(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-    }
+    },
   );
 
   if (!res.ok) {
@@ -193,7 +197,7 @@ export async function createNewSpreadsheet(
   accessToken: string,
   title: string,
   initialHeaders?: string[],
-  initialRows?: any[][]
+  initialRows?: any[][],
 ): Promise<GoogleSpreadsheetMetadata> {
   const sheets: any[] = [
     {
@@ -234,14 +238,17 @@ export async function createNewSpreadsheet(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to create new Google Spreadsheet (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to create new Google Spreadsheet (${res.status})`,
+    );
   }
 
   const raw = await res.json();
   return {
     spreadsheetId: raw.spreadsheetId,
     title: raw.properties?.title || title,
-    spreadsheetUrl: raw.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${raw.spreadsheetId}/edit`,
+    spreadsheetUrl:
+      raw.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${raw.spreadsheetId}/edit`,
     sheets: (raw.sheets || []).map((s: any) => ({
       sheetId: s.properties?.sheetId,
       title: s.properties?.title || 'Sheet1',
@@ -258,7 +265,7 @@ export async function createNewSpreadsheet(
 export async function analyzeSpreadsheetWithGemini(
   spreadsheetTitle: string,
   headers: string[],
-  rows: any[][]
+  rows: any[][],
 ): Promise<GeminiSheetAnalysis> {
   const sampledRows = rows.slice(0, 30);
   const prompt = `You are a Senior Data Analyst AI in Camelot OS. Analyze the following Google Spreadsheet dataset:

@@ -1,5 +1,10 @@
-'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import fs from 'fs';
+
+// 1. Revert RunicConsole.tsx
+const runicFile = 'apps/pwa/src/components/capsule/RunicConsole.tsx';
+const runicContent = `'use client';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
 
 export interface LogEntry {
@@ -11,6 +16,7 @@ export interface LogEntry {
 
 export function RunicConsole() {
   const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState('');
   const [history, setHistory] = useState<LogEntry[]>([
     {
       id: 'init',
@@ -19,21 +25,22 @@ export function RunicConsole() {
       timestamp: new Date().toISOString(),
     },
   ]);
-  const [input, setInput] = useState('');
+
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle console with Ctrl+` or Cmd+`
-      if (e.key === '`' && (e.metaKey || e.ctrlKey)) {
+      // Toggle console with Ctrl+\` or Cmd+\`
+      if (e.key === '\`' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setIsOpen(!isOpen);
+        setIsOpen((prev) => !prev);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, []);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -47,23 +54,24 @@ export function RunicConsole() {
     }
   }, [history, isOpen]);
 
+  const addLog = (type: LogEntry['type'], text: string) => {
+    setHistory((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(7),
+        type,
+        text,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+  };
+
   const handleExecute = (cmd: string) => {
     const trimmed = cmd.trim();
     if (!trimmed) return;
 
-    const addLog = (type: LogEntry['type'], text: string) => {
-      setHistory((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(36).substring(7),
-          type,
-          text,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    };
-
     addLog('input', trimmed);
+
     let outcomeText = '';
     let outcomeType: LogEntry['type'] = 'system';
 
@@ -71,44 +79,37 @@ export function RunicConsole() {
       const symbolect = trimmed.toLowerCase();
       switch (symbolect) {
         case '//boot':
-          outcomeText =
-            '[ANYA_Ω] ⚡ Virtual Simulation Terminal instantiated. Hardware telemetry verified. Shared memory backplane mounted.';
+          outcomeText = '[ANYA_Ω] ⚡ Virtual Simulation Terminal instantiated. Hardware telemetry verified. Shared memory backplane mounted.';
           break;
         case '//shield':
           outcomeText = '[SIR_SENTINEL] 🛡️ AgentArmor engaged. Zero-trust sandbox isolation locked.';
           break;
         case '//verify':
-          outcomeText =
-            '[SIR_GIDEON] 🧪 Shadow VM crucible triggered. Validating TDD and executing Z3 formal logic proofs... [SAT]';
+          outcomeText = '[SIR_GIDEON] 🧪 Shadow VM crucible triggered. Validating TDD and executing Z3 formal logic proofs... [SAT]';
           break;
         case '//gate':
-          outcomeText =
-            '[MERLIN_Ω] ⚖️ Iron Gate invoked. Awaiting sovereign authorization... {👤✅}';
+          outcomeText = '[MERLIN_Ω] ⚖️ Iron Gate invoked. Awaiting sovereign authorization... {👤✅}';
           break;
         case '//sync':
-          outcomeText =
-            '[LADY_MNEMOSYNE_Ω] 🌐 Broadcasting CRDT ledger updates across the Worldtree Cloudbrain (NotebookLM)... Synchronized.';
+          outcomeText = '[LADY_MNEMOSYNE_Ω] 🌐 Broadcasting CRDT ledger updates across the Worldtree Cloudbrain (NotebookLM)... Synchronized.';
           break;
         case '//seal':
-          outcomeText =
-            '⚜️_SOVEREIGN_TRUTH: Master cryptographic transaction sealed. Deployment finalized.';
+          outcomeText = '⚜️_SOVEREIGN_TRUTH: Master cryptographic transaction sealed. Deployment finalized.';
           outcomeType = 'success';
           break;
         case '//help':
-          outcomeText =
-            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //clear';
+          outcomeText = 'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //clear';
           break;
         case '//clear':
           setHistory([]);
           ProvenanceLedgerService.record(trimmed, 'Console history cleared.');
           return;
         default:
-          outcomeText = `Unknown Symbolect: ${trimmed}. Type //help for a list of available commands.`;
+          outcomeText = \`Unknown Symbolect: \${trimmed}. Type //help for a list of available commands.\`;
           outcomeType = 'error';
       }
     } else {
-      outcomeText =
-        'Error: Only Runic Symbolects (prefixed with //) are supported in this terminal.';
+      outcomeText = 'Error: Only Runic Symbolects (prefixed with //) are supported in this terminal.';
       outcomeType = 'error';
     }
 
@@ -129,13 +130,13 @@ export function RunicConsole() {
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-white/50 backdrop-blur-md hover:border-gold/50 hover:text-gold transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]"
       >
         <span>Terminal</span>
-        <span className="opacity-50">⌘`</span>
+        <span className="opacity-50">⌘\`</span>
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-0 left-0 z-[100] flex h-64 w-full flex-col border-t border-gold/20 bg-[#0B0914]/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.7)]">
+    <div className="fixed bottom-0 left-0 z-[100] flex h-64 w-full flex-col border-t border-gold/20 bg-[#0B0914]/95 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.7)]">
       <div className="flex h-8 items-center justify-between border-b border-white/10 bg-black/40 px-4">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-gold animate-pulse"></span>
@@ -195,3 +196,27 @@ export function RunicConsole() {
     </div>
   );
 }
+`;
+fs.writeFileSync(runicFile, runicContent);
+
+// 2. Revert CapsuleHost.tsx
+const hostFile = 'apps/pwa/src/components/capsule/CapsuleHost.tsx';
+let hostContent = fs.readFileSync(hostFile, 'utf8');
+
+// A. Restore import
+hostContent = hostContent.replace(
+  "import { RunicConsole, type LogEntry } from './RunicConsole';\nimport { ProvenanceLedgerService } from '../../lib/provenanceLedger';",
+  "import { RunicConsole } from './RunicConsole';"
+);
+
+// B. Remove state and handler
+const stateRegex = /  const \[isRunicConsoleOpen, setIsRunicConsoleOpen\] = React\.useState\(false\);[\s\S]*?ProvenanceLedgerService\.record\(trimmed, outcomeText\);\n  \};\n/m;
+hostContent = hostContent.replace(stateRegex, '');
+
+// C. Revert component call
+const componentRegex = /<RunicConsole \n        isOpen=\{isRunicConsoleOpen\}\n        setIsOpen=\{setIsRunicConsoleOpen\}\n        history=\{runicHistory\}\n        handleExecute=\{handleRunicExecute\}\n      \/>/m;
+hostContent = hostContent.replace(componentRegex, '<RunicConsole />');
+
+fs.writeFileSync(hostFile, hostContent);
+
+console.log('Successfully reverted state back to RunicConsole.tsx');

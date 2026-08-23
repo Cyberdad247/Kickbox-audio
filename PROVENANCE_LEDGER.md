@@ -36,3 +36,39 @@
 - **Status:** SEALED
 - **Signatures:** Anya_Ω, Merlin_Ω, Sir Octavian, Paladin Octem
 - **Action:** Sections 6, 7, and 8 (Kinetic Pipeline, Runic Symbolects, Definition of Done) appended to architecture blueprints. Protocol finalized.
+
+### Transaction 0x918187755669
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:35:00Z
+- **Command:** `//gate`
+- **Outcome:** [MERLIN_Ω] ⚖️ Iron Gate invoked.
+
+### Transaction 0x4b4d2fadcc4c
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:42:00Z
+- **Command:** `//execute oauth_gmail`
+- **Outcome:** [SIR_BORIS] Gmail OAuth Context updated successfully.
+
+### Transaction 0xf27803871e88
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:45:00Z
+- **Command:** `//execute oauth_gmail_gis`
+- **Outcome:** [SIR_CODEX] GmailContext fully integrates Google Identity Services (GIS) token exchange for unread headers.
+
+### Transaction 0x9b2fc8df183c
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:49:00Z
+- **Command:** `//execute stylize_runic_console`
+- **Outcome:** [SIR_BORIS] Adjusted RunicConsole styling to seamlessly blend with the Sovereign Aura interface utilizing semi-transparency and backdrop blur.
+
+### Transaction 0x5e3366a76944
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:52:00Z
+- **Command:** `//execute runic_console`
+- **Outcome:** [SIR_BORIS] Runic Console overlay initialized with symbolect command parser and integrated into CapsuleHost.
+
+### Transaction 0xa86173ee12a3
+- **Status:** RECORDED
+- **Timestamp:** 2026-08-23T21:56:00Z
+- **Command:** `//execute isolate_runic_console`
+- **Outcome:** [SIR_CODEX] Refactored RunicConsole to encapsulate command parsing (symbolects), history buffer, and state management, exporting a clean, backdrop-blurred component to CapsuleHost.

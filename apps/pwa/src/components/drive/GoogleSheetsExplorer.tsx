@@ -1,25 +1,26 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { User } from 'firebase/auth';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   initDriveAuth,
   signInWithGoogleDrive,
   signOutGoogleDrive,
 } from '../../lib/googleDriveAuth';
 import {
-  listGoogleSpreadsheets,
-  getSpreadsheetMetadata,
-  getSpreadsheetValues,
-  updateSpreadsheetValues,
-  appendSpreadsheetRow,
-  createNewSpreadsheet,
-  analyzeSpreadsheetWithGemini,
+  type GeminiSheetAnalysis,
   type GoogleSpreadsheetMetadata,
   type GoogleSpreadsheetSheet,
   type GoogleValueRange,
-  type GeminiSheetAnalysis,
+  analyzeSpreadsheetWithGemini,
+  appendSpreadsheetRow,
+  createNewSpreadsheet,
+  getSpreadsheetMetadata,
+  getSpreadsheetValues,
+  listGoogleSpreadsheets,
+  updateSpreadsheetValues,
 } from '../../lib/googleSheetsService';
-import type { User } from 'firebase/auth';
 
 export function GoogleSheetsExplorer() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -33,7 +34,9 @@ export function GoogleSheetsExplorer() {
   const [searchFilter, setSearchFilter] = useState('');
 
   // Active Selected Spreadsheet
-  const [activeSpreadsheet, setActiveSpreadsheet] = useState<GoogleSpreadsheetMetadata | null>(null);
+  const [activeSpreadsheet, setActiveSpreadsheet] = useState<GoogleSpreadsheetMetadata | null>(
+    null,
+  );
   const [activeSheetName, setActiveSheetName] = useState<string>('Sheet1');
   const [sheetValues, setSheetValues] = useState<any[][]>([]);
   const [isLoadingValues, setIsLoadingValues] = useState(false);
@@ -47,7 +50,9 @@ export function GoogleSheetsExplorer() {
   // Modals & New Spreadsheet State
   const [isNewSheetModalOpen, setIsNewSheetModalOpen] = useState(false);
   const [newSheetTitle, setNewSheetTitle] = useState('');
-  const [newSheetHeaderInput, setNewSheetHeaderInput] = useState('Date, Category, Description, Amount, Status');
+  const [newSheetHeaderInput, setNewSheetHeaderInput] = useState(
+    'Date, Category, Description, Amount, Status',
+  );
   const [isCreatingSheet, setIsCreatingSheet] = useState(false);
 
   // New Row Form
@@ -72,7 +77,7 @@ export function GoogleSheetsExplorer() {
       () => {
         setCurrentUser(null);
         setAccessToken(null);
-      }
+      },
     );
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
@@ -214,7 +219,12 @@ export function GoogleSheetsExplorer() {
     setSaveSuccessMsg(null);
     try {
       const range = `'${activeSheetName}'!A1`;
-      await updateSpreadsheetValues(accessToken, activeSpreadsheet.spreadsheetId, range, sheetValues);
+      await updateSpreadsheetValues(
+        accessToken,
+        activeSpreadsheet.spreadsheetId,
+        range,
+        sheetValues,
+      );
       setSaveSuccessMsg('✨ All spreadsheet updates saved to Google Sheets!');
       setTimeout(() => setSaveSuccessMsg(null), 4000);
     } catch (err: any) {
@@ -233,7 +243,7 @@ export function GoogleSheetsExplorer() {
         accessToken,
         activeSpreadsheet.spreadsheetId,
         `'${activeSheetName}'!A1`,
-        newRowData
+        newRowData,
       );
       setIsAddRowOpen(false);
       setNewRowData([]);
@@ -282,7 +292,8 @@ export function GoogleSheetsExplorer() {
           Google Sheets Cockpit — Camelot OS
         </h2>
         <p className="max-w-lg text-sm text-white/60 mb-6">
-          Access, view, edit, create, and analyze Google Spreadsheets with integrated Gemini 3.7 AI Data Scientist capabilities.
+          Access, view, edit, create, and analyze Google Spreadsheets with integrated Gemini 3.7 AI
+          Data Scientist capabilities.
         </p>
 
         {authError && (
@@ -298,11 +309,23 @@ export function GoogleSheetsExplorer() {
           className="group relative inline-flex items-center gap-3 rounded-full border border-white/20 bg-white px-6 py-3 font-sans text-sm font-medium text-gray-800 shadow-md transition-all hover:bg-gray-50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            <path fill="none" d="M0 0h48v48H0z"/>
+            <path
+              fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+            />
+            <path
+              fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+            />
+            <path
+              fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+            />
+            <path fill="none" d="M0 0h48v48H0z" />
           </svg>
           <span className="font-medium text-gray-700">
             {isAuthenticating ? 'Connecting...' : 'Connect Google Sheets'}
@@ -368,7 +391,9 @@ export function GoogleSheetsExplorer() {
             <h4 className="font-mono text-xs font-bold text-white/80 uppercase tracking-wider">
               Your Spreadsheets
             </h4>
-            <span className="font-mono text-[10px] text-emerald-400 font-bold">{spreadsheets.length}</span>
+            <span className="font-mono text-[10px] text-emerald-400 font-bold">
+              {spreadsheets.length}
+            </span>
           </div>
 
           <input
@@ -381,9 +406,13 @@ export function GoogleSheetsExplorer() {
 
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[450px]">
             {isLoadingList ? (
-              <div className="p-4 text-center font-mono text-xs text-white/40">Loading sheets...</div>
+              <div className="p-4 text-center font-mono text-xs text-white/40">
+                Loading sheets...
+              </div>
             ) : filteredSpreadsheets.length === 0 ? (
-              <div className="p-4 text-center font-mono text-xs text-white/40">No spreadsheets found</div>
+              <div className="p-4 text-center font-mono text-xs text-white/40">
+                No spreadsheets found
+              </div>
             ) : (
               filteredSpreadsheets.map((sheet) => {
                 const isSelected = activeSpreadsheet?.spreadsheetId === sheet.id;
@@ -402,7 +431,9 @@ export function GoogleSheetsExplorer() {
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-bold">{sheet.name}</div>
                       <div className="text-[9px] text-white/40 mt-0.5">
-                        {sheet.modifiedTime ? new Date(sheet.modifiedTime).toLocaleDateString() : 'Updated recently'}
+                        {sheet.modifiedTime
+                          ? new Date(sheet.modifiedTime).toLocaleDateString()
+                          : 'Updated recently'}
                       </div>
                     </div>
                   </button>
@@ -464,7 +495,9 @@ export function GoogleSheetsExplorer() {
 
                   <button
                     type="button"
-                    onClick={() => setActiveViewMode(activeViewMode === 'grid' ? 'embedded' : 'grid')}
+                    onClick={() =>
+                      setActiveViewMode(activeViewMode === 'grid' ? 'embedded' : 'grid')
+                    }
                     className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 font-mono text-xs text-white/70 hover:text-white"
                   >
                     {activeViewMode === 'grid' ? '🖥️ Desktop Web View' : '🔲 Grid Editor'}
@@ -519,7 +552,9 @@ export function GoogleSheetsExplorer() {
                   <div className="flex items-center justify-between border-b border-gold/20 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-base">✨</span>
-                      <span className="font-bold text-white text-sm">Gemini 3.7 AI Data Intelligence</span>
+                      <span className="font-bold text-white text-sm">
+                        Gemini 3.7 AI Data Intelligence
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -601,9 +636,14 @@ export function GoogleSheetsExplorer() {
                       <table className="w-full border-collapse font-mono text-xs text-left">
                         <thead>
                           <tr className="border-b border-white/20 bg-white/5 text-emerald-400 font-bold">
-                            <th className="p-2 w-10 text-center border-r border-white/10 text-[10px] text-white/30">#</th>
+                            <th className="p-2 w-10 text-center border-r border-white/10 text-[10px] text-white/30">
+                              #
+                            </th>
                             {headers.map((h, colIdx) => (
-                              <th key={colIdx} className="p-2 border-r border-white/10 min-w-[120px]">
+                              <th
+                                key={colIdx}
+                                className="p-2 border-r border-white/10 min-w-[120px]"
+                              >
                                 {h || `Column ${colIdx + 1}`}
                               </th>
                             ))}
@@ -616,7 +656,8 @@ export function GoogleSheetsExplorer() {
                                 {rowIdx + 2}
                               </td>
                               {headers.map((_, colIdx) => {
-                                const isEditing = editingCell?.row === rowIdx + 1 && editingCell?.col === colIdx;
+                                const isEditing =
+                                  editingCell?.row === rowIdx + 1 && editingCell?.col === colIdx;
                                 const cellVal = row[colIdx] || '';
 
                                 return (
@@ -641,7 +682,11 @@ export function GoogleSheetsExplorer() {
                                         className="w-full bg-black border border-emerald-500 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none"
                                       />
                                     ) : (
-                                      <span className={cellVal ? 'text-white/90' : 'text-white/20 italic'}>
+                                      <span
+                                        className={
+                                          cellVal ? 'text-white/90' : 'text-white/20 italic'
+                                        }
+                                      >
                                         {cellVal || 'empty'}
                                       </span>
                                     )}
@@ -660,9 +705,12 @@ export function GoogleSheetsExplorer() {
           ) : (
             <div className="flex h-full min-h-[450px] flex-col items-center justify-center text-center p-8 text-white/50">
               <span className="text-5xl mb-3 opacity-40">📊</span>
-              <h3 className="font-display text-lg font-bold text-white mb-1">No Spreadsheet Selected</h3>
+              <h3 className="font-display text-lg font-bold text-white mb-1">
+                No Spreadsheet Selected
+              </h3>
               <p className="max-w-md text-xs text-white/50 mb-6">
-                Select a Google Spreadsheet from the left sidebar or create a new one to begin editing and analyzing data.
+                Select a Google Spreadsheet from the left sidebar or create a new one to begin
+                editing and analyzing data.
               </p>
               <button
                 type="button"
@@ -683,12 +731,16 @@ export function GoogleSheetsExplorer() {
             onSubmit={handleCreateSpreadsheet}
             className="w-full max-w-md rounded-2xl border border-emerald-500/40 bg-smoke-900 p-6 shadow-[0_10px_50px_rgba(16,185,129,0.3)]"
           >
-            <h3 className="font-display text-lg font-bold text-white mb-2">Create Google Spreadsheet</h3>
+            <h3 className="font-display text-lg font-bold text-white mb-2">
+              Create Google Spreadsheet
+            </h3>
             <p className="text-xs text-white/50 mb-4">Saved directly to your Google Drive root</p>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="font-mono text-[10px] text-white/60 uppercase">Spreadsheet Title</label>
+                <label className="font-mono text-[10px] text-white/60 uppercase">
+                  Spreadsheet Title
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. Q3 Financial Ledger..."
@@ -745,7 +797,9 @@ export function GoogleSheetsExplorer() {
             <div className="space-y-3 mb-6 max-h-[300px] overflow-y-auto pr-1">
               {headers.map((h, i) => (
                 <div key={i}>
-                  <label className="font-mono text-[10px] text-emerald-400 font-bold uppercase">{h}</label>
+                  <label className="font-mono text-[10px] text-emerald-400 font-bold uppercase">
+                    {h}
+                  </label>
                   <input
                     type="text"
                     value={newRowData[i] || ''}

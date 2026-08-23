@@ -80,8 +80,14 @@ const STAGES: OodaStageInfo[] = [
         { key: 'Ingest Ceiling', val: '<20ms budget allocation' },
         { key: 'Zero-Copy VFS', val: 'Isomorphic tree-state synchronized' },
       ],
-      subsystems: ['AudioRMSVisemeBridge', 'VfsMerkleScanner', 'BifrostBridgeNexus', 'EnvironmentalSkySync'],
-      governanceLaw: 'ANYA_IS_THE_GATE: No unverified packet enters without cryptographic origin validation.',
+      subsystems: [
+        'AudioRMSVisemeBridge',
+        'VfsMerkleScanner',
+        'BifrostBridgeNexus',
+        'EnvironmentalSkySync',
+      ],
+      governanceLaw:
+        'ANYA_IS_THE_GATE: No unverified packet enters without cryptographic origin validation.',
     },
   },
   {
@@ -112,7 +118,12 @@ const STAGES: OodaStageInfo[] = [
         { key: 'Cognitive Bias', val: 'Dampened via orthogonal scoring' },
         { key: 'Roster Dispatch', val: 'Weighted Knight affinity router' },
       ],
-      subsystems: ['MfoeIntentClassifier', 'WorldtreeVectorStore', 'KnightRosterRouter', 'ContextOptimizer'],
+      subsystems: [
+        'MfoeIntentClassifier',
+        'WorldtreeVectorStore',
+        'KnightRosterRouter',
+        'ContextOptimizer',
+      ],
       governanceLaw: 'System Instructions §2: Strip all fluff; classify intent deterministically.',
     },
   },
@@ -144,8 +155,14 @@ const STAGES: OodaStageInfo[] = [
         { key: 'Isolation Plan', val: 'Copy-on-Write git worktree branches' },
         { key: 'Approval Threshold', val: 'Atomic net 10-line code firewall' },
       ],
-      subsystems: ['MerlinTaskPlanner', 'DagTopologicalSort', 'HitlGateSentinel', 'RollbackCheckpointManager'],
-      governanceLaw: 'Swarm §1: All operations decompose to directed acyclic graphs before kinetic dispatch.',
+      subsystems: [
+        'MerlinTaskPlanner',
+        'DagTopologicalSort',
+        'HitlGateSentinel',
+        'RollbackCheckpointManager',
+      ],
+      governanceLaw:
+        'Swarm §1: All operations decompose to directed acyclic graphs before kinetic dispatch.',
     },
   },
   {
@@ -176,7 +193,12 @@ const STAGES: OodaStageInfo[] = [
         { key: 'Capability Lease', val: 'Cryptographically signed token' },
         { key: 'RAM Floor', val: 'Constrained within 8GB edge ceiling' },
       ],
-      subsystems: ['SmolVmRuntime', 'TreeSitterPatcher', 'ChaCha20LeaseAuthority', 'BifrostAudioDispatcher'],
+      subsystems: [
+        'SmolVmRuntime',
+        'TreeSitterPatcher',
+        'ChaCha20LeaseAuthority',
+        'BifrostAudioDispatcher',
+      ],
       governanceLaw: 'Local Env §2: MicroVM sandbox execution prevents host contamination.',
     },
   },
@@ -208,8 +230,14 @@ const STAGES: OodaStageInfo[] = [
         { key: 'Gideon Protocol', val: '5 failure archetypes validated' },
         { key: 'State Commit', val: 'Signed Merkle Ledger block minted' },
       ],
-      subsystems: ['PaladinOctemZ3Solver', 'Atomic10LineFirewall', 'GideonProtocolAuditor', 'MerkleLedgerMinter'],
-      governanceLaw: 'Zero-Trust §4: No unverified mutation shall ever be committed without Z3 proof.',
+      subsystems: [
+        'PaladinOctemZ3Solver',
+        'Atomic10LineFirewall',
+        'GideonProtocolAuditor',
+        'MerkleLedgerMinter',
+      ],
+      governanceLaw:
+        'Zero-Trust §4: No unverified mutation shall ever be committed without Z3 proof.',
     },
   },
 ];
@@ -367,12 +395,18 @@ export function OODADiagnosticVisualizer({
   const safeTransitions = Array.isArray(transitions) ? transitions : INITIAL_TRANSITIONS;
 
   // Local UI state for Transition History Panel
-  const [activeInspectorTab, setActiveInspectorTab] = React.useState<'TRANSITIONS' | 'EVENTS'>('TRANSITIONS');
-  const [transitionStageFilter, setTransitionStageFilter] = React.useState<'ALL' | OodaStageId>('ALL');
+  const [activeInspectorTab, setActiveInspectorTab] = React.useState<'TRANSITIONS' | 'EVENTS'>(
+    'TRANSITIONS',
+  );
+  const [transitionStageFilter, setTransitionStageFilter] = React.useState<'ALL' | OodaStageId>(
+    'ALL',
+  );
   const [transitionStatusFilter, setTransitionStatusFilter] = React.useState<string>('ALL');
   const [transitionSearchQuery, setTransitionSearchQuery] = React.useState<string>('');
   const [copiedTransitions, setCopiedTransitions] = React.useState<boolean>(false);
-  const [floatingTab, setFloatingTab] = React.useState<'DIAGNOSTICS' | 'TRANSITIONS'>('DIAGNOSTICS');
+  const [floatingTab, setFloatingTab] = React.useState<'DIAGNOSTICS' | 'TRANSITIONS'>(
+    'DIAGNOSTICS',
+  );
 
   const autoLoopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const prevRunningStageRef = useRef<OodaStageId>(activeRunningStage);
@@ -392,9 +426,12 @@ export function OODADiagnosticVisualizer({
     updateState({ activeRunningStage: stageId });
   };
 
-  const setTransitions = (valOrFn: OodaStateTransition[] | ((prev: OodaStateTransition[]) => OodaStateTransition[])) => {
+  const setTransitions = (
+    valOrFn: OodaStateTransition[] | ((prev: OodaStateTransition[]) => OodaStateTransition[]),
+  ) => {
     updateState((prev) => ({
-      transitions: typeof valOrFn === 'function' ? valOrFn(prev.transitions || INITIAL_TRANSITIONS) : valOrFn,
+      transitions:
+        typeof valOrFn === 'function' ? valOrFn(prev.transitions || INITIAL_TRANSITIONS) : valOrFn,
     }));
   };
 
@@ -406,7 +443,7 @@ export function OODADiagnosticVisualizer({
       reason: string,
       status: 'SUCCESS' | 'BLOCKED' | 'WARNING' | 'SAT' = 'SUCCESS',
       details?: string,
-      mutationLines?: number
+      mutationLines?: number,
     ) => {
       const now = new Date();
       const timeStr =
@@ -430,7 +467,7 @@ export function OODADiagnosticVisualizer({
         transitions: [newTrans, ...(prev.transitions || INITIAL_TRANSITIONS).slice(0, 49)],
       }));
     },
-    [loopCycleCount, updateState]
+    [loopCycleCount, updateState],
   );
 
   const setIsAutoLooping = (valOrFn: boolean | ((prev: boolean) => boolean)) => {
@@ -445,7 +482,9 @@ export function OODADiagnosticVisualizer({
     }));
   };
 
-  const setEvents = (valOrFn: DiagnosticEvent[] | ((prev: DiagnosticEvent[]) => DiagnosticEvent[])) => {
+  const setEvents = (
+    valOrFn: DiagnosticEvent[] | ((prev: DiagnosticEvent[]) => DiagnosticEvent[]),
+  ) => {
     updateState((prev) => ({
       events: typeof valOrFn === 'function' ? valOrFn(prev.events) : valOrFn,
     }));
@@ -485,7 +524,7 @@ export function OODADiagnosticVisualizer({
       const currentStage = stageSequence[currentIndex];
       const prevStage = prevRunningStageRef.current;
       prevRunningStageRef.current = currentStage;
-      
+
       setActiveRunningStage(currentStage);
 
       // Record state transition
@@ -508,7 +547,7 @@ export function OODADiagnosticVisualizer({
         transitionReason,
         transitionStatus,
         `Loop execution stream · Stage Code ${STAGES.find((s) => s.id === currentStage)?.code}`,
-        currentStage === 'act' || currentStage === 'verify' ? simulatedMutationLines : undefined
+        currentStage === 'act' || currentStage === 'verify' ? simulatedMutationLines : undefined,
       );
 
       if (currentStage === 'verify') {
@@ -549,7 +588,7 @@ export function OODADiagnosticVisualizer({
           `Manual Pulse: Transitioned to ${stInfo.name}`,
           stageId === 'verify' ? (simulatedMutationLines > 10 ? 'BLOCKED' : 'SAT') : 'SUCCESS',
           `Target: ${stInfo.code} · Primary: ${stInfo.primaryKnight}`,
-          stageId === 'verify' ? simulatedMutationLines : undefined
+          stageId === 'verify' ? simulatedMutationLines : undefined,
         );
 
         const newEvent: DiagnosticEvent = {
@@ -576,7 +615,9 @@ export function OODADiagnosticVisualizer({
     }, 450);
   };
 
-  const injectScenario = (scenario: 'audio' | 'valid-patch' | 'oversized-patch' | 'merkle-audit') => {
+  const injectScenario = (
+    scenario: 'audio' | 'valid-patch' | 'oversized-patch' | 'merkle-audit',
+  ) => {
     const now = new Date();
     const timeStr =
       now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
@@ -590,14 +631,15 @@ export function OODADiagnosticVisualizer({
         'observe',
         'Audio Ingestion Injected: 48kHz RMS Viseme chunk',
         'SUCCESS',
-        'channel: bifrost_webrtc · rms_power: -18.2 dB'
+        'channel: bifrost_webrtc · rms_power: -18.2 dB',
       );
       const newEvt: DiagnosticEvent = {
         id: `evt-${Date.now()}`,
         timestamp: timeStr,
         stage: 'observe',
         type: 'INFO',
-        message: 'Web Audio RMS Viseme packet captured: 48kHz audio chunk processed. Zero packet drop.',
+        message:
+          'Web Audio RMS Viseme packet captured: 48kHz audio chunk processed. Zero packet drop.',
         latencyMs: 11,
         dataSnippet: 'viseme_channels: 16 · rms_power: -18.2 dB · channel: bifrost_webrtc',
       };
@@ -613,14 +655,15 @@ export function OODADiagnosticVisualizer({
         'AST Patch Injected (+3 lines) · Z3 SAT Passed',
         'SAT',
         'target: MacroQuickBar.tsx · diff: +3 lines',
-        3
+        3,
       );
       const newEvt: DiagnosticEvent = {
         id: `evt-${Date.now()}`,
         timestamp: timeStr,
         stage: 'verify',
         type: 'SAT',
-        message: 'AST Tree-sitter patch (+3 lines) verified by Paladin Octem Z3. Firewall status: PASS.',
+        message:
+          'AST Tree-sitter patch (+3 lines) verified by Paladin Octem Z3. Firewall status: PASS.',
         latencyMs: 16,
         dataSnippet: 'target: apps/pwa/src/components/macro/MacroQuickBar.tsx · diff_lines: +3',
       };
@@ -636,14 +679,15 @@ export function OODADiagnosticVisualizer({
         'Oversized Mutation Injected (+18 lines) · Firewall Blocked',
         'BLOCKED',
         'exceeds 10-line firewall threshold · HITL required',
-        18
+        18,
       );
       const newEvt: DiagnosticEvent = {
         id: `evt-${Date.now()}`,
         timestamp: timeStr,
         stage: 'verify',
         type: 'FIREWALL',
-        message: '🛡️ [IRON GATE FIREWALL TRIGGERED]: Mutation (+18 lines) exceeds 10-line limit. HITL lock active.',
+        message:
+          '🛡️ [IRON GATE FIREWALL TRIGGERED]: Mutation (+18 lines) exceeds 10-line limit. HITL lock active.',
         latencyMs: 5,
         dataSnippet: 'override_cmd: CAMELOT_BYPASS_FIREWALL=1 git commit //GO',
       };
@@ -657,7 +701,7 @@ export function OODADiagnosticVisualizer({
         'observe',
         'Merkle VFS Audit Injected · 100% Match',
         'SUCCESS',
-        'local_root: 0x8f4c0a19d2e7 · inodes: 1,428'
+        'local_root: 0x8f4c0a19d2e7 · inodes: 1,428',
       );
       const newEvt: DiagnosticEvent = {
         id: `evt-${Date.now()}`,
@@ -674,7 +718,9 @@ export function OODADiagnosticVisualizer({
 
   const filteredEvents = useMemo(() => {
     if (filterType === 'ALL') return safeEvents;
-    return safeEvents.filter((e) => e && (e.type === filterType || (e.stage && e.stage === filterType.toLowerCase())));
+    return safeEvents.filter(
+      (e) => e && (e.type === filterType || (e.stage && e.stage === filterType.toLowerCase())),
+    );
   }, [safeEvents, filterType]);
 
   const filteredTransitions = useMemo(() => {
@@ -771,9 +817,7 @@ export function OODADiagnosticVisualizer({
               {activeStageInfo.shortName}
             </span>
 
-            <span className="font-mono text-[10px] text-white/50">
-              {totalCycleLatency}ms
-            </span>
+            <span className="font-mono text-[10px] text-white/50">{totalCycleLatency}ms</span>
 
             <span className="font-mono text-[9px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1 py-0.2 rounded">
               Z3:SAT
@@ -920,7 +964,9 @@ export function OODADiagnosticVisualizer({
                         </p>
 
                         <div className="flex items-center justify-between text-[8px] text-white/40 pt-0.5 border-t border-white/5">
-                          <span>#{trans.cycleNumber} · {trans.timestamp}</span>
+                          <span>
+                            #{trans.cycleNumber} · {trans.timestamp}
+                          </span>
                           <span className="text-gold-light font-bold">+{trans.latencyMs}ms</span>
                         </div>
                       </div>
@@ -1010,8 +1056,13 @@ export function OODADiagnosticVisualizer({
                   {/* 2-Tile Stage Invariants */}
                   <div className="grid grid-cols-2 gap-1.5 pt-1">
                     {selectedStage.metrics.slice(0, 2).map((m, idx) => (
-                      <div key={idx} className="border border-white/5 bg-white/5 p-1.5 rounded text-[10px] font-mono">
-                        <span className="text-white/40 block text-[8px] uppercase truncate">{m.label}</span>
+                      <div
+                        key={idx}
+                        className="border border-white/5 bg-white/5 p-1.5 rounded text-[10px] font-mono"
+                      >
+                        <span className="text-white/40 block text-[8px] uppercase truncate">
+                          {m.label}
+                        </span>
                         <span className="text-gold-light font-bold truncate block">{m.value}</span>
                       </div>
                     ))}
@@ -1113,8 +1164,8 @@ export function OODADiagnosticVisualizer({
               OODA-MGV Operational Loop Diagnostics
             </h2>
             <p className="max-w-2xl text-xs md:text-sm text-white/50 leading-relaxed">
-              Real-time cybernetic feedback architecture maintaining total system transparency across{' '}
-              <strong className="text-cyan-400">Observe</strong>,{' '}
+              Real-time cybernetic feedback architecture maintaining total system transparency
+              across <strong className="text-cyan-400">Observe</strong>,{' '}
               <strong className="text-purple-400">Orient</strong>,{' '}
               <strong className="text-gold-light">Decide</strong>,{' '}
               <strong className="text-sky-400">Act</strong>, and{' '}
@@ -1144,9 +1195,7 @@ export function OODADiagnosticVisualizer({
               <span className="block text-[10px] text-white/40 uppercase tracking-widest font-mono">
                 Memory Floor
               </span>
-              <span className="font-mono text-xl text-emerald-400 font-bold">
-                4.1 / 8.0 GB
-              </span>
+              <span className="font-mono text-xl text-emerald-400 font-bold">4.1 / 8.0 GB</span>
             </div>
           </div>
         </div>
@@ -1250,7 +1299,10 @@ export function OODADiagnosticVisualizer({
               Active Flow:{' '}
               <strong className="text-gold-light uppercase">{activeRunningStage}</strong> ➔{' '}
               <span className="text-white/60">
-                {STAGES[(STAGES.findIndex((s) => s.id === activeRunningStage) + 1) % STAGES.length].shortName}
+                {
+                  STAGES[(STAGES.findIndex((s) => s.id === activeRunningStage) + 1) % STAGES.length]
+                    .shortName
+                }
               </span>
             </span>
           </div>
@@ -1278,8 +1330,8 @@ export function OODADiagnosticVisualizer({
                         isActive
                           ? 'border-gold bg-gold/20 text-white shadow-lg ring-2 ring-gold/60 animate-ooda-pill'
                           : isSelected
-                          ? 'border-gold/60 bg-smoke-800 text-gold shadow-md ring-1 ring-gold/40'
-                          : 'border-white/20 bg-smoke-900 text-white/60 hover:border-white/40'
+                            ? 'border-gold/60 bg-smoke-800 text-gold shadow-md ring-1 ring-gold/40'
+                            : 'border-white/20 bg-smoke-900 text-white/60 hover:border-white/40'
                       }`}
                     >
                       <span>{stage.icon}</span>
@@ -1289,8 +1341,8 @@ export function OODADiagnosticVisualizer({
                         isActive
                           ? 'text-gold-light'
                           : isSelected
-                          ? 'text-white'
-                          : 'text-white/40 group-hover:text-white/70'
+                            ? 'text-white'
+                            : 'text-white/40 group-hover:text-white/70'
                       }`}
                     >
                       {stage.shortName}
@@ -1570,20 +1622,22 @@ export function OODADiagnosticVisualizer({
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono">
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="text-white/30 mr-0.5">Stage:</span>
-                      {(['ALL', 'observe', 'orient', 'decide', 'act', 'verify'] as const).map((st) => (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => setTransitionStageFilter(st)}
-                          className={`px-1.5 py-0.5 rounded uppercase font-bold transition-all cursor-pointer ${
-                            transitionStageFilter === st
-                              ? 'bg-gold/20 text-gold-royal border border-gold/30'
-                              : 'text-white/40 hover:text-white/80 bg-white/5'
-                          }`}
-                        >
-                          {st === 'ALL' ? 'ALL' : st.slice(0, 3)}
-                        </button>
-                      ))}
+                      {(['ALL', 'observe', 'orient', 'decide', 'act', 'verify'] as const).map(
+                        (st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setTransitionStageFilter(st)}
+                            className={`px-1.5 py-0.5 rounded uppercase font-bold transition-all cursor-pointer ${
+                              transitionStageFilter === st
+                                ? 'bg-gold/20 text-gold-royal border border-gold/30'
+                                : 'text-white/40 hover:text-white/80 bg-white/5'
+                            }`}
+                          >
+                            {st === 'ALL' ? 'ALL' : st.slice(0, 3)}
+                          </button>
+                        ),
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -1614,7 +1668,9 @@ export function OODADiagnosticVisualizer({
                   {filteredTransitions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-8 text-center rounded border border-white/5 bg-black/30 space-y-2">
                       <span className="text-2xl">🔍</span>
-                      <p className="text-xs text-white/50 font-mono">No matching transitions found</p>
+                      <p className="text-xs text-white/50 font-mono">
+                        No matching transitions found
+                      </p>
                       <button
                         type="button"
                         onClick={() => {
@@ -1629,7 +1685,8 @@ export function OODADiagnosticVisualizer({
                     </div>
                   ) : (
                     filteredTransitions.map((trans) => {
-                      const fromStageInfo = STAGES.find((s) => s.id === trans.fromStage) || STAGES[0];
+                      const fromStageInfo =
+                        STAGES.find((s) => s.id === trans.fromStage) || STAGES[0];
                       const toStageInfo = STAGES.find((s) => s.id === trans.toStage) || STAGES[0];
 
                       return (
@@ -1862,4 +1919,3 @@ export function OODADiagnosticVisualizer({
 // Re-export as alias for compatibility
 export { OODADiagnosticVisualizer as OodaMgvVisualizer };
 export default OODADiagnosticVisualizer;
-

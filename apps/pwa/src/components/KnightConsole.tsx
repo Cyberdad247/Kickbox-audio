@@ -129,8 +129,11 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
           <div ref={endRef} />
         </div>
 
-        <form onSubmit={dispatch} className="flex items-center gap-3 border-gold/20 border-t px-6 py-4">
-          <VoiceRecordingControl 
+        <form
+          onSubmit={dispatch}
+          className="flex items-center gap-3 border-gold/20 border-t px-6 py-4"
+        >
+          <VoiceRecordingControl
             onRecordingComplete={(blob) => {
               // Stub for audio logic
               const id = idRef.current;
@@ -138,9 +141,9 @@ export function KnightConsole({ knight, onClose }: { knight: Knight; onClose: ()
               setLog((lines) => [
                 ...lines,
                 { id, kind: 'out', text: '[Audio snippet recorded]', t: stamp() },
-                { id: id + 1, kind: 'sys', text: 'Processing audio...', t: stamp() }
+                { id: id + 1, kind: 'sys', text: 'Processing audio...', t: stamp() },
               ]);
-            }} 
+            }}
           />
           <input
             value={input}

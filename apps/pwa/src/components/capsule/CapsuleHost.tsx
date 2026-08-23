@@ -8,12 +8,14 @@ import { useCapsuleState } from '../../hooks/useCapsuleState';
 import { useHardwareCompatibility } from '../../hooks/useHardwareCompatibility';
 import { usePiPAndBadging } from '../../hooks/usePiPAndBadging';
 import { LakishaHUD } from '../LakishaHUD';
+import { OODADiagnosticVisualizer } from '../dashboard/OODADiagnosticVisualizer';
 import { TenantQuickBar } from '../gateway/TenantQuickBar';
+import { GmailNotificationStream } from '../gmail/GmailNotificationStream';
 import { CommandPalette } from '../navigation/CommandPalette';
-import { RunicConsole } from './RunicConsole';
 import { CamelotHelperChat } from './CamelotHelperChat';
 import { MobileEdgeArchitectureView } from './MobileEdgeArchitectureView';
-import { OODADiagnosticVisualizer } from '../dashboard/OODADiagnosticVisualizer';
+import { RunicConsole } from './RunicConsole';
+import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
 
 // Lazily load tab partitions to reduce initial bundle size and speed up FCP
 const Dashboard = React.lazy(() => import('../Dashboard').then((m) => ({ default: m.Dashboard })));
@@ -53,6 +55,9 @@ const GoogleDriveExplorer = React.lazy(() =>
 const GoogleSheetsExplorer = React.lazy(() =>
   import('../drive/GoogleSheetsExplorer').then((m) => ({ default: m.GoogleSheetsExplorer })),
 );
+const GmailExplorer = React.lazy(() =>
+  import('../gmail/GmailExplorer').then((m) => ({ default: m.GmailExplorer })),
+);
 const FileDriverExplorer = React.lazy(() =>
   import('./FileDriverExplorer').then((m) => ({ default: m.FileDriverExplorer })),
 );
@@ -71,6 +76,85 @@ function WorkspacePartitionFallback() {
 }
 
 export function CapsuleHost({ children }: { children?: React.ReactNode }) {
+  const [isRunicConsoleOpen, setIsRunicConsoleOpen] = React.useState(false);
+  const [runicHistory, setRunicHistory] = React.useState<LogEntry[]>([
+    {
+      id: 'init',
+      type: 'system',
+      text: 'Camelot-OS Runic Console v1000 initialized. Type //help to view Symbolects.',
+      timestamp: new Date().toISOString(),
+    },
+  ]);
+
+  const handleRunicExecute = (cmd: string) => {
+    const trimmed = cmd.trim();
+    if (!trimmed) return;
+
+    const addLog = (type: LogEntry['type'], text: string) => {
+      setRunicHistory((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(7),
+          type,
+          text,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    };
+
+    addLog('input', trimmed);
+    let outcomeText = '';
+    let outcomeType: LogEntry['type'] = 'system';
+
+    if (trimmed.startsWith('//')) {
+      const symbolect = trimmed.toLowerCase();
+      switch (symbolect) {
+        case '//boot':
+          outcomeText =
+            '[ANYA_Ω] ⚡ Virtual Simulation Terminal instantiated. Hardware telemetry verified. Shared memory backplane mounted.';
+          break;
+        case '//shield':
+          outcomeText = '[SIR_SENTINEL] 🛡️ AgentArmor engaged. Zero-trust sandbox isolation locked.';
+          break;
+        case '//verify':
+          outcomeText =
+            '[SIR_GIDEON] 🧪 Shadow VM crucible triggered. Validating TDD and executing Z3 formal logic proofs... [SAT]';
+          break;
+        case '//gate':
+          outcomeText =
+            '[MERLIN_Ω] ⚖️ Iron Gate invoked. Awaiting sovereign authorization... {👤✅}';
+          break;
+        case '//sync':
+          outcomeText =
+            '[LADY_MNEMOSYNE_Ω] 🌐 Broadcasting CRDT ledger updates across the Worldtree Cloudbrain (NotebookLM)... Synchronized.';
+          break;
+        case '//seal':
+          outcomeText =
+            '⚜️_SOVEREIGN_TRUTH: Master cryptographic transaction sealed. Deployment finalized.';
+          outcomeType = 'success';
+          break;
+        case '//help':
+          outcomeText =
+            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //clear';
+          break;
+        case '//clear':
+          setRunicHistory([]);
+          ProvenanceLedgerService.record(trimmed, 'Console history cleared.');
+          return;
+        default:
+          outcomeText = `Unknown Symbolect: ${trimmed}. Type //help for a list of available commands.`;
+          outcomeType = 'error';
+      }
+    } else {
+      outcomeText =
+        'Error: Only Runic Symbolects (prefixed with //) are supported in this terminal.';
+      outcomeType = 'error';
+    }
+
+    addLog(outcomeType, outcomeText);
+    ProvenanceLedgerService.record(trimmed, outcomeText);
+  };
+
   const { serverProjection, setConnectionState } = useCapsuleState();
   const { connected, isReconnecting } = useBifrost();
   const {
@@ -101,6 +185,7 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     | 'dashboard'
     | 'drive'
     | 'sheets'
+    | 'gmail'
     | 'filedriver'
     | 'macros'
     | 'offline'
@@ -476,6 +561,23 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               type="button"
               onClick={() => {
                 setShowAvatarKnightScreen(false);
+                setActiveWorkspaceTab('gmail');
+                setIsDockOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 rounded-xl border p-2.5 text-left font-mono text-[10px] uppercase tracking-wider transition-all ${
+                activeWorkspaceTab === 'gmail'
+                  ? 'border-red-500 bg-red-500/20 text-red-400 font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                  : 'border-white/10 bg-black/40 text-white/50 hover:text-red-400 hover:border-red-500/50'
+              }`}
+            >
+              <span className="text-sm">📧</span>
+              <span className="font-bold">Gmail</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAvatarKnightScreen(false);
                 setActiveWorkspaceTab('dashboard');
                 setIsDockOpen(false);
               }}
@@ -566,11 +668,13 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
                                 ? '☁️ Google Drive'
                                 : activeWorkspaceTab === 'sheets'
                                   ? '📊 Google Sheets Enclave'
-                                  : activeWorkspaceTab === 'settings'
-                                    ? '⚙️ System Configurations'
-                                    : activeWorkspaceTab === 'activity'
-                                      ? '📜 Sovereign Activity Ledger'
-                                      : '⚡ Guest Sandbox'}
+                                  : activeWorkspaceTab === 'gmail'
+                                    ? '📧 Gmail Enclave'
+                                    : activeWorkspaceTab === 'settings'
+                                      ? '⚙️ System Configurations'
+                                      : activeWorkspaceTab === 'activity'
+                                        ? '📜 Sovereign Activity Ledger'
+                                        : '⚡ Guest Sandbox'}
             </span>
           </div>
 
@@ -653,6 +757,8 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               <GoogleDriveExplorer />
             ) : activeWorkspaceTab === 'sheets' ? (
               <GoogleSheetsExplorer />
+            ) : activeWorkspaceTab === 'gmail' ? (
+              <GmailExplorer />
             ) : activeWorkspaceTab === 'avatar' ? (
               <AvatarKnightScreen
                 onEnterDashboard={() => {
@@ -712,6 +818,9 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
           setActiveWorkspaceTab(tab as any);
         }}
       />
+
+      {/* Gmail Unread Notification Stream */}
+      <GmailNotificationStream />
 
       {/* Runic Console Overlay */}
       <RunicConsole />

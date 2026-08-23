@@ -132,7 +132,8 @@ const config: Config = {
             borderColor: 'rgba(255, 215, 0, 0.45)',
           },
           '50%': {
-            boxShadow: '0 0 22px rgba(255, 215, 0, 0.65), 0 0 36px rgba(212, 175, 55, 0.35), inset 0 0 14px rgba(255, 215, 0, 0.2)',
+            boxShadow:
+              '0 0 22px rgba(255, 215, 0, 0.65), 0 0 36px rgba(212, 175, 55, 0.35), inset 0 0 14px rgba(255, 215, 0, 0.2)',
             borderColor: 'rgba(255, 228, 77, 0.95)',
           },
         },
@@ -159,7 +160,8 @@ const config: Config = {
           },
           '50%': {
             opacity: '1',
-            filter: 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(212, 175, 55, 0.55))',
+            filter:
+              'drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(212, 175, 55, 0.55))',
           },
         },
       },

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
+import { useActivityLog } from '../../context/ActivityLogContext';
 import { useTenant } from '../../context/TenantContext';
 import { QRAuthScanner } from '../gateway/QRAuthScanner';
-import { useActivityLog } from '../../context/ActivityLogContext';
 
 export function VaultTab() {
   const { activeTenant } = useTenant();
@@ -54,7 +55,7 @@ export function VaultTab() {
       const userId = new Uint8Array(16);
       window.crypto.getRandomValues(userId);
 
-      // Using create() for prototype purposes to easily trigger the platform authenticator 
+      // Using create() for prototype purposes to easily trigger the platform authenticator
       // without needing prior credential registration IDs.
       const credential = await navigator.credentials.create({
         publicKey: {
@@ -83,9 +84,11 @@ export function VaultTab() {
       }
     } catch (err: any) {
       console.error('WebAuthn Error:', err);
-      setAuthError(err.name === 'NotAllowedError' 
-        ? 'Biometric authorization was cancelled or denied.' 
-        : 'Biometric authorization failed. Ensure platform authenticators are enabled.');
+      setAuthError(
+        err.name === 'NotAllowedError'
+          ? 'Biometric authorization was cancelled or denied.'
+          : 'Biometric authorization failed. Ensure platform authenticators are enabled.',
+      );
     } finally {
       setIsAuthorizingBiometrics(false);
     }
@@ -121,12 +124,15 @@ export function VaultTab() {
           <div className="flex flex-col md:flex-row gap-8">
             <div className="flex-1 max-w-sm">
               <div className="mb-4">
-                <h3 className="text-[#00E5FF] font-mono text-sm uppercase tracking-wider mb-2">Authorization Required</h3>
+                <h3 className="text-[#00E5FF] font-mono text-sm uppercase tracking-wider mb-2">
+                  Authorization Required
+                </h3>
                 <p className="text-xs text-white/60">
-                  Scan the secure cryptographic QR key displayed on your trusted mobile device or hardware token to unlock vault operations.
+                  Scan the secure cryptographic QR key displayed on your trusted mobile device or
+                  hardware token to unlock vault operations.
                 </p>
               </div>
-              
+
               <div className="rounded-xl border border-[#00E5FF]/20 bg-black/60 p-4">
                 {activeTenant ? (
                   <QRAuthScanner
@@ -135,13 +141,17 @@ export function VaultTab() {
                     onCodeDetected={handleQRDetected}
                   />
                 ) : (
-                  <p className="text-xs text-amber-400">No active tenant found to bind cryptographic scanner.</p>
+                  <p className="text-xs text-amber-400">
+                    No active tenant found to bind cryptographic scanner.
+                  </p>
                 )}
               </div>
 
               <div className="mt-4 flex items-center gap-2">
                 <div className="h-px flex-1 bg-white/10" />
-                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">or</span>
+                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                  or
+                </span>
                 <div className="h-px flex-1 bg-white/10" />
               </div>
 
@@ -153,16 +163,26 @@ export function VaultTab() {
                   isAuthorizingBiometrics
                     ? 'border-violet-500/20 bg-violet-950/10 text-violet-500/50 cursor-not-allowed'
                     : authError && authError.includes('Biometric')
-                    ? 'border-amber-500/40 bg-amber-950/30 text-amber-400 hover:bg-amber-950/50 hover:border-amber-500/60'
-                    : 'border-violet-500/40 bg-violet-950/30 text-violet-400 hover:bg-violet-950/50 hover:border-violet-500/60'
+                      ? 'border-amber-500/40 bg-amber-950/30 text-amber-400 hover:bg-amber-950/50 hover:border-amber-500/60'
+                      : 'border-violet-500/40 bg-violet-950/30 text-violet-400 hover:bg-violet-950/50 hover:border-violet-500/60'
                 }`}
               >
-                <span className="text-sm">{isAuthorizingBiometrics ? '⏳' : authError && authError.includes('Biometric') ? '🔄' : '👆'}</span>
+                <span className="text-sm">
+                  {isAuthorizingBiometrics
+                    ? '⏳'
+                    : authError && authError.includes('Biometric')
+                      ? '🔄'
+                      : '👆'}
+                </span>
                 <span className="uppercase tracking-wider font-bold">
-                  {isAuthorizingBiometrics ? 'Awaiting Biometrics...' : authError && authError.includes('Biometric') ? 'Retry Platform Biometrics' : 'Use Platform Biometrics'}
+                  {isAuthorizingBiometrics
+                    ? 'Awaiting Biometrics...'
+                    : authError && authError.includes('Biometric')
+                      ? 'Retry Platform Biometrics'
+                      : 'Use Platform Biometrics'}
                 </span>
               </button>
-              
+
               {authError && (
                 <div className="mt-4 flex flex-col gap-3">
                   <div className="rounded-lg bg-red-950/40 border border-red-500/40 p-3 text-xs font-mono text-red-400">
@@ -176,7 +196,10 @@ export function VaultTab() {
                       &gt; Emergency Manual Override
                     </button>
                   ) : (
-                    <form onSubmit={handleManualOverrideSubmit} className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <form
+                      onSubmit={handleManualOverrideSubmit}
+                      className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-300"
+                    >
                       <input
                         type="password"
                         placeholder="ENTER SECURE PIN"
@@ -197,12 +220,13 @@ export function VaultTab() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex-1 rounded-xl border border-white/10 bg-white/5 p-6 flex flex-col items-center justify-center text-center opacity-50">
               <span className="text-4xl mb-3">🛡️</span>
               <h4 className="font-mono text-sm text-white mb-2">Vault Sealed</h4>
               <p className="text-xs text-white/50 max-w-xs">
-                Operations, ledger entries, and memory boundaries are cryptographically sealed until authorization is granted.
+                Operations, ledger entries, and memory boundaries are cryptographically sealed until
+                authorization is granted.
               </p>
             </div>
           </div>
@@ -210,15 +234,21 @@ export function VaultTab() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 animate-pulse">✓</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 animate-pulse">
+                  ✓
+                </span>
                 <div>
                   <p className="font-mono text-xs text-emerald-400">Cryptographic Key Verified</p>
-                  <p className="text-[10px] text-white/50">Session bound to external trusted device.</p>
+                  <p className="text-[10px] text-white/50">
+                    Session bound to external trusted device.
+                  </p>
                 </div>
               </div>
-              <span className="font-mono text-[10px] text-emerald-500/50">ID: {Math.random().toString(36).substring(2, 10).toUpperCase()}</span>
+              <span className="font-mono text-[10px] text-emerald-500/50">
+                ID: {Math.random().toString(36).substring(2, 10).toUpperCase()}
+              </span>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded-xl border border-white/10 bg-white/5 p-5">
                 <h4 className="font-mono text-xs text-white/80 mb-3 uppercase">Memory Boundary</h4>
@@ -240,9 +270,11 @@ export function VaultTab() {
                   Inspect Blocks
                 </button>
               </div>
-              
+
               <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-                <h4 className="font-mono text-xs text-white/80 mb-3 uppercase">Ledger Operations</h4>
+                <h4 className="font-mono text-xs text-white/80 mb-3 uppercase">
+                  Ledger Operations
+                </h4>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-white/50">Pending Signatures</span>

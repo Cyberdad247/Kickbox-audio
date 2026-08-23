@@ -4,7 +4,8 @@ import type { SovereignState } from '../context/BifrostContext';
 
 const isBrowser = () => typeof window !== 'undefined';
 const hasSpeechSynthesis = () => isBrowser() && 'speechSynthesis' in window;
-const hasWebAudio = () => isBrowser() && ('AudioContext' in window || 'webkitAudioContext' in window);
+const hasWebAudio = () =>
+  isBrowser() && ('AudioContext' in window || 'webkitAudioContext' in window);
 
 // Web Audio API Pipeline (Zero-Copy Target)
 let audioCtx: AudioContext | null = null;
@@ -15,14 +16,14 @@ export function initAudioEnclave() {
   if (!hasWebAudio() || audioCtx) return;
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
   audioCtx = new AudioContextClass({ sampleRate: 48000 }); // 48kHz RMS Lock
-  
+
   masterGain = audioCtx.createGain();
   analyser = audioCtx.createAnalyser();
-  
+
   analyser.fftSize = 2048;
   masterGain.connect(analyser);
   analyser.connect(audioCtx.destination);
-  
+
   // Resume context if suspended due to browser autoplay policies
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
@@ -67,10 +68,10 @@ export interface SpeakOptions {
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
   if (!hasSpeechSynthesis() || !text) return;
-  
+
   // Initialize Web Audio Context if not ready
   if (!audioCtx) initAudioEnclave();
-  
+
   const synth = window.speechSynthesis;
   synth.cancel();
   const u = new SpeechSynthesisUtterance(text);

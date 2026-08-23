@@ -1,22 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useBifrost } from '../context/BifrostContext';
 import { useTenant } from '../context/TenantContext';
 import { useLakishaVoice } from '../hooks/useLakishaVoice';
 import { PlanCard } from './PlanCard';
+import { FileDriverExplorer } from './capsule/FileDriverExplorer';
+import { OodaMgvVisualizer } from './dashboard/OodaMgvVisualizer';
+import { GoogleDriveExplorer } from './drive/GoogleDriveExplorer';
 import { ActivitiesTab } from './tabs/ActivitiesTab';
 import { CoffeeTab } from './tabs/CoffeeTab';
 import { KnightsTab } from './tabs/KnightsTab';
 import { OverviewTab } from './tabs/OverviewTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
 import { SettingsTab } from './tabs/SettingsTab';
+import { KBASwarmTab } from './tabs/KBASwarmTab';
 import { StreamingTab } from './tabs/StreamingTab';
 import { VaultTab } from './tabs/VaultTab';
 import { VentureTab } from './tabs/VentureTab';
-import { OodaMgvVisualizer } from './dashboard/OodaMgvVisualizer';
-import { GoogleDriveExplorer } from './drive/GoogleDriveExplorer';
-import { FileDriverExplorer } from './capsule/FileDriverExplorer';
 
 const TABS = [
   'Overview',
@@ -31,6 +32,7 @@ const TABS = [
   'Vault',
   'Activities',
   'Settings',
+  'KBA Swarm',
 ] as const;
 
 type Tab = (typeof TABS)[number];
@@ -266,6 +268,7 @@ export function Dashboard() {
           {active === 'Vault' && <VaultTab />}
           {active === 'Activities' && <ActivitiesTab />}
           {active === 'Settings' && <SettingsTab />}
+          {active === 'KBA Swarm' && <KBASwarmTab />}
         </main>
       </div>
 

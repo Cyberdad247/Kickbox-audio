@@ -5,10 +5,10 @@
 
 import firebaseAppletConfig from '../../../../firebase-applet-config.json';
 import {
-  signInWithGoogleDrive,
-  getDriveAccessToken,
-  signOutGoogleDrive,
   DRIVE_SCOPES,
+  getDriveAccessToken,
+  signInWithGoogleDrive,
+  signOutGoogleDrive,
 } from './googleDriveAuth';
 import type { DriveFile } from './googleDriveService';
 
@@ -46,7 +46,7 @@ export function getGoogleDriveClientConfig(): GoogleDriveConfig {
 
   if (!oAuthClientId) {
     console.warn(
-      '[GoogleDriveClient] Warning: oAuthClientId is not set in firebase-applet-config.json'
+      '[GoogleDriveClient] Warning: oAuthClientId is not set in firebase-applet-config.json',
     );
   }
 
@@ -84,12 +84,12 @@ export function initGoogleDriveApi(): {
  */
 function formatFileSize(bytes?: string | number): string {
   if (!bytes) return '—';
-  const num = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  const num = typeof bytes === 'string' ? Number.parseInt(bytes, 10) : bytes;
   if (isNaN(num) || num === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(num) / Math.log(k));
-  return parseFloat((num / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  return Number.parseFloat((num / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 /**
@@ -97,7 +97,7 @@ function formatFileSize(bytes?: string | number): string {
  */
 function determineFileCategory(
   mimeType: string,
-  fileName: string
+  fileName: string,
 ): 'audio' | 'text' | 'markdown' | 'mp4' | 'other' {
   const lowerName = fileName.toLowerCase();
   const lowerMime = mimeType.toLowerCase();
@@ -114,11 +114,7 @@ function determineFileCategory(
     return 'audio';
   }
 
-  if (
-    lowerMime === 'video/mp4' ||
-    lowerName.endsWith('.mp4') ||
-    lowerName.endsWith('.m4v')
-  ) {
+  if (lowerMime === 'video/mp4' || lowerName.endsWith('.mp4') || lowerName.endsWith('.m4v')) {
     return 'mp4';
   }
 
@@ -153,14 +149,12 @@ function determineFileCategory(
  */
 export async function listRecentRootFiles(
   accessToken?: string,
-  options?: ListRecentRootFilesOptions
+  options?: ListRecentRootFilesOptions,
 ): Promise<ListRecentRootFilesResult> {
   const token = accessToken || getDriveAccessToken();
 
   if (!token) {
-    throw new Error(
-      'Google Drive OAuth token not available. Please sign in with Google first.'
-    );
+    throw new Error('Google Drive OAuth token not available. Please sign in with Google first.');
   }
 
   const { pageSize = 50, pageToken, categoryFilter = 'all' } = options || {};
@@ -201,15 +195,12 @@ export async function listRecentRootFiles(
     params.set('pageToken', pageToken);
   }
 
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files?${params.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -252,7 +243,7 @@ export async function listRecentRootFiles(
  */
 export async function listRecentRootAudioFiles(
   accessToken?: string,
-  pageSize = 25
+  pageSize = 25,
 ): Promise<ListRecentRootFilesResult> {
   return listRecentRootFiles(accessToken, { pageSize, categoryFilter: 'audio' });
 }
@@ -262,7 +253,7 @@ export async function listRecentRootAudioFiles(
  */
 export async function listRecentRootTextAndMarkdownFiles(
   accessToken?: string,
-  pageSize = 25
+  pageSize = 25,
 ): Promise<ListRecentRootFilesResult> {
   const token = accessToken || getDriveAccessToken();
   const [textResult, mdResult] = await Promise.all([
@@ -287,7 +278,7 @@ export async function listRecentRootTextAndMarkdownFiles(
  */
 export async function listRecentRootMp4Videos(
   accessToken?: string,
-  pageSize = 25
+  pageSize = 25,
 ): Promise<ListRecentRootFilesResult> {
   return listRecentRootFiles(accessToken, { pageSize, categoryFilter: 'mp4' });
 }

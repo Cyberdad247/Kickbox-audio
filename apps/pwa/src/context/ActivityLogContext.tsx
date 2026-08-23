@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 export type ActivityCategory =
   | 'voice'
@@ -34,11 +35,7 @@ export interface LogActivityOptions {
 
 interface ActivityLogContextType {
   logs: ActivityLogEntry[];
-  logActivity: (
-    action: string,
-    details: string,
-    options?: LogActivityOptions,
-  ) => void;
+  logActivity: (action: string, details: string, options?: LogActivityOptions) => void;
   deleteLog: (id: string) => void;
   clearLogs: () => void;
   exportLogs: () => string;
@@ -70,7 +67,11 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       let inferredCategory: ActivityCategory = options?.category || 'general';
       const actionUpper = action.toUpperCase();
       if (!options?.category) {
-        if (actionUpper.includes('VOICE') || actionUpper.includes('SPEECH') || actionUpper.includes('MIC')) {
+        if (
+          actionUpper.includes('VOICE') ||
+          actionUpper.includes('SPEECH') ||
+          actionUpper.includes('MIC')
+        ) {
           inferredCategory = 'voice';
         } else if (actionUpper.includes('MACRO') || actionUpper.includes('ROUTINE')) {
           inferredCategory = 'macro';
@@ -78,11 +79,19 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
           inferredCategory = 'cartridge';
         } else if (actionUpper.includes('KNIGHT') || actionUpper.includes('TENANT')) {
           inferredCategory = 'knight';
-        } else if (actionUpper.includes('AUTH') || actionUpper.includes('SECURITY') || actionUpper.includes('CLEARANCE')) {
+        } else if (
+          actionUpper.includes('AUTH') ||
+          actionUpper.includes('SECURITY') ||
+          actionUpper.includes('CLEARANCE')
+        ) {
           inferredCategory = 'security';
         } else if (actionUpper.includes('CONFIG') || actionUpper.includes('SETTING')) {
           inferredCategory = 'config';
-        } else if (actionUpper.includes('TELEMETRY') || actionUpper.includes('BIFROST') || actionUpper.includes('SYNC')) {
+        } else if (
+          actionUpper.includes('TELEMETRY') ||
+          actionUpper.includes('BIFROST') ||
+          actionUpper.includes('SYNC')
+        ) {
           inferredCategory = 'telemetry';
         } else if (actionUpper.includes('SYSTEM') || actionUpper.includes('PURGE')) {
           inferredCategory = 'system';
@@ -92,9 +101,17 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       // Inferred severity
       let inferredSeverity: ActivitySeverity = options?.severity || 'info';
       if (!options?.severity) {
-        if (actionUpper.includes('FAIL') || actionUpper.includes('ERROR') || actionUpper.includes('CRASH')) {
+        if (
+          actionUpper.includes('FAIL') ||
+          actionUpper.includes('ERROR') ||
+          actionUpper.includes('CRASH')
+        ) {
           inferredSeverity = 'error';
-        } else if (actionUpper.includes('WARN') || actionUpper.includes('PURGE') || actionUpper.includes('DISPUTE')) {
+        } else if (
+          actionUpper.includes('WARN') ||
+          actionUpper.includes('PURGE') ||
+          actionUpper.includes('DISPUTE')
+        ) {
           inferredSeverity = 'warn';
         } else if (
           actionUpper.includes('SUCCESS') ||
@@ -108,7 +125,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       }
 
       const newEntry: ActivityLogEntry = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id:
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         timestamp: new Date().toISOString(),
         action,
         details,
@@ -153,9 +173,7 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
   }, [logs]);
 
   return (
-    <ActivityLogContext.Provider
-      value={{ logs, logActivity, deleteLog, clearLogs, exportLogs }}
-    >
+    <ActivityLogContext.Provider value={{ logs, logActivity, deleteLog, clearLogs, exportLogs }}>
       {children}
     </ActivityLogContext.Provider>
   );

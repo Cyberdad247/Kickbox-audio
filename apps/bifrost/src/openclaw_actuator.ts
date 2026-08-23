@@ -5,7 +5,7 @@ import util from 'util';
 const execPromise = util.promisify(exec);
 
 export class OpenClawActuator {
-  private secureSandbox: boolean = true;
+  private secureSandbox = true;
 
   constructor() {
     console.log('[Sir Octavian] OpenClaw Host Actuator Online (Termux ARM64 mode).');
@@ -25,13 +25,13 @@ export class OpenClawActuator {
         status: 'SUCCESS',
         stdout: stdout.trim(),
         stderr: stderr.trim(),
-        executionTimeMs: (performance.now() - startTime).toFixed(2)
+        executionTimeMs: (performance.now() - startTime).toFixed(2),
       };
     } catch (error: any) {
       return {
         status: 'FAILED',
         error: error.message,
-        executionTimeMs: (performance.now() - startTime).toFixed(2)
+        executionTimeMs: (performance.now() - startTime).toFixed(2),
       };
     }
   }
@@ -43,7 +43,7 @@ export class OpenClawActuator {
       target: targetElementId,
       mutationData: mutation,
       timestamp: Date.now(),
-      signature: 'OCTAVIAN_OMEGA_SIG'
+      signature: 'OCTAVIAN_OMEGA_SIG',
     };
   }
 }

@@ -7,7 +7,10 @@ export interface VoiceRecordingControlProps {
   onCancel?: () => void;
 }
 
-export function VoiceRecordingControl({ onRecordingComplete, onCancel }: VoiceRecordingControlProps) {
+export function VoiceRecordingControl({
+  onRecordingComplete,
+  onCancel,
+}: VoiceRecordingControlProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +20,7 @@ export function VoiceRecordingControl({ onRecordingComplete, onCancel }: VoiceRe
   const startRecording = useCallback(async () => {
     try {
       setError(null);
-      
+
       // Explicit user-tap required to get user media (AGENTS.md Rule 1)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -35,7 +38,7 @@ export function VoiceRecordingControl({ onRecordingComplete, onCancel }: VoiceRe
         if (onRecordingComplete) {
           onRecordingComplete(audioBlob);
         }
-        
+
         // Stop all tracks to release microphone
         stream.getTracks().forEach((track) => track.stop());
         setIsProcessing(false);
@@ -140,10 +143,8 @@ export function VoiceRecordingControl({ onRecordingComplete, onCancel }: VoiceRe
           </button>
         </div>
       )}
-      
-      {error && (
-        <span className="text-[10px] text-red-400">{error}</span>
-      )}
+
+      {error && <span className="text-[10px] text-red-400">{error}</span>}
     </div>
   );
 }

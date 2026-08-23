@@ -56,9 +56,11 @@ export function isAudioFile(file: { name: string; mimeType?: string }): boolean 
  */
 export async function analyzeAudioWithGemini(
   audioBlobOrFile: Blob | File,
-  originalFilename?: string
+  originalFilename?: string,
 ): Promise<GeminiAudioAnalysis> {
-  const filename = originalFilename || (audioBlobOrFile instanceof File ? audioBlobOrFile.name : 'audio_recording.mp3');
+  const filename =
+    originalFilename ||
+    (audioBlobOrFile instanceof File ? audioBlobOrFile.name : 'audio_recording.mp3');
   const formData = new FormData();
   formData.append('audio', audioBlobOrFile, filename);
   formData.append('originalFilename', filename);
@@ -86,7 +88,9 @@ export async function downloadDriveFileBlob(accessToken: string, fileId: string)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to download file from Google Drive (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to download file from Google Drive (${res.status})`,
+    );
   }
   return res.blob();
 }
@@ -97,7 +101,9 @@ export async function fetchDriveAbout(accessToken: string): Promise<DriveAboutIn
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to fetch Google Drive user details (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to fetch Google Drive user details (${res.status})`,
+    );
   }
   return res.json();
 }
@@ -110,9 +116,15 @@ export async function listDriveFiles(
     fileCategory?: 'all' | 'folders' | 'docs' | 'sheets' | 'slides' | 'media' | 'pdf';
     pageSize?: number;
     pageToken?: string;
-  }
+  },
 ): Promise<{ files: DriveFile[]; nextPageToken?: string }> {
-  const { parentId = 'root', searchQuery = '', fileCategory = 'all', pageSize = 50, pageToken } = options || {};
+  const {
+    parentId = 'root',
+    searchQuery = '',
+    fileCategory = 'all',
+    pageSize = 50,
+    pageToken,
+  } = options || {};
 
   const clauses: string[] = ['trashed = false'];
 
@@ -134,11 +146,14 @@ export async function listDriveFiles(
   } else if (fileCategory === 'pdf') {
     clauses.push("mimeType = 'application/pdf'");
   } else if (fileCategory === 'media') {
-    clauses.push("(mimeType contains 'image/' or mimeType contains 'video/' or mimeType contains 'audio/')");
+    clauses.push(
+      "(mimeType contains 'image/' or mimeType contains 'video/' or mimeType contains 'audio/')",
+    );
   }
 
   const q = clauses.join(' and ');
-  const fields = 'nextPageToken, files(id, name, mimeType, size, modifiedTime, createdTime, description, iconLink, thumbnailLink, webViewLink, webContentLink, owners, shared, trashed, parents)';
+  const fields =
+    'nextPageToken, files(id, name, mimeType, size, modifiedTime, createdTime, description, iconLink, thumbnailLink, webViewLink, webContentLink, owners, shared, trashed, parents)';
   const params = new URLSearchParams({
     q,
     pageSize: pageSize.toString(),
@@ -165,7 +180,7 @@ export async function listDriveFiles(
 export async function createDriveFolder(
   accessToken: string,
   name: string,
-  parentId = 'root'
+  parentId = 'root',
 ): Promise<DriveFile> {
   const body = {
     name,
@@ -184,7 +199,9 @@ export async function createDriveFolder(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to create folder on Google Drive (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to create folder on Google Drive (${res.status})`,
+    );
   }
 
   return res.json();
@@ -194,7 +211,7 @@ export async function uploadDriveFile(
   accessToken: string,
   file: File,
   parentId = 'root',
-  customMetadata?: { name?: string; description?: string }
+  customMetadata?: { name?: string; description?: string },
 ): Promise<DriveFile> {
   const metadata = {
     name: customMetadata?.name || file.name,
@@ -204,10 +221,7 @@ export async function uploadDriveFile(
   };
 
   const form = new FormData();
-  form.append(
-    'metadata',
-    new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-  );
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   form.append('file', file);
 
   const res = await fetch(
@@ -218,7 +232,7 @@ export async function uploadDriveFile(
         Authorization: `Bearer ${accessToken}`,
       },
       body: form,
-    }
+    },
   );
 
   if (!res.ok) {
@@ -241,7 +255,7 @@ export async function uploadAndAnalyzeDriveAudio(
     createCompanionNote?: boolean;
     autoRename?: boolean;
     onProgress?: (status: string) => void;
-  }
+  },
 ): Promise<{ file: DriveFile; companionNote?: DriveFile; analysis: GeminiAudioAnalysis }> {
   const {
     parentId = 'root',
@@ -275,10 +289,15 @@ export async function uploadAndAnalyzeDriveAudio(
     ``,
     `🏷️ Key Topics: ${analysis.keyTopics.join(', ')}`,
     `🎙️ Speaker/Tone: ${analysis.speakerOrTone}`,
-    analysis.bulletPoints.length > 0 ? `\n📌 Highlights:\n${analysis.bulletPoints.map((b) => `• ${b}`).join('\n')}` : '',
-  ].filter(Boolean).join('\n');
+    analysis.bulletPoints.length > 0
+      ? `\n📌 Highlights:\n${analysis.bulletPoints.map((b) => `• ${b}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
-  const finalName = autoRename && analysis.suggestedFilename ? analysis.suggestedFilename : file.name;
+  const finalName =
+    autoRename && analysis.suggestedFilename ? analysis.suggestedFilename : file.name;
 
   onProgress?.('Updating Google Drive metadata & descriptive name...');
   const updatedFile = await updateDriveFileMetadata(accessToken, uploadedFile.id, {
@@ -291,7 +310,8 @@ export async function uploadAndAnalyzeDriveAudio(
   if (createCompanionNote) {
     try {
       onProgress?.('Generating companion summary markdown document...');
-      const markdownContent = `# ${finalName} — Audio Analysis & Summary\n\n` +
+      const markdownContent =
+        `# ${finalName} — Audio Analysis & Summary\n\n` +
         `**Generated by:** Gemini 3.7 Flash • Sovereign Audio Enclave\n` +
         `**Date:** ${new Date().toLocaleString()}\n` +
         `**Original File:** \`${file.name}\` (${(file.size / 1024 / 1024).toFixed(2)} MB)\n\n` +
@@ -299,16 +319,23 @@ export async function uploadAndAnalyzeDriveAudio(
         `## 📝 Summary\n` +
         `${analysis.shortSummary}\n\n` +
         `## 🏷️ Key Topics\n` +
-        analysis.keyTopics.map((t) => `- \`${t}\``).join('\n') + `\n\n` +
+        analysis.keyTopics.map((t) => `- \`${t}\``).join('\n') +
+        `\n\n` +
         `## 🎙️ Tone & Format\n` +
         `${analysis.speakerOrTone}\n\n` +
         `## 📌 Key Highlights\n` +
-        analysis.bulletPoints.map((b) => `- ${b}`).join('\n') + `\n\n` +
+        analysis.bulletPoints.map((b) => `- ${b}`).join('\n') +
+        `\n\n` +
         `---\n` +
         `*Synced via Camelot OS Google Drive Integration.*`;
 
       const noteName = `${finalName.replace(/\.[^/.]+$/, '')}.summary.md`;
-      companionNote = await createTextDriveDocument(accessToken, noteName, markdownContent, parentId);
+      companionNote = await createTextDriveDocument(
+        accessToken,
+        noteName,
+        markdownContent,
+        parentId,
+      );
     } catch (noteErr) {
       console.warn('Failed to create companion note:', noteErr);
     }
@@ -322,19 +349,19 @@ export async function createTextDriveDocument(
   accessToken: string,
   name: string,
   content: string,
-  parentId = 'root'
+  parentId = 'root',
 ): Promise<DriveFile> {
   const metadata = {
-    name: name.endsWith('.txt') || name.endsWith('.md') || name.endsWith('.json') ? name : `${name}.txt`,
+    name:
+      name.endsWith('.txt') || name.endsWith('.md') || name.endsWith('.json')
+        ? name
+        : `${name}.txt`,
     mimeType: 'text/plain',
     parents: [parentId],
   };
 
   const form = new FormData();
-  form.append(
-    'metadata',
-    new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-  );
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   form.append('file', new Blob([content], { type: 'text/plain' }));
 
   const res = await fetch(
@@ -345,12 +372,14 @@ export async function createTextDriveDocument(
         Authorization: `Bearer ${accessToken}`,
       },
       body: form,
-    }
+    },
   );
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to create text document on Google Drive (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to create text document on Google Drive (${res.status})`,
+    );
   }
 
   return res.json();
@@ -359,20 +388,25 @@ export async function createTextDriveDocument(
 export async function updateDriveFileMetadata(
   accessToken: string,
   fileId: string,
-  metadata: { name?: string; description?: string }
+  metadata: { name?: string; description?: string },
 ): Promise<DriveFile> {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,description,webViewLink,modifiedTime`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,description,webViewLink,modifiedTime`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(metadata),
     },
-    body: JSON.stringify(metadata),
-  });
+  );
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to update Google Drive file metadata (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to update Google Drive file metadata (${res.status})`,
+    );
   }
 
   return res.json();
@@ -381,15 +415,12 @@ export async function updateDriveFileMetadata(
 export async function renameDriveFile(
   accessToken: string,
   fileId: string,
-  newName: string
+  newName: string,
 ): Promise<DriveFile> {
   return updateDriveFileMetadata(accessToken, fileId, { name: newName });
 }
 
-export async function deleteDriveFile(
-  accessToken: string,
-  fileId: string
-): Promise<void> {
+export async function deleteDriveFile(accessToken: string, fileId: string): Promise<void> {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
     method: 'DELETE',
     headers: {
@@ -399,7 +430,9 @@ export async function deleteDriveFile(
 
   if (!res.ok && res.status !== 204) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to delete file from Google Drive (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to delete file from Google Drive (${res.status})`,
+    );
   }
 }
 
@@ -410,15 +443,18 @@ export async function moveDriveFile(
   accessToken: string,
   fileId: string,
   newParentId: string,
-  oldParentId?: string
+  oldParentId?: string,
 ): Promise<DriveFile> {
   // If oldParentId is not provided, fetch current parents first
   let removeParents = oldParentId;
   if (!removeParents) {
     try {
-      const infoRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const infoRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
       if (infoRes.ok) {
         const info = await infoRes.json();
         if (info.parents && info.parents.length > 0) {
@@ -438,16 +474,21 @@ export async function moveDriveFile(
     queryParams.set('removeParents', removeParents);
   }
 
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${queryParams.toString()}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?${queryParams.toString()}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
-  });
+  );
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Failed to move file to folder in Google Drive (${res.status})`);
+    throw new Error(
+      err.error?.message || `Failed to move file to folder in Google Drive (${res.status})`,
+    );
   }
 
   return res.json();
@@ -461,7 +502,7 @@ export async function batchMoveDriveFiles(
   fileIds: string[],
   newParentId: string,
   oldParentId?: string,
-  onProgress?: (completed: number, total: number, currentName?: string) => void
+  onProgress?: (completed: number, total: number, currentName?: string) => void,
 ): Promise<{ success: string[]; failed: { id: string; error: string }[] }> {
   const success: string[] = [];
   const failed: { id: string; error: string }[] = [];
@@ -487,7 +528,7 @@ export async function batchMoveDriveFiles(
 export async function batchDeleteDriveFiles(
   accessToken: string,
   fileIds: string[],
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<{ success: string[]; failed: { id: string; error: string }[] }> {
   const success: string[] = [];
   const failed: { id: string; error: string }[] = [];
@@ -512,12 +553,9 @@ export async function batchDeleteDriveFiles(
  */
 export async function listDriveFolders(
   accessToken: string,
-  parentId?: string
+  parentId?: string,
 ): Promise<DriveFile[]> {
-  const queryParts = [
-    "mimeType = 'application/vnd.google-apps.folder'",
-    'trashed = false',
-  ];
+  const queryParts = ["mimeType = 'application/vnd.google-apps.folder'", 'trashed = false'];
   if (parentId) {
     queryParts.push(`'${parentId}' in parents`);
   }
@@ -543,5 +581,3 @@ export async function listDriveFolders(
   const data = await res.json();
   return data.files || [];
 }
-
-

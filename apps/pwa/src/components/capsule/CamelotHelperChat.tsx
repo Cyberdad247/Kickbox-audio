@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { speak } from '../../lib/voice';
 
 export interface GuideTopic {
@@ -135,18 +136,17 @@ export function CamelotHelperChat() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const getDimensions = useCallback(
-    (openState: boolean, minState: boolean) => {
-      if (!openState) {
-        return { width: 56, height: 56 };
-      }
-      const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-      const w = Math.min(winWidth - 32, 380);
-      const h = minState ? 64 : Math.min(typeof window !== 'undefined' ? window.innerHeight * 0.85 : 540, 540);
-      return { width: w, height: h };
-    },
-    [],
-  );
+  const getDimensions = useCallback((openState: boolean, minState: boolean) => {
+    if (!openState) {
+      return { width: 56, height: 56 };
+    }
+    const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const w = Math.min(winWidth - 32, 380);
+    const h = minState
+      ? 64
+      : Math.min(typeof window !== 'undefined' ? window.innerHeight * 0.85 : 540, 540);
+    return { width: w, height: h };
+  }, []);
 
   const clampPosition = useCallback(
     (pos: Position, openState: boolean, minState: boolean): Position => {
@@ -275,8 +275,8 @@ export function CamelotHelperChat() {
     // Only drag with main button (left click / touch)
     if (e.button !== 0) return;
 
-    const currentX = position?.x ?? (window.innerWidth - 56 - 24);
-    const currentY = position?.y ?? (window.innerHeight - 56 - 24);
+    const currentX = position?.x ?? window.innerWidth - 56 - 24;
+    const currentY = position?.y ?? window.innerHeight - 56 - 24;
 
     dragRef.current = {
       startX: e.clientX,
@@ -424,9 +424,7 @@ export function CamelotHelperChat() {
         right: position ? undefined : '24px',
         bottom: position ? undefined : '24px',
       }}
-      className={`fixed z-50 select-none touch-none ${
-        isDragging ? 'cursor-grabbing' : ''
-      }`}
+      className={`fixed z-50 select-none touch-none ${isDragging ? 'cursor-grabbing' : ''}`}
     >
       {/* ── FLOATING HELPER BUBBLE (COLLAPSED & MOVABLE) ── */}
       {!isOpen && (
@@ -494,7 +492,10 @@ export function CamelotHelperChat() {
           >
             <div className="flex items-center gap-2 pointer-events-none">
               {/* Drag Handle Grip Icon */}
-              <span className="text-white/40 text-xs font-mono tracking-tighter" title="Drag Handle">
+              <span
+                className="text-white/40 text-xs font-mono tracking-tighter"
+                title="Drag Handle"
+              >
                 ⠿
               </span>
 
@@ -687,4 +688,3 @@ export function CamelotHelperChat() {
     </div>
   );
 }
-

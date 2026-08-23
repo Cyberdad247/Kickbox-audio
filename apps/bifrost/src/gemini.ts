@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, type LiveServerMessage, Modality, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, type LiveServerMessage, Modality, ThinkingLevel, Type } from '@google/genai';
 import express from 'express';
 import multer from 'multer';
 import type { WebSocketServer } from 'ws';
@@ -34,9 +34,10 @@ function generateFallbackAudioSummary(originalName = 'recording.mp3', mimeType =
     .toLowerCase();
 
   const timestamp = new Date().toISOString().slice(0, 10);
-  const descriptiveName = cleanBase.startsWith('audio_') || cleanBase === 'recording'
-    ? `sovereign_voice_dispatch_${timestamp}${ext}`
-    : `${cleanBase}_analyzed_${timestamp}${ext}`;
+  const descriptiveName =
+    cleanBase.startsWith('audio_') || cleanBase === 'recording'
+      ? `sovereign_voice_dispatch_${timestamp}${ext}`
+      : `${cleanBase}_analyzed_${timestamp}${ext}`;
 
   return {
     suggestedFilename: descriptiveName,
@@ -78,7 +79,9 @@ geminiRouter.post('/gemini/describe-audio', upload.single('audio'), async (req, 
 
     const ai = getGenAI();
     if (!ai) {
-      console.warn('[Gemini] GEMINI_API_KEY not configured, providing deterministic sovereign analysis fallback');
+      console.warn(
+        '[Gemini] GEMINI_API_KEY not configured, providing deterministic sovereign analysis fallback',
+      );
       const fallback = generateFallbackAudioSummary(originalFilename, mimeType);
       return res.json(fallback);
     }
@@ -116,7 +119,8 @@ Your task:
           properties: {
             suggestedFilename: {
               type: Type.STRING,
-              description: 'A clean, descriptive filename with proper file extension based on audio contents.',
+              description:
+                'A clean, descriptive filename with proper file extension based on audio contents.',
             },
             shortSummary: {
               type: Type.STRING,
@@ -137,7 +141,13 @@ Your task:
               description: 'Key highlights or takeaways from the recording.',
             },
           },
-          required: ['suggestedFilename', 'shortSummary', 'keyTopics', 'speakerOrTone', 'bulletPoints'],
+          required: [
+            'suggestedFilename',
+            'shortSummary',
+            'keyTopics',
+            'speakerOrTone',
+            'bulletPoints',
+          ],
         },
       },
     });
@@ -165,7 +175,6 @@ Your task:
     });
   }
 });
-
 
 geminiRouter.post('/chat', async (req, res) => {
   try {

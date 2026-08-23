@@ -245,4 +245,3 @@ export const DEFAULT_ENCLAVE_MACROS: Macro[] = [
     ],
   },
 ];
-

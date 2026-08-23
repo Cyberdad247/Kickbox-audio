@@ -206,7 +206,9 @@ export function FileDriverExplorer() {
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'code' | 'markdown' | 'media' | 'config'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'code' | 'markdown' | 'media' | 'config'>(
+    'all',
+  );
   const [editMode, setEditMode] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'hex' | 'details' | 'audit'>('preview');
@@ -257,9 +259,7 @@ export function FileDriverExplorer() {
     if (!selectedFile) return;
 
     // Recalculate simple simulated SHA-256 for demo
-    const newHash = Array.from(
-      new Uint8Array(32).map(() => Math.floor(Math.random() * 256)),
-    )
+    const newHash = Array.from(new Uint8Array(32).map(() => Math.floor(Math.random() * 256)))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
 
@@ -333,7 +333,7 @@ export function FileDriverExplorer() {
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const getFileIcon = (node: FileDriverNode) => {
@@ -362,9 +362,7 @@ export function FileDriverExplorer() {
             style={{ paddingLeft: `${depth * 12 + 8}px` }}
           >
             <div className="flex items-center gap-2 truncate">
-              <span className="text-white/40 text-[10px] w-3">
-                {isExpanded ? '▼' : '▶'}
-              </span>
+              <span className="text-white/40 text-[10px] w-3">{isExpanded ? '▼' : '▶'}</span>
               <span className="text-sm">📁</span>
               <span className="font-bold text-white/90 group-hover:text-gold transition-colors truncate">
                 {node.name}
@@ -402,9 +400,7 @@ export function FileDriverExplorer() {
           <span className="text-sm">{getFileIcon(node)}</span>
           <span className="truncate">{node.name}</span>
         </div>
-        <span className="text-[10px] text-white/40 font-mono">
-          {formatBytes(node.sizeBytes)}
-        </span>
+        <span className="text-[10px] text-white/40 font-mono">{formatBytes(node.sizeBytes)}</span>
       </div>
     );
   };
@@ -465,7 +461,9 @@ export function FileDriverExplorer() {
           {/* Search & Filter */}
           <div className="mb-3 space-y-2">
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 text-xs">🔍</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 text-xs">
+                🔍
+              </span>
               <input
                 type="text"
                 placeholder="Search files..."
@@ -572,7 +570,9 @@ export function FileDriverExplorer() {
                     🎵
                   </div>
                   <div>
-                    <h4 className="font-display text-base font-bold text-white">{selectedFile.name}</h4>
+                    <h4 className="font-display text-base font-bold text-white">
+                      {selectedFile.name}
+                    </h4>
                     <p className="font-mono text-xs text-white/50 mt-1">
                       WAV PCM Stereo • 48.0 kHz Sample Rate • Zone-0
                     </p>
@@ -592,7 +592,9 @@ export function FileDriverExplorer() {
                     🎬
                   </div>
                   <div>
-                    <h4 className="font-display text-base font-bold text-white">{selectedFile.name}</h4>
+                    <h4 className="font-display text-base font-bold text-white">
+                      {selectedFile.name}
+                    </h4>
                     <p className="font-mono text-xs text-white/50 mt-1">
                       1080p60 H.264 Container • Edge-to-Cloud Digital Twin Stream
                     </p>
@@ -609,7 +611,7 @@ export function FileDriverExplorer() {
             ) : activeTab === 'hex' ? (
               <div className="space-y-1 font-mono text-[11px] text-cyan-300">
                 <div className="text-white/40 pb-2 border-b border-white/5">
-                  OFFSET   00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII
+                  OFFSET 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F ASCII
                 </div>
                 {Array.from({ length: 12 }).map((_, idx) => (
                   <div key={idx} className="flex gap-4">
@@ -617,7 +619,7 @@ export function FileDriverExplorer() {
                       {(idx * 16).toString(16).padStart(8, '0').toUpperCase()}
                     </span>
                     <span className="text-gold-light">
-                      7F 45 4C 46 02 01 01 00  00 00 00 00 00 00 00 00
+                      7F 45 4C 46 02 01 01 00 00 00 00 00 00 00 00 00
                     </span>
                     <span className="text-white/60">.ELF............</span>
                   </div>
@@ -697,7 +699,9 @@ export function FileDriverExplorer() {
                   </div>
                   <div>
                     <span className="text-[10px] text-white/40 uppercase">Size</span>
-                    <div className="text-cyan-300 font-bold">{formatBytes(selectedFile.sizeBytes)}</div>
+                    <div className="text-cyan-300 font-bold">
+                      {formatBytes(selectedFile.sizeBytes)}
+                    </div>
                   </div>
                 </div>
               </div>

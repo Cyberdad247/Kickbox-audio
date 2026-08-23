@@ -20,13 +20,13 @@ export class DriftAdaptiveCRDT {
   public applyOperation(op: CRDTOperation) {
     this.ledger.push(op);
     this.ledger.sort((a, b) => a.timestamp - b.timestamp);
-    
+
     // Naive Last-Writer-Wins (LWW) evaluation
     const latestOps = new Map<string, CRDTOperation>();
     for (const entry of this.ledger) {
       latestOps.set(entry.key, entry);
     }
-    
+
     // Rebuild state
     this.state.clear();
     for (const [key, entry] of latestOps.entries()) {
@@ -44,7 +44,7 @@ export class DriftAdaptiveCRDT {
       type: 'INSERT',
       key,
       value,
-      vectorId: vectorEmbeddings ? key : undefined
+      vectorId: vectorEmbeddings ? key : undefined,
     };
     if (vectorEmbeddings) {
       this.vectorIndex.set(key, vectorEmbeddings);
@@ -52,7 +52,7 @@ export class DriftAdaptiveCRDT {
     this.applyOperation(op);
     return op;
   }
-  
+
   public getSnapshot() {
     return Object.fromEntries(this.state);
   }

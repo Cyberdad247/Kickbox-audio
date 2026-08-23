@@ -252,4 +252,3 @@ export function useBifrost(): BifrostContextValue {
   if (!ctx) throw new Error('useBifrost must be used within a BifrostProvider');
   return ctx;
 }
-

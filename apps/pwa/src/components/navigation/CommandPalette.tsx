@@ -233,7 +233,9 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       icon: '📡',
       action: () => {
         onNavigateTab('offline');
-        logActivity('TAB_NAVIGATED', 'Navigated to Bifröst Offline Radar', { category: 'telemetry' });
+        logActivity('TAB_NAVIGATED', 'Navigated to Bifröst Offline Radar', {
+          category: 'telemetry',
+        });
         onClose();
       },
     },
@@ -246,7 +248,9 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       badge: 'LIVE',
       action: () => {
         onNavigateTab('activity');
-        logActivity('TAB_NAVIGATED', 'Navigated to Activity & Audit Ledger', { category: 'security' });
+        logActivity('TAB_NAVIGATED', 'Navigated to Activity & Audit Ledger', {
+          category: 'security',
+        });
         onClose();
       },
     },
@@ -262,11 +266,15 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       action: () => {
         switchTenant(t.id);
         speak(`Switched to Knight ${t.handle}`);
-        logActivity('KNIGHT_SWITCHED', `Switched active tenant profile to ${t.handle} (${t.role})`, {
-          category: 'knight',
-          actor: t.handle,
-          severity: 'info',
-        });
+        logActivity(
+          'KNIGHT_SWITCHED',
+          `Switched active tenant profile to ${t.handle} (${t.role})`,
+          {
+            category: 'knight',
+            actor: t.handle,
+            severity: 'info',
+          },
+        );
         triggerHaptic('consent');
         onClose();
       },
@@ -322,10 +330,14 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       icon: '🔄',
       action: () => {
         reconnectNow();
-        logActivity('BIFROST_RECONNECT_ATTEMPT', 'Manual mTLS WebRTC reconnection initiated by user', {
-          category: 'telemetry',
-          severity: 'warn',
-        });
+        logActivity(
+          'BIFROST_RECONNECT_ATTEMPT',
+          'Manual mTLS WebRTC reconnection initiated by user',
+          {
+            category: 'telemetry',
+            severity: 'warn',
+          },
+        );
         triggerHaptic('click');
         onClose();
       },

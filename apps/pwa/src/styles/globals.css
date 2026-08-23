@@ -54,12 +54,14 @@ body {
 
 /* Sovereign Aura OODA Loop Pulse & Beam Animations */
 @keyframes oodaAuraPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 8px rgba(255, 215, 0, 0.2), inset 0 0 6px rgba(255, 215, 0, 0.08);
     border-color: rgba(255, 215, 0, 0.45);
   }
   50% {
-    box-shadow: 0 0 22px rgba(255, 215, 0, 0.65), 0 0 36px rgba(212, 175, 55, 0.35), inset 0 0 14px rgba(255, 215, 0, 0.2);
+    box-shadow: 0 0 22px rgba(255, 215, 0, 0.65), 0 0 36px rgba(212, 175, 55, 0.35), inset 0 0 14px
+      rgba(255, 215, 0, 0.2);
     border-color: rgba(255, 228, 77, 0.95);
   }
 }
@@ -79,7 +81,8 @@ body {
 }
 
 @keyframes oodaPillGlow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
     filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.3));
   }
@@ -120,13 +123,15 @@ body {
 }
 
 @keyframes glowPassPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.25;
     filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.2));
   }
   50% {
     opacity: 1;
-    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(212, 175, 55, 0.55));
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.85))
+      drop-shadow(0 0 16px rgba(212, 175, 55, 0.55));
   }
 }
 

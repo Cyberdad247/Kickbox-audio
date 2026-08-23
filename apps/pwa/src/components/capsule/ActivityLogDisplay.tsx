@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import type React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  useActivityLog,
-  ActivityCategory,
-  ActivitySeverity,
+  type ActivityCategory,
   ActivityLogEntry,
+  type ActivitySeverity,
+  useActivityLog,
 } from '../../context/ActivityLogContext';
 import { playSpatialTone, triggerHaptic } from '../../lib/hapticsAndSpatialAudio';
 
@@ -21,16 +22,61 @@ const CATEGORY_CONFIG: Record<
   { label: string; icon: string; color: string; bg: string }
 > = {
   all: { label: 'All Feeds', icon: '📜', color: 'text-white', bg: 'bg-white/10' },
-  voice: { label: 'Voice & HUD', icon: '🎙️', color: 'text-cyan-300', bg: 'bg-cyan-950/40 border-cyan-500/30' },
+  voice: {
+    label: 'Voice & HUD',
+    icon: '🎙️',
+    color: 'text-cyan-300',
+    bg: 'bg-cyan-950/40 border-cyan-500/30',
+  },
   macro: { label: 'Macros', icon: '⚡', color: 'text-gold-light', bg: 'bg-gold/10 border-gold/30' },
-  cartridge: { label: 'Cartridges', icon: '💾', color: 'text-amber-300', bg: 'bg-amber-950/40 border-amber-500/30' },
-  knight: { label: 'Knights & Enclaves', icon: '🛡️', color: 'text-violet-light', bg: 'bg-violet/10 border-violet/30' },
-  security: { label: 'Security & Auth', icon: '🔒', color: 'text-emerald-400', bg: 'bg-emerald-950/40 border-emerald-500/30' },
-  config: { label: 'Configurations', icon: '⚙️', color: 'text-blue-300', bg: 'bg-blue-950/40 border-blue-500/30' },
-  telemetry: { label: 'Telemetry & Mesh', icon: '📡', color: 'text-pink-300', bg: 'bg-pink-950/40 border-pink-500/30' },
-  system: { label: 'System Kernel', icon: '🧠', color: 'text-purple-300', bg: 'bg-purple-950/40 border-purple-500/30' },
-  auth: { label: 'Clearance', icon: '🔑', color: 'text-teal-300', bg: 'bg-teal-950/40 border-teal-500/30' },
-  general: { label: 'General', icon: '📋', color: 'text-white/70', bg: 'bg-white/5 border-white/10' },
+  cartridge: {
+    label: 'Cartridges',
+    icon: '💾',
+    color: 'text-amber-300',
+    bg: 'bg-amber-950/40 border-amber-500/30',
+  },
+  knight: {
+    label: 'Knights & Enclaves',
+    icon: '🛡️',
+    color: 'text-violet-light',
+    bg: 'bg-violet/10 border-violet/30',
+  },
+  security: {
+    label: 'Security & Auth',
+    icon: '🔒',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-950/40 border-emerald-500/30',
+  },
+  config: {
+    label: 'Configurations',
+    icon: '⚙️',
+    color: 'text-blue-300',
+    bg: 'bg-blue-950/40 border-blue-500/30',
+  },
+  telemetry: {
+    label: 'Telemetry & Mesh',
+    icon: '📡',
+    color: 'text-pink-300',
+    bg: 'bg-pink-950/40 border-pink-500/30',
+  },
+  system: {
+    label: 'System Kernel',
+    icon: '🧠',
+    color: 'text-purple-300',
+    bg: 'bg-purple-950/40 border-purple-500/30',
+  },
+  auth: {
+    label: 'Clearance',
+    icon: '🔑',
+    color: 'text-teal-300',
+    bg: 'bg-teal-950/40 border-teal-500/30',
+  },
+  general: {
+    label: 'General',
+    icon: '📋',
+    color: 'text-white/70',
+    bg: 'bg-white/5 border-white/10',
+  },
 };
 
 const SEVERITY_CONFIG: Record<
@@ -88,7 +134,9 @@ export function ActivityLogDisplay({
 }: ActivityLogDisplayProps) {
   const { logs, logActivity, deleteLog, clearLogs, exportLogs } = useActivityLog();
 
-  const [selectedCategory, setSelectedCategory] = useState<ActivityCategory | 'all'>(defaultCategory);
+  const [selectedCategory, setSelectedCategory] = useState<ActivityCategory | 'all'>(
+    defaultCategory,
+  );
   const [selectedSeverity, setSelectedSeverity] = useState<ActivitySeverity | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
@@ -141,8 +189,12 @@ export function ActivityLogDisplay({
     const errors = logs.filter((l) => l.severity === 'error').length;
     const warnings = logs.filter((l) => l.severity === 'warn').length;
     const successes = logs.filter((l) => l.severity === 'success').length;
-    const voiceCount = logs.filter((l) => l.category === 'voice' || l.action.includes('VOICE')).length;
-    const macroCount = logs.filter((l) => l.category === 'macro' || l.action.includes('MACRO')).length;
+    const voiceCount = logs.filter(
+      (l) => l.category === 'voice' || l.action.includes('VOICE'),
+    ).length;
+    const macroCount = logs.filter(
+      (l) => l.category === 'macro' || l.action.includes('MACRO'),
+    ).length;
 
     return {
       total,
@@ -323,23 +375,35 @@ export function ActivityLogDisplay({
       {!embedded && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 my-6">
           <div className="border border-gold/20 bg-black/40 p-3.5 rounded-xl">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Ledger Events</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+              Total Ledger Events
+            </span>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="font-display text-2xl text-gold-royal tracking-minted">{metrics.total}</span>
+              <span className="font-display text-2xl text-gold-royal tracking-minted">
+                {metrics.total}
+              </span>
               <span className="font-mono text-[10px] text-gold-light">Active Log</span>
             </div>
           </div>
 
           <div className="border border-emerald-500/20 bg-emerald-950/15 p-3.5 rounded-xl">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-400/70">Nominal / Success</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-400/70">
+              Nominal / Success
+            </span>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="font-display text-2xl text-emerald-400 tracking-minted">{metrics.successes}</span>
-              <span className="font-mono text-[10px] text-emerald-300/80">{metrics.healthPercent}% health</span>
+              <span className="font-display text-2xl text-emerald-400 tracking-minted">
+                {metrics.successes}
+              </span>
+              <span className="font-mono text-[10px] text-emerald-300/80">
+                {metrics.healthPercent}% health
+              </span>
             </div>
           </div>
 
           <div className="border border-cyan-400/20 bg-cyan-950/15 p-3.5 rounded-xl">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-400/70">Voice & Macros</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-400/70">
+              Voice & Macros
+            </span>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="font-display text-2xl text-cyan-300 tracking-minted">
                 {metrics.voiceCount + metrics.macroCount}
@@ -349,10 +413,16 @@ export function ActivityLogDisplay({
           </div>
 
           <div className="border border-rose-500/20 bg-rose-950/15 p-3.5 rounded-xl">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-rose-400/70">Exceptions / Alerts</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-rose-400/70">
+              Exceptions / Alerts
+            </span>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="font-display text-2xl text-rose-400 tracking-minted">{metrics.errors + metrics.warnings}</span>
-              <span className="font-mono text-[10px] text-rose-300/60">{metrics.errors} critical</span>
+              <span className="font-display text-2xl text-rose-400 tracking-minted">
+                {metrics.errors + metrics.warnings}
+              </span>
+              <span className="font-mono text-[10px] text-rose-300/60">
+                {metrics.errors} critical
+              </span>
             </div>
           </div>
         </div>
@@ -363,7 +433,9 @@ export function ActivityLogDisplay({
         {/* Search Bar & Auto-scroll Toggle */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative flex-1 w-full">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs text-white/40">🔍</span>
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs text-white/40">
+              🔍
+            </span>
             <input
               type="text"
               value={searchQuery}
@@ -390,11 +462,21 @@ export function ActivityLogDisplay({
                 onChange={(e) => setSelectedSeverity(e.target.value as any)}
                 className="bg-transparent font-mono text-xs text-gold-light focus:outline-none cursor-pointer"
               >
-                <option value="all" className="bg-[#120D22] text-white">All Severities</option>
-                <option value="info" className="bg-[#120D22] text-cyan-300">Info Only</option>
-                <option value="success" className="bg-[#120D22] text-emerald-400">Success Only</option>
-                <option value="warn" className="bg-[#120D22] text-amber-300">Warnings Only</option>
-                <option value="error" className="bg-[#120D22] text-rose-400">Errors Only</option>
+                <option value="all" className="bg-[#120D22] text-white">
+                  All Severities
+                </option>
+                <option value="info" className="bg-[#120D22] text-cyan-300">
+                  Info Only
+                </option>
+                <option value="success" className="bg-[#120D22] text-emerald-400">
+                  Success Only
+                </option>
+                <option value="warn" className="bg-[#120D22] text-amber-300">
+                  Warnings Only
+                </option>
+                <option value="error" className="bg-[#120D22] text-rose-400">
+                  Errors Only
+                </option>
               </select>
             </div>
 
@@ -441,7 +523,9 @@ export function ActivityLogDisplay({
                 <span>{config.label}</span>
                 <span
                   className={`ml-1 rounded px-1.5 py-0.2 text-[9px] ${
-                    isSelected ? 'bg-gold-royal text-obsidian font-bold' : 'bg-white/10 text-white/40'
+                    isSelected
+                      ? 'bg-gold-royal text-obsidian font-bold'
+                      : 'bg-white/10 text-white/40'
                   }`}
                 >
                   {count}
