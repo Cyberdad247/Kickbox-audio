@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseVadOptions {
   threshold?: number;
+  deviceId?: string;
 }
 
 interface Vad {
@@ -14,11 +15,11 @@ interface Vad {
   level: number;
   voiced: boolean;
   isWorkletActive: boolean;
-  start: () => Promise<void>;
+  start: (customDeviceId?: string) => Promise<void>;
   stop: () => void;
 }
 
-export function useVad({ threshold = 0.045 }: UseVadOptions = {}): Vad {
+export function useVad({ threshold = 0.045, deviceId }: UseVadOptions = {}): Vad {
   const [level, setLevel] = useState(0);
   const [voiced, setVoiced] = useState(false);
   const [isWorkletActive, setIsWorkletActive] = useState(false);
@@ -29,8 +30,10 @@ export function useVad({ threshold = 0.045 }: UseVadOptions = {}): Vad {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const isRunningRef = useRef<boolean>(false);
 
   const stop = useCallback(() => {
+    isRunningRef.current = false;
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     for (const track of streamRef.current?.getTracks() ?? []) track.stop();
@@ -46,10 +49,26 @@ export function useVad({ threshold = 0.045 }: UseVadOptions = {}): Vad {
     setIsWorkletActive(false);
   }, []);
 
-  const start = useCallback(async () => {
-    if (!supported || ctxRef.current) return;
+  const start = useCallback(async (customDeviceId?: string) => {
+    if (!supported) return;
+    if (ctxRef.current) {
+      stop();
+    }
+    isRunningRef.current = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredId =
+        customDeviceId ||
+        deviceId ||
+        (typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+          ? localStorage.getItem('camelot_preferred_audio_device')
+          : null);
+
+      const audioConstraints: MediaTrackConstraints | boolean =
+        preferredId && preferredId !== 'default'
+          ? { deviceId: { exact: preferredId } }
+          : true;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       streamRef.current = stream;
 
       const Ctor =
@@ -112,6 +131,7 @@ export function useVad({ threshold = 0.045 }: UseVadOptions = {}): Vad {
 
         const buf = new Uint8Array(analyser.fftSize);
         const tick = () => {
+          if (!isRunningRef.current) return;
           analyser.getByteTimeDomainData(buf);
           let sum = 0;
           for (let i = 0; i < buf.length; i++) {
@@ -128,7 +148,22 @@ export function useVad({ threshold = 0.045 }: UseVadOptions = {}): Vad {
     } catch {
       stop();
     }
-  }, [supported, threshold, stop]);
+  }, [supported, deviceId, threshold, stop]);
+
+  // Listen for device changes across components
+  useEffect(() => {
+    const handleDeviceChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ deviceId?: string }>;
+      if (isRunningRef.current && customEvent.detail?.deviceId) {
+        void start(customEvent.detail.deviceId);
+      }
+    };
+
+    window.addEventListener('camelot:audio-device-changed', handleDeviceChange);
+    return () => {
+      window.removeEventListener('camelot:audio-device-changed', handleDeviceChange);
+    };
+  }, [start]);
 
   useEffect(() => stop, [stop]);
 

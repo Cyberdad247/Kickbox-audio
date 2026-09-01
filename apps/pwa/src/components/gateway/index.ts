@@ -6,3 +6,5 @@ export * from './BiometricCameraAuthOverlay';
 export * from './QRAuthScanner';
 export * from './AddKnightModal';
 export * from './TenantWarpTransition';
+export * from './CamelotSwordAndStoneBootScreen';
+export * from './BootSequence';

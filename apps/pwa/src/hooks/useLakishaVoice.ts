@@ -112,6 +112,18 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
       const matched = matchMacro(cmd);
       if (matched) {
         setTranscript('');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('camelot:voice-transcript-entry', {
+              detail: {
+                speaker: 'macro',
+                speakerLabel: `Voice Macro: ${matched.name}`,
+                text: `⚡ Triggered macro [${matched.name}] → ${matched.payload || matched.actionType}`,
+                metadata: { macroName: matched.name, rawCommand: cmd },
+              },
+            }),
+          );
+        }
         executeMacro(matched, 'voice');
         return;
       }
@@ -146,8 +158,34 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
         if (result.isFinal) final += text;
         else interim += text;
       }
-      if (final) dispatch(final);
-      else setTranscript(interim);
+      if (final) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('camelot:voice-transcript-entry', {
+              detail: {
+                speaker: 'user',
+                speakerLabel: 'Sovereign (Voice)',
+                text: final,
+              },
+            }),
+          );
+          window.dispatchEvent(
+            new CustomEvent('camelot:lakisha-listening-state', {
+              detail: { interim: '' },
+            }),
+          );
+        }
+        dispatch(final);
+      } else {
+        setTranscript(interim);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('camelot:lakisha-listening-state', {
+              detail: { interim },
+            }),
+          );
+        }
+      }
     };
     if (continuous) {
       // Persistent model: any recognition error degrades to VAD-only (mic stays hot).
@@ -290,6 +328,22 @@ export function useLakishaVoice(options: UseLakishaVoiceOptions = {}): LakishaVo
     }
     // Prefer a remote MCP answer (//ROUTE) over the local confirmation.
     const line = state.lastResponse ?? speakableResponse(state);
+    if (line && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('camelot:voice-transcript-entry', {
+          detail: {
+            speaker: 'assistant',
+            speakerLabel: 'Lakisha Voice OS',
+            text: line,
+            latencyMs: queryMs ?? undefined,
+            metadata: {
+              bifrostLane: state.lastLane ?? undefined,
+              rawCommand: state.lastCommand ?? undefined,
+            },
+          },
+        }),
+      );
+    }
     const speakAt = performance.now();
     speak(line, {
       onStart: () => {

@@ -1,6 +1,6 @@
 {
   "name": "Kickbox Audio - Camelot OS",
-  "description": "Voice OS and sovereign multi-tenant enclave with biometric, Google Drive cloud integration, QR cryptographic vault authorization, and custom macro voice shortcuts",
+  "description": "Voice OS and sovereign multi-tenant enclave with interactive 5-Lattice Living Blueprints, biometric authorization, Google Drive cloud integration, and QR cryptographic vault authorization",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -46,6 +46,8 @@ export function LakishaHUD() {
     openGateway,
     showAvatarKnightScreen,
     setShowAvatarKnightScreen,
+    isAuthenticated,
+    isGatewayOpen,
   } = useTenant();
 
   const { connected, isReconnecting, reconnectNow, state } = useBifrost();
@@ -84,6 +86,26 @@ export function LakishaHUD() {
       window.removeEventListener('camelot:toggle-lakisha-mute', handleToggleMute);
     };
   }, [toggleMute]);
+
+  // Listen for external listening toggles
+  useEffect(() => {
+    const handleToggleListen = () => {
+      toggleListening();
+    };
+    window.addEventListener('camelot:toggle-lakisha-listening', handleToggleListen);
+    return () => {
+      window.removeEventListener('camelot:toggle-lakisha-listening', handleToggleListen);
+    };
+  }, [toggleListening]);
+
+  // Broadcast listening, voiced, and audio level state to visual indicators in CapsuleHost
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('camelot:lakisha-listening-state', {
+        detail: { listening, voiced, level, speaking },
+      }),
+    );
+  }, [listening, voiced, level, speaking]);
 
   // Optimal Docking & Snap-Back System
   const [dockPosition, setDockPosition] = useState<HUDDockPosition>('bottom-left');
@@ -280,8 +302,8 @@ export function LakishaHUD() {
     }
   };
 
-  // 1. Sandbox Phase: Do not render floating HUD on Sandbox Avatar Knight configuration screen (single static card mode)
-  if (showAvatarKnightScreen) {
+  // 1. Executive PWA Phase: Only allow Lakisha HUD to exist when executive PWA workspace is active and available
+  if (!isAuthenticated || isGatewayOpen || showAvatarKnightScreen) {
     return null;
   }
 

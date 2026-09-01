@@ -5,7 +5,7 @@
   "description": "Sovereign System monorepo — PWA + Bifrost gateway + Prisma DB (Vault_Ω / Raven_Ω / Echo_Ω)",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "turbo run build",
+    "build": "(npx turbo run build || npm run --prefix apps/pwa build) && node -e \"const fs=require('fs'); if(fs.existsSync('apps/pwa/dist')){fs.cpSync('apps/pwa/dist', 'dist', {recursive: true, force: true}); console.log('✓ Artifacts copied to root dist/');}\"",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
@@ -50,5 +50,5 @@
     "qrcode": "^1.5.4",
     "zustand": "^5.0.15"
   },
-  "packageManager": "bun@1.0.0"
+  "packageManager": "npm@10.8.2"
 }

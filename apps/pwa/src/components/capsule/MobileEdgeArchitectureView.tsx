@@ -6,10 +6,10 @@ import { useMacros } from '../../context/MacroContext';
 import { useTenant } from '../../context/TenantContext';
 import { useHardwareCompatibility } from '../../hooks/useHardwareCompatibility';
 import { useLakishaVoice } from '../../hooks/useLakishaVoice';
-import { LakishaHUD } from '../LakishaHUD';
 import { CommandPalette } from '../navigation/CommandPalette';
 import { CamelotHelperChat } from './CamelotHelperChat';
 import { LivingWorkspaceView } from './LivingWorkspaceView';
+import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
 
 export function MobileEdgeArchitectureView() {
   const { activeTenant, activeCartridge, isKnightSwitchAllowed, setShowAvatarKnightScreen } =
@@ -23,6 +23,7 @@ export function MobileEdgeArchitectureView() {
     'cockpit',
   );
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#08080C] text-white pb-24 select-none">
@@ -231,13 +232,41 @@ export function MobileEdgeArchitectureView() {
 
         {activeTab === 'hardware' && (
           <div className="space-y-3">
-            <h2 className="font-display text-sm font-bold text-[#00F0FF] uppercase tracking-wider">
-              Hardware Compatibility & Profiling
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-sm font-bold text-[#00F0FF] uppercase tracking-wider">
+                Hardware Screen & Profiling
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsHardwareModalOpen(true)}
+                className="rounded-lg border border-[#00F0FF] bg-[#00F0FF]/15 px-2.5 py-1 font-mono text-[9px] text-[#00F0FF] hover:bg-[#00F0FF]/25 cursor-pointer font-bold"
+              >
+                🔍 Full Suite & Embed
+              </button>
+            </div>
+
             <div className="rounded-2xl border border-white/10 bg-[#0E0E18] p-4 space-y-2.5 font-mono text-xs">
               <div className="flex justify-between border-b border-white/5 pb-1.5">
-                <span className="text-white/50">Target Architecture:</span>
-                <span className="text-[#00F0FF] font-bold">{hw.tier.toUpperCase()}</span>
+                <span className="text-white/50">Device Classification:</span>
+                <span className="text-[#00F0FF] font-bold uppercase">{hw.deviceCategory} ({hw.tier})</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-1.5">
+                <span className="text-white/50">Active Viewport:</span>
+                <span className="text-[#FFD700] font-bold">{hw.viewportWidth} × {hw.viewportHeight} px</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-1.5">
+                <span className="text-white/50">Physical Hardware Screen:</span>
+                <span className="text-white font-bold">{hw.screenWidth} × {hw.screenHeight} px</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-1.5">
+                <span className="text-white/50">Pixel Density (DPR):</span>
+                <span className="text-emerald-400 font-bold">{hw.pixelRatio.toFixed(2)}x High-DPI</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-1.5">
+                <span className="text-white/50">UI Embedding Status:</span>
+                <span className={hw.isEmbedded ? 'text-purple-300 font-bold' : 'text-white/60'}>
+                  {hw.isEmbedded ? 'Embedded in IFrame' : 'Standalone Root Frame'}
+                </span>
               </div>
               <div className="flex justify-between border-b border-white/5 pb-1.5">
                 <span className="text-white/50">CPU Hardware Threads:</span>
@@ -329,9 +358,6 @@ export function MobileEdgeArchitectureView() {
         </button>
       </nav>
 
-      {/* Floating HUD snap-back helper on mobile */}
-      <LakishaHUD />
-
       {/* 13-Year-Old Friendly Onboarding & Helper Chat Bubble */}
       <CamelotHelperChat />
 
@@ -348,6 +374,13 @@ export function MobileEdgeArchitectureView() {
             setActiveTab('hardware');
           }
         }}
+      />
+
+      {/* Hardware Screen Verification & UI Embedding Modal */}
+      <HardwareAndEmbeddingModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => setIsHardwareModalOpen(false)}
+        initialTab="hardware"
       />
     </div>
   );

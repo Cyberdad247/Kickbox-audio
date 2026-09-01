@@ -134,6 +134,86 @@ export function playVaultUnsealSound(volume = 0.1): boolean {
   }
 }
 
+/**
+ * Synthesizes a subtle, cinematic system-boot sound effect for Camelot OS startup.
+ * Combines a resonant sub-bass surge, harmonic major-9th power chord, and cybernetic shimmer sweep.
+ */
+export function playSystemBootSound(volume = 0.12): boolean {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return false;
+
+    const now = ctx.currentTime;
+    const vol = Math.max(0.01, Math.min(volume, 0.3));
+
+    // ── 1. Sub-Bass Initialization Surge ──
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(55, now); // A1
+    subOsc.frequency.exponentialRampToValueAtTime(110, now + 1.2); // Ramp to A2
+
+    subGain.gain.setValueAtTime(0.0001, now);
+    subGain.gain.exponentialRampToValueAtTime(vol * 0.9, now + 0.15);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 1.85);
+
+    // ── 2. Harmonic Crystalline Power Chord (Dmaj9: D4, A4, E5, F#5, A5, C#6) ──
+    const bootFrequencies = [293.66, 440.0, 659.25, 739.99, 880.0, 1108.73];
+    bootFrequencies.forEach((freq, idx) => {
+      const noteDelay = idx * 0.035;
+      const noteStart = now + noteDelay;
+
+      const osc = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, noteStart);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.015, noteStart + 1.5);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2200, noteStart);
+      filter.frequency.exponentialRampToValueAtTime(4500, noteStart + 0.6);
+
+      noteGain.gain.setValueAtTime(0.0001, noteStart);
+      noteGain.gain.exponentialRampToValueAtTime(vol * (0.55 - idx * 0.05), noteStart + 0.06);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 1.6 - noteDelay);
+
+      osc.connect(filter);
+      filter.connect(noteGain);
+      noteGain.connect(ctx.destination);
+
+      osc.start(noteStart);
+      osc.stop(noteStart + 1.65);
+    });
+
+    // ── 3. High-Frequency Cyber Shimmer Sweep ──
+    const sweepOsc = ctx.createOscillator();
+    const sweepGain = ctx.createGain();
+    sweepOsc.type = 'sine';
+    sweepOsc.frequency.setValueAtTime(1400, now + 0.1);
+    sweepOsc.frequency.exponentialRampToValueAtTime(3200, now + 0.9);
+
+    sweepGain.gain.setValueAtTime(0.0001, now + 0.1);
+    sweepGain.gain.exponentialRampToValueAtTime(vol * 0.25, now + 0.35);
+    sweepGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+
+    sweepOsc.connect(sweepGain);
+    sweepGain.connect(ctx.destination);
+    sweepOsc.start(now + 0.1);
+    sweepOsc.stop(now + 1.15);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface FeedbackOptions {
   sound?: boolean;
   haptics?: boolean;

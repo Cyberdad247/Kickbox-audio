@@ -7,7 +7,6 @@ import { useBackgroundSync } from '../../hooks/useBackgroundSync';
 import { useCapsuleState } from '../../hooks/useCapsuleState';
 import { useHardwareCompatibility } from '../../hooks/useHardwareCompatibility';
 import { usePiPAndBadging } from '../../hooks/usePiPAndBadging';
-import { LakishaHUD } from '../LakishaHUD';
 import { OODADiagnosticVisualizer } from '../dashboard/OODADiagnosticVisualizer';
 import { TenantQuickBar } from '../gateway/TenantQuickBar';
 import { GmailNotificationStream } from '../gmail/GmailNotificationStream';
@@ -15,7 +14,13 @@ import { CommandPalette } from '../navigation/CommandPalette';
 import { CamelotHelperChat } from './CamelotHelperChat';
 import { MobileEdgeArchitectureView } from './MobileEdgeArchitectureView';
 import { RunicConsole } from './RunicConsole';
+import { VoiceWaveformIndicator } from './VoiceWaveformIndicator';
+import { MicrophoneSelectDropdown } from './MicrophoneSelectDropdown';
+import { VoiceTranscriptPanel } from './VoiceTranscriptPanel';
+import { useVoiceTranscript } from '../../context/VoiceTranscriptContext';
+import { useAutoSleep } from '../../hooks/useAutoSleep';
 import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
+import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
 
 // Lazily load tab partitions to reduce initial bundle size and speed up FCP
 const Dashboard = React.lazy(() => import('../Dashboard').then((m) => ({ default: m.Dashboard })));
@@ -39,6 +44,9 @@ const SovereignCinematicFlow = React.lazy(() =>
 );
 const TopologicalAgentCanvas = React.lazy(() =>
   import('./TopologicalAgentCanvas').then((m) => ({ default: m.TopologicalAgentCanvas })),
+);
+const LatticeBlueprintWorkbench = React.lazy(() =>
+  import('./LatticeBlueprintWorkbench').then((m) => ({ default: m.LatticeBlueprintWorkbench })),
 );
 const VoiceMacroConfigPanel = React.lazy(() =>
   import('./VoiceMacroConfigPanel').then((m) => ({ default: m.VoiceMacroConfigPanel })),
@@ -177,6 +185,14 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
   const hw = useHardwareCompatibility();
   const { requestPiP } = usePiPAndBadging();
   const { isMacroModalOpen, toggleMacroModal } = useMacros();
+  const {
+    isPanelOpen: isTranscriptPanelOpen,
+    setPanelOpen: setTranscriptPanelOpen,
+    togglePanel: toggleTranscriptPanel,
+    transcripts,
+  } = useVoiceTranscript();
+
+  const autoSleep = useAutoSleep();
 
   const [activeWorkspaceTab, setActiveWorkspaceTab] = React.useState<
     | 'cinematic'
@@ -190,12 +206,14 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     | 'macros'
     | 'offline'
     | 'topology'
+    | 'lattice'
     | 'worktree'
     | 'ephemeral'
     | 'bifrost'
     | 'settings'
     | 'activity'
     | 'ooda'
+    | 'transcript'
   >('cinematic');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
   const [isLakishaHudOpen, setIsLakishaHudOpen] = React.useState(false);
@@ -203,6 +221,29 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
   const [isLakishaMinimized, setIsLakishaMinimized] = React.useState(false);
   const [isLakishaMuted, setIsLakishaMuted] = React.useState(false);
   const [isLakishaCameraEnabled, setIsLakishaCameraEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleNavigateTab = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setShowAvatarKnightScreen(false);
+        setActiveWorkspaceTab(customEvent.detail as any);
+      }
+    };
+    window.addEventListener('camelot:navigate-tab', handleNavigateTab);
+    return () => window.removeEventListener('camelot:navigate-tab', handleNavigateTab);
+  }, []);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'T' || e.key === 't')) {
+        e.preventDefault();
+        toggleTranscriptPanel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleTranscriptPanel]);
 
   React.useEffect(() => {
     const handleLakishaMinimized = (e: Event) => {
@@ -286,6 +327,9 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     ephemeral: true,
     lakisha_hud: false,
   });
+
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = React.useState(false);
+  const [hardwareModalTab, setHardwareModalTab] = React.useState<'hardware' | 'embedding' | 'simulator'>('hardware');
 
   React.useEffect(() => {
     try {
@@ -476,6 +520,23 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               type="button"
               onClick={() => {
                 setShowAvatarKnightScreen(false);
+                setActiveWorkspaceTab('lattice');
+                setIsDockOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 rounded-xl border p-2.5 text-left font-mono text-[10px] uppercase tracking-wider transition-all ${
+                activeWorkspaceTab === 'lattice'
+                  ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#D4AF37] font-bold shadow-[0_0_15px_rgba(212,175,55,0.3)]'
+                  : 'border-white/10 bg-black/40 text-white/50 hover:text-[#D4AF37] hover:border-[#D4AF37]/50'
+              }`}
+            >
+              <span className="text-sm">🏗️</span>
+              <span className="font-bold">Lattice Blueprints (5 Zones)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAvatarKnightScreen(false);
                 setActiveWorkspaceTab('kernel');
                 setIsDockOpen(false);
               }}
@@ -612,6 +673,23 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               type="button"
               onClick={() => {
                 setShowAvatarKnightScreen(false);
+                setActiveWorkspaceTab('transcript');
+                setIsDockOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 rounded-xl border p-2.5 text-left font-mono text-[10px] uppercase tracking-wider transition-all ${
+                activeWorkspaceTab === 'transcript'
+                  ? 'border-[#00F0FF] bg-[#00F0FF]/20 text-[#00F0FF] font-bold shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+                  : 'border-white/10 bg-black/40 text-white/50 hover:text-[#00F0FF] hover:border-[#00F0FF]/50'
+              }`}
+            >
+              <span className="text-sm">🎙️</span>
+              <span className="font-bold">Voice Ingest Transcript</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAvatarKnightScreen(false);
                 setActiveWorkspaceTab('settings');
                 setIsDockOpen(false);
               }}
@@ -634,51 +712,79 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
             </div>
           </div>
         </div>
-        {/* Lakisha HUD Docked inside the Cartridge Drawer */}
-        <div className="mt-auto border-t border-white/10 pt-4 pb-2">
-          <div className="text-[10px] text-white/40 uppercase tracking-widest mb-3 px-2">
-            Voice HUD
-          </div>
-          <LakishaHUD />
-        </div>
       </aside>
 
       {/* Main Workspace Stage */}
       <main className="flex flex-1 flex-col overflow-hidden relative">
         <header className="flex h-16 shrink-0 items-center border-b border-white/10 bg-black/40 pr-6 pl-10 justify-between">
-          <div className="flex flex-1 items-center gap-1 overflow-x-auto hide-scrollbar pl-2 pr-4 sm:gap-2">
-            <span className="font-display text-xs uppercase tracking-[0.2em] text-white/40">
-              {activeWorkspaceTab === 'bifrost'
-                ? '🌉 Bifrost Bridge'
-                : activeWorkspaceTab === 'avatar'
-                  ? '🔒 Knights Governed'
-                  : activeWorkspaceTab === 'macros'
-                    ? '🎙️ Voice Macros'
-                    : activeWorkspaceTab === 'ephemeral'
-                      ? '⚡ Ephemeral Isolation VM'
-                      : activeWorkspaceTab === 'cinematic'
-                        ? '🏰 Living Workspace'
-                        : activeWorkspaceTab === 'topology'
-                          ? '🕸️ Topology Graph'
-                          : activeWorkspaceTab === 'kernel'
-                            ? '🧠 Anya Kernel'
-                            : activeWorkspaceTab === 'worktree'
-                              ? '📂 Local Worktree'
-                              : activeWorkspaceTab === 'drive'
-                                ? '☁️ Google Drive'
-                                : activeWorkspaceTab === 'sheets'
-                                  ? '📊 Google Sheets Enclave'
-                                  : activeWorkspaceTab === 'gmail'
-                                    ? '📧 Gmail Enclave'
-                                    : activeWorkspaceTab === 'settings'
-                                      ? '⚙️ System Configurations'
-                                      : activeWorkspaceTab === 'activity'
-                                        ? '📜 Sovereign Activity Ledger'
-                                        : '⚡ Guest Sandbox'}
-            </span>
+          <div className="flex flex-1 items-center gap-1.5 overflow-x-auto hide-scrollbar pl-2 pr-3">
+            {/* Quick Segmented Workspace Switcher */}
+            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10 shrink-0">
+              {[
+                { id: 'lattice', label: 'Lattice', icon: '🏗️', color: '#D4AF37' },
+                { id: 'cinematic', label: 'Living Realm', icon: '🏰', color: '#00F0FF' },
+                { id: 'topology', label: 'Topology', icon: '🕸️', color: '#9D4EDD' },
+                { id: 'avatar', label: 'Knights', icon: '🛡️', color: '#10B981' },
+                { id: 'kernel', label: 'Anya', icon: '🧠', color: '#FFD700' },
+                { id: 'bifrost', label: 'Bifrost', icon: '🌉', color: '#38BDF8' },
+                { id: 'filedriver', label: 'Files', icon: '⚡', color: '#34D399' },
+                { id: 'activity', label: 'Ledger', icon: '📜', color: '#F59E0B' },
+              ].map((tab) => {
+                const isActive = activeWorkspaceTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setShowAvatarKnightScreen(false);
+                      setActiveWorkspaceTab(tab.id as any);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'border bg-white/10 font-bold text-white shadow-[0_0_12px_rgba(255,255,255,0.2)]'
+                        : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'
+                    }`}
+                    style={{
+                      borderColor: isActive ? tab.color : 'transparent',
+                      color: isActive ? tab.color : undefined,
+                    }}
+                  >
+                    <span>{tab.icon}</span>
+                    <span className="hidden md:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Real-time Voice Waveform & Pulsing Microphone Visual Indicator */}
+            <VoiceWaveformIndicator compact={false} showTranscript={true} />
+
+            {/* Input Device Microphone Selector Dropdown */}
+            <MicrophoneSelectDropdown />
+
+            {/* Real-Time Voice Transcript Panel Toggle Button */}
+            <button
+              type="button"
+              id="header-transcript-toggle-btn"
+              onClick={toggleTranscriptPanel}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[10px] transition-all ${
+                isTranscriptPanelOpen || activeWorkspaceTab === 'transcript'
+                  ? 'border-[#00F0FF] bg-[#00F0FF]/20 text-[#00F0FF] font-bold shadow-[0_0_15px_rgba(0,240,255,0.4)]'
+                  : 'border-white/15 bg-white/5 text-white/70 hover:border-[#00F0FF]/50 hover:text-[#00F0FF]'
+              }`}
+              title="Toggle Real-Time Voice Transcript Panel (Cmd+Shift+T)"
+            >
+              <span>📜</span>
+              <span className="hidden sm:inline font-bold">Transcript</span>
+              {transcripts.length > 0 && (
+                <span className="rounded-full bg-[#00F0FF]/20 px-1.5 py-0.2 text-[9px] text-[#00F0FF] font-mono border border-[#00F0FF]/30">
+                  {transcripts.length}
+                </span>
+              )}
+            </button>
+
             {/* Quick Command Palette Button */}
             <button
               type="button"
@@ -715,12 +821,52 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               <span>PiP</span>
             </button>
 
-            <div className="flex items-center gap-1 rounded border border-white/10 bg-black/40 px-2 py-0.5 font-mono text-[9px] text-white/60">
-              <span>HW:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setHardwareModalTab('hardware');
+                setIsHardwareModalOpen(true);
+              }}
+              title="Verify Hardware Screen Size & Responsive Specs"
+              className="flex items-center gap-1 rounded-lg border border-[#00F0FF]/30 bg-[#00F0FF]/10 px-2 py-1 font-mono text-[9px] text-white/80 hover:bg-[#00F0FF]/20 hover:border-[#00F0FF] transition-all cursor-pointer"
+            >
+              <span>{hw.isMobile ? '📱' : hw.isTablet ? '📟' : '💻'}</span>
               <span className="text-[#00F0FF] font-bold">
-                {hw.cpuCores}C/{hw.deviceMemoryGB}GB
+                {hw.viewportWidth}×{hw.viewportHeight}
               </span>
-            </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setHardwareModalTab('embedding');
+                setIsHardwareModalOpen(true);
+              }}
+              title="Open UI Embedding Suite & Get iFrame Snippet"
+              className="hidden lg:flex items-center gap-1 rounded-lg border border-[#FFD700]/30 bg-[#FFD700]/10 px-2 py-1 font-mono text-[9px] text-[#FFD700] hover:bg-[#FFD700]/20 transition-all cursor-pointer"
+            >
+              <span>🖼️</span>
+              <span>Embed</span>
+            </button>
+
+            {/* Auto-Sleep Idle Status & Manual Lock Trigger */}
+            <button
+              type="button"
+              id="header-auto-sleep-btn"
+              onClick={autoSleep.triggerSleepNow}
+              title={`Auto-Sleep Active (5-min idle timeout). Inactivity timer: ${autoSleep.formattedRemaining}. Click to sleep now.`}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[9px] transition-all cursor-pointer ${
+                autoSleep.isIdleWarning
+                  ? 'border-amber-400 bg-amber-400/20 text-amber-300 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.6)]'
+                  : 'border-white/15 bg-white/5 text-white/60 hover:text-white hover:border-[#FFD700]/40'
+              }`}
+            >
+              <span>🌙</span>
+              <span className="hidden xl:inline font-bold">
+                {autoSleep.isIdleWarning ? `Sleep in ${autoSleep.timeRemainingSeconds}s` : `Sleep (${autoSleep.formattedRemaining})`}
+              </span>
+            </button>
+
             <TenantQuickBar />
             <div
               title={
@@ -737,9 +883,46 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
           </div>
         </header>
 
+        {/* Auto-Sleep 30-Second Warning Toast Banner */}
+        {autoSleep.isIdleWarning && (
+          <div
+            id="auto-sleep-warning-banner"
+            className="flex items-center justify-between gap-4 border-b border-amber-500/60 bg-gradient-to-r from-amber-950/90 via-black/90 to-amber-950/90 px-6 py-2 text-amber-200 text-xs font-mono shadow-[0_4px_20px_rgba(245,158,11,0.2)] animate-fadeIn z-30 shrink-0"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="animate-spin text-sm">⏳</span>
+              <span>
+                <strong>AUTO-SLEEP IMMINENT:</strong> Locking session in{' '}
+                <strong className="text-amber-400 underline decoration-amber-400 font-bold">
+                  {autoSleep.timeRemainingSeconds}s
+                </strong>{' '}
+                due to 5 minutes of inactivity.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={autoSleep.recordActivity}
+                className="rounded border border-amber-400 bg-amber-400 px-3 py-1 font-bold text-black text-[10px] uppercase tracking-wider hover:bg-amber-300 transition-colors shadow-md cursor-pointer"
+              >
+                Stay Active
+              </button>
+              <button
+                type="button"
+                onClick={autoSleep.triggerSleepNow}
+                className="rounded border border-white/20 bg-black/60 px-2.5 py-1 text-[10px] text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+              >
+                Sleep Now
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto p-6 relative">
           <React.Suspense fallback={<WorkspacePartitionFallback />}>
-            {activeWorkspaceTab === 'bifrost' ? (
+            {activeWorkspaceTab === 'lattice' ? (
+              <LatticeBlueprintWorkbench />
+            ) : activeWorkspaceTab === 'bifrost' ? (
               <BifrostBridgeNexusView />
             ) : activeWorkspaceTab === 'ephemeral' ? (
               <OfflineLandingView onContinueOffline={() => setActiveWorkspaceTab('dashboard')} />
@@ -780,6 +963,10 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               <div className="max-w-6xl mx-auto w-full">
                 <ActivityLogDisplay />
               </div>
+            ) : activeWorkspaceTab === 'transcript' ? (
+              <div className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)]">
+                <VoiceTranscriptPanel mode="full" />
+              </div>
             ) : activeWorkspaceTab === 'ooda' ? (
               <div className="max-w-7xl mx-auto w-full">
                 <OODADiagnosticVisualizer floating={false} />
@@ -790,6 +977,11 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
           </React.Suspense>
         </div>
       </main>
+
+      {/* Real-Time Voice Transcript Slide-over / Docked Floating Panel */}
+      {isTranscriptPanelOpen && activeWorkspaceTab !== 'transcript' && (
+        <VoiceTranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+      )}
 
       {/* Sovereign OODA-MGV Loop Floating Diagnostic Widget (Top-Right HUD) */}
       <OODADiagnosticVisualizer
@@ -824,6 +1016,13 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
 
       {/* Runic Console Overlay */}
       <RunicConsole />
+
+      {/* Hardware Screen Verification & UI Embedding Modal */}
+      <HardwareAndEmbeddingModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => setIsHardwareModalOpen(false)}
+        initialTab={hardwareModalTab}
+      />
     </div>
   );
 }

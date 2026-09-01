@@ -57,7 +57,10 @@ function generateFallbackAudioSummary(originalName = 'recording.mp3', mimeType =
  * POST /api/gemini/describe-audio
  * Accepts multipart audio or JSON with base64 data to generate descriptive filenames and summaries.
  */
-geminiRouter.post('/gemini/describe-audio', upload.single('audio'), async (req, res) => {
+geminiRouter.post(
+  '/gemini/describe-audio',
+  upload.single('audio') as unknown as express.RequestHandler,
+  async (req, res) => {
   try {
     let audioBuffer: Buffer | null = null;
     let mimeType = 'audio/mp3';
@@ -220,7 +223,10 @@ geminiRouter.post('/chat', async (req, res) => {
   }
 });
 
-geminiRouter.post('/analyze-media', upload.single('media'), async (req, res) => {
+geminiRouter.post(
+  '/analyze-media',
+  upload.single('media') as unknown as express.RequestHandler,
+  async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No media file provided' });
     const ai = getGenAI();
@@ -246,7 +252,10 @@ geminiRouter.post('/analyze-media', upload.single('media'), async (req, res) => 
   }
 });
 
-geminiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
+geminiRouter.post(
+  '/transcribe',
+  upload.single('audio') as unknown as express.RequestHandler,
+  async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No audio file provided' });
     const ai = getGenAI();

@@ -9,9 +9,11 @@ type ConnectionState = 'idle' | 'connecting' | 'connected' | 'blocked';
 export function LakeishaVideoHUD() {
   const { isConfigOpen, toggleConfig } = useAvatarConfig();
   let isAuthenticated = false;
+  let isGatewayOpen = false;
   try {
     const tenantCtx = useTenant();
     isAuthenticated = tenantCtx.isAuthenticated;
+    isGatewayOpen = tenantCtx.isGatewayOpen;
   } catch {
     // Fallback if tenant context not wrapped
   }
@@ -141,8 +143,8 @@ export function LakeishaVideoHUD() {
     };
   }, [dragging, handleMouseMove, handleMouseUp, handleTouchMove]);
 
-  // Hook Ordering Rule: All hooks called above. Do NOT render Avatar HUD before login authentication
-  if (!isAuthenticated) {
+  // Hook Ordering Rule: All hooks called above. Do NOT render Avatar HUD before login authentication or when gateway/boot is open
+  if (!isAuthenticated || isGatewayOpen) {
     return null;
   }
 

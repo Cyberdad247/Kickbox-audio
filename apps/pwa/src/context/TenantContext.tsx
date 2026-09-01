@@ -22,9 +22,9 @@ const STORAGE_KEY_AUTH = 'camelot_authenticated_v4';
 export const DEFAULT_TENANTS: TenantProfile[] = [
   {
     id: 'vashon-arch',
-    handle: 'VASHON_ARCH',
-    name: 'Sovereign Arch-Architect',
-    role: 'Human Sovereign Arch-Architect · Master Root Controller',
+    handle: 'VASHAWN_ARCH',
+    name: 'VaShawn Arch-Architect',
+    role: 'Human Sovereign VaShawn Arch-Architect · Master Root Controller',
     tenantId: 'SOV-ARCH-01',
     clearance: 'SOVEREIGN_ARCH_ARCHITECT',
     controllerType: 'HUMAN_ARCH_ARCHITECT',
@@ -43,7 +43,7 @@ export const DEFAULT_TENANTS: TenantProfile[] = [
     ],
     cipher: 'NO_STD_CHACHA20_POLY1305_HSM',
     description:
-      'Master human sovereign Arch-Architect with root hardware enclave clearance and full lattice orchestration authority.',
+      'Master human sovereign VaShawn Arch-Architect with root hardware enclave clearance and full lattice orchestration authority.',
     lastActive: 'Active Now',
     configuration: {
       theme: 'gold-obsidian',
@@ -51,7 +51,7 @@ export const DEFAULT_TENANTS: TenantProfile[] = [
       voicePersona: 'Lakisha',
       autoArmDefense: true,
       allowKnightSwitchOverride: true,
-      customTokens: ['TOKEN_VASHON_ARCH', 'SIGIL_SOVEREIGN_ARCH_ARCHITECT'],
+      customTokens: ['TOKEN_VASHAWN_ARCH', 'SIGIL_SOVEREIGN_ARCH_ARCHITECT'],
       cartridges: [
         {
           id: 'cart-arch-kernel',
@@ -226,6 +226,7 @@ interface TenantContextValue {
   showAvatarKnightScreen: boolean;
   knightSwitchBlockMessage: string | null;
   selectTenant: (tenant: TenantProfile) => void;
+  switchTenant: (tenantId: string) => void;
   mountCartridge: (cartridgeId: string) => void;
   openGateway: () => void;
   closeGateway: () => void;
@@ -376,6 +377,16 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }, 450);
   }, []);
 
+  const switchTenant = useCallback(
+    (tenantId: string) => {
+      const match = tenants.find((t) => t.id === tenantId || t.tenantId === tenantId);
+      if (match) {
+        selectTenant(match);
+      }
+    },
+    [tenants, selectTenant],
+  );
+
   // Request to open Gateway (governed by Cartridge capability)
   const openGateway = useCallback(() => {
     if (isKnightSwitchAllowed) {
@@ -485,6 +496,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         showAvatarKnightScreen,
         knightSwitchBlockMessage,
         selectTenant,
+        switchTenant,
         mountCartridge,
         openGateway,
         closeGateway,

@@ -90,7 +90,14 @@ const getWsUrl = () => {
   return 'ws://localhost:3001';
 };
 
-const BIFROST_URL = process.env.NEXT_PUBLIC_BIFROST_URL ?? getWsUrl();
+const getBifrostUrl = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BIFROST_URL) {
+    return process.env.NEXT_PUBLIC_BIFROST_URL;
+  }
+  return getWsUrl();
+};
+
+const BIFROST_URL = getBifrostUrl();
 
 export function BifrostProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);

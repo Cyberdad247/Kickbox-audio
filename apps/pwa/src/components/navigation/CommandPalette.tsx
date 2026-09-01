@@ -22,11 +22,13 @@ export interface CommandPaletteProps {
       | 'macros'
       | 'offline'
       | 'topology'
+      | 'lattice'
       | 'worktree'
       | 'activity'
       | 'settings'
       | 'kernel'
-      | 'bifrost',
+      | 'bifrost'
+      | 'transcript',
   ) => void;
 }
 
@@ -138,6 +140,18 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       badge: 'NEW',
       action: () => {
         onNavigateTab('topology');
+        onClose();
+      },
+    },
+    {
+      id: 'tab-lattice',
+      category: 'Workspace Tabs',
+      title: 'Living Lattice Blueprints (5 Zones & Hub)',
+      subtitle: 'Grand Lattice, Cybertronia 8GB VPS Hub, S26 Voice Orb, Ravenry Mail & Graph Engine',
+      icon: '🏗️',
+      badge: 'vMAX',
+      action: () => {
+        onNavigateTab('lattice');
         onClose();
       },
     },
@@ -254,6 +268,21 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
         onClose();
       },
     },
+    {
+      id: 'tab-transcript',
+      category: 'Workspace Tabs',
+      title: 'Real-Time Voice Ingest Transcript',
+      subtitle: 'View live speech recognition transcript, history, confidence, and macro triggers',
+      icon: '🎙️',
+      badge: 'VOICE',
+      action: () => {
+        onNavigateTab('transcript');
+        logActivity('TAB_NAVIGATED', 'Navigated to Real-Time Voice Ingest Transcript', {
+          category: 'telemetry',
+        });
+        onClose();
+      },
+    },
 
     // Knights
     ...(tenants || []).map((t) => ({
@@ -323,8 +352,43 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
 
     // System
     {
+      id: 'action-auto-sleep',
+      category: 'System & Offline' as const,
+      title: 'Sleep / Lock to Boot Screen',
+      subtitle: 'Lock session to Camelot OS boot screen with Arthurian transition sequence',
+      icon: '🌙',
+      badge: '5m IDLE',
+      action: () => {
+        speak('Locking workspace to Camelot OS boot screen.');
+        forceOpenGateway();
+        logActivity('MANUAL_SLEEP_TRIGGERED', 'Session locked to Camelot OS boot screen', {
+          category: 'security',
+          severity: 'info',
+        });
+        triggerHaptic('consent');
+        onClose();
+      },
+    },
+    {
+      id: 'action-boot-screen',
+      category: 'System & Offline' as const,
+      title: '3D Sword & Stone Boot Screen',
+      subtitle: 'Launch 3D Excalibur boot screen & sovereign login gate',
+      icon: '🗡️',
+      badge: '3D HUD',
+      action: () => {
+        forceOpenGateway();
+        logActivity('BOOT_SCREEN_OPENED', 'Launched 3D Sword & Stone boot screen', {
+          category: 'security',
+          severity: 'info',
+        });
+        triggerHaptic('click');
+        onClose();
+      },
+    },
+    {
       id: 'action-reconnect',
-      category: 'System & Offline',
+      category: 'System & Offline' as const,
       title: 'Bifröst Force Reconnect Handshake',
       subtitle: 'Re-trigger direct mTLS WebRTC handshake',
       icon: '🔄',
@@ -339,6 +403,87 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
           },
         );
         triggerHaptic('click');
+        onClose();
+      },
+    },
+    {
+      id: 'action-toggle-transcript',
+      category: 'Actions & Audio',
+      title: 'Toggle Real-Time Voice Transcript Panel',
+      subtitle: 'Open or close slide-over live speech transcript drawer (Cmd+Shift+T)',
+      icon: '📜',
+      badge: 'Cmd+Shift+T',
+      action: () => {
+        window.dispatchEvent(new CustomEvent('camelot:toggle-transcript-panel'));
+        triggerHaptic('click');
+        onClose();
+      },
+    },
+    {
+      id: 'voice-cmd-open-vault',
+      category: 'Actions & Audio',
+      title: 'Voice Command: "Open Vault"',
+      subtitle: 'Executes Sovereign Vault unseal and switches to encrypted local worktree',
+      icon: '🔐',
+      badge: 'VOICE',
+      action: () => {
+        speak('Opening Sovereign Secure Vault.');
+        onNavigateTab('worktree');
+        logActivity('VOICE_COMMAND_EXECUTED', 'Executed voice command: "Open Vault"', {
+          category: 'security',
+        });
+        triggerHaptic('consent');
+        onClose();
+      },
+    },
+    {
+      id: 'voice-cmd-sync-drive',
+      category: 'Actions & Audio',
+      title: 'Voice Command: "Sync Drive"',
+      subtitle: 'Triggers Google Workspace and Cloud Drive sync telemetry',
+      icon: '☁️',
+      badge: 'VOICE',
+      action: () => {
+        speak('Synchronizing Google Drive and storage.');
+        onNavigateTab('drive');
+        logActivity('VOICE_COMMAND_EXECUTED', 'Executed voice command: "Sync Drive"', {
+          category: 'telemetry',
+        });
+        triggerHaptic('consent');
+        onClose();
+      },
+    },
+    {
+      id: 'voice-cmd-system-status',
+      category: 'Actions & Audio',
+      title: 'Voice Command: "System Status"',
+      subtitle: 'Runs neural telemetry diagnostics and opens Services Dashboard',
+      icon: '📊',
+      badge: 'VOICE',
+      action: () => {
+        speak('System status nominal. Diagnostic HUD online.');
+        onNavigateTab('dashboard');
+        logActivity('VOICE_COMMAND_EXECUTED', 'Executed voice command: "System Status"', {
+          category: 'telemetry',
+        });
+        triggerHaptic('consent');
+        onClose();
+      },
+    },
+    {
+      id: 'voice-cmd-summon-lakisha',
+      category: 'Actions & Audio',
+      title: 'Voice Command: "Summon Lakisha"',
+      subtitle: 'Awakens low-latency WebRTC voice co-pilot HUD',
+      icon: '⚡',
+      badge: 'VOICE',
+      action: () => {
+        speak('Lakisha Voice OS online.');
+        onNavigateTab('avatar');
+        logActivity('VOICE_COMMAND_EXECUTED', 'Executed voice command: "Summon Lakisha"', {
+          category: 'ai',
+        });
+        triggerHaptic('consent');
         onClose();
       },
     },

@@ -94,9 +94,57 @@ export function RunicConsole() {
             '⚜️_SOVEREIGN_TRUTH: Master cryptographic transaction sealed. Deployment finalized.';
           outcomeType = 'success';
           break;
+        case '//grand_lattice':
+        case '//lattice':
+        case '//blueprints':
+          outcomeText =
+            '[GRAND_LATTICE] 🏗️ 5-Zone Sovereign Topology matrix active. Experience (Zone 0), Control (Zone 1), Execution (Zone 2), Memory (Zone 3), Connectors (Zone 4) nominal.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
+          break;
+        case '//vps_hub':
+          outcomeText =
+            '[VPS_HUB] 🛡️ Cybertronia 8GB Memory & Process Allocation matrix loaded. Zero Docker, native cgroups v2, Tailscale mTLS, eBPF PSI OK.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
+          break;
+        case '//voice_orb':
+          outcomeText =
+            '[VOICE_ORB] 📱 S26 Voice Orb (4GB) ↔ VPS Hub (8GB) zero-trust Opus audio pipeline online. Sub-250ms round-trip latency verified.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
+          break;
+        case '//ravenry':
+        case '//mail':
+          outcomeText =
+            '[RAVENRY_MAIL] ✉️ End-to-End R4 HITL Mission Sequence ready: Capability lease, Ollama drafting, WebAuthn FIDO2 approval, WAL2 ledger receipt.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
+          break;
+        case '//graph_engine':
+          outcomeText =
+            '[GRAPH_ENGINE] 🕸️ Rust WASI 0.2 Graph Engine initialized: Parallel fan-out, pipelined streaming, barrier joins & Gideon Z3 formal verification.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
+          break;
+        case '//go_live':
+          outcomeText =
+            '[ANYA_Ω] 🚀 //GO_LIVE executed. Sovereign process mesh active on VPS node. Cgroups locked.';
+          outcomeType = 'success';
+          break;
+        case '//dispatch':
+          outcomeText =
+            '[SIR_HYDRON] ⚡ //DISPATCH engaged. Distributing tasks across WASI Component Model microVMs.';
+          outcomeType = 'success';
+          break;
+        case '//forge':
+          outcomeText =
+            '[SOVEREIGN_FORGE] 💎 UI/UX Vanguard souls compiled into unified split-brain meta-prompt.';
+          outcomeType = 'success';
+          break;
         case '//help':
           outcomeText =
-            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //clear';
+            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //grand_lattice, //vps_hub, //voice_orb, //ravenry, //graph_engine, //go_live, //dispatch, //forge, //clear';
           break;
         case '//clear':
           setHistory([]);
