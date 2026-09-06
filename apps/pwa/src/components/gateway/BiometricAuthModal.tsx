@@ -5,6 +5,7 @@ import { playVaultUnsealSound, triggerDetectionFeedback } from '../../lib/feedba
 import type { TenantProfile } from '../../types/tenant';
 import { BiometricCameraAuthOverlay } from './BiometricCameraAuthOverlay';
 import { QRAuthScanner } from './QRAuthScanner';
+import { signInWithGmail } from '../../lib/gmailAuth';
 
 export interface BiometricAuthModalProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ export interface BiometricAuthModalProps {
   onAuthenticated: (tenant: TenantProfile) => void;
 }
 
-type AuthMethod = 'biometric' | 'qr_scan' | 'email_sms' | 'passkey' | 'runic_pin';
+type AuthMethod = 'biometric' | 'qr_scan' | 'email_sms' | 'passkey' | 'runic_pin' | 'google_workspace' | 'forgot_password';
 type AuthStatus = 'idle' | 'scanning' | 'verifying' | 'decrypting_vault' | 'success' | 'failed';
 type DeliveryChannel = 'email' | 'sms';
 
@@ -546,7 +547,7 @@ export function BiometricAuthModal({
         </div>
 
         {/* ── Authentication Method Tabs ── */}
-        <div className="mt-5 grid grid-cols-5 gap-1.5">
+        <div className="mt-5 grid grid-cols-6 gap-1.5">
           <button
             type="button"
             onClick={() => setMethod('biometric')}
@@ -559,6 +560,22 @@ export function BiometricAuthModal({
             <span>🖐️</span>
             <span className="hidden sm:inline">Neural Bio</span>
             <span className="sm:hidden">Bio</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMethod('google_workspace');
+            }}
+            className={`flex items-center justify-center gap-1 rounded-xl border py-2 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider transition-all ${
+              method === 'google_workspace'
+                ? 'border-[#ea4335] bg-[#ea4335]/15 text-[#ea4335] shadow-[0_0_15px_rgba(234,67,53,0.2)]'
+                : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'
+            }`}
+          >
+            <span>✉️</span>
+            <span className="hidden sm:inline">Gmail Auth</span>
+            <span className="sm:hidden">Gmail</span>
           </button>
 
           <button
@@ -714,6 +731,40 @@ export function BiometricAuthModal({
             </div>
           )}
 
+          {/* Method: Google Workspace / Gmail OAuth */}
+          {method === 'google_workspace' && (
+            <div className="flex flex-col items-center text-center w-full max-w-md">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-[#ea4335] bg-[#ea4335]/10 shadow-[0_0_20px_rgba(234,67,53,0.3)]">
+                <span className="text-3xl">✉️</span>
+              </div>
+              <h3 className="mb-2 font-display text-sm font-bold uppercase tracking-[0.1em] text-[#ea4335]">
+                Google Workspace Authorization
+              </h3>
+              <p className="mb-6 text-xs text-white/60">
+                Authenticate your enclave session via Google OAuth to synchronize with Gmail and Workspace assets.
+              </p>
+              
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const result = await signInWithGmail();
+                    if (result?.accessToken) {
+                      triggerDecryptionSequence('Google Workspace (OAuth Token Verified)', result.accessToken);
+                    }
+                  } catch (err: any) {
+                    setLogs(prev => [...prev, `[OAuth ERROR] >> ${err.message || 'Authorization failed'}`]);
+                  }
+                }}
+                disabled={status === 'decrypting_vault' || status === 'success'}
+                className="flex items-center gap-3 rounded-xl border border-[#ea4335] bg-[#ea4335]/20 px-6 py-3 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_20px_rgba(234,67,53,0.25)] transition-all hover:bg-[#ea4335]/30 hover:scale-105 disabled:opacity-50"
+              >
+                <span>🌐</span>
+                <span>Connect Gmail & Authorize</span>
+              </button>
+            </div>
+          )}
+
           {/* Method 2: Optical Camera QR Scanner */}
           {method === 'qr_scan' && (
             <div className="flex flex-col items-center text-center w-full">
@@ -847,6 +898,100 @@ export function BiometricAuthModal({
             </div>
           )}
 
+          {/* Method: Forgot Password / Account Recovery */}
+          {method === 'forgot_password' && (
+            <div className="flex flex-col items-center text-center w-full max-w-md">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#00E5FF] bg-[#00E5FF]/10 text-3xl shadow-[0_0_20px_rgba(0,229,255,0.3)]">
+                📨
+              </div>
+              
+              <h3 className="font-display text-lg font-bold text-white uppercase tracking-wider mb-2">
+                Account Recovery
+              </h3>
+              <p className="text-xs text-white/60 leading-relaxed mb-4">
+                A 6-digit recovery code has been dispatched to the registered contact methods for <strong className="text-white">{tenant.handle}</strong>.
+              </p>
+
+              {/* 5-Minute TTL Status Indicator */}
+              <div className="flex items-center justify-between w-full rounded-xl border border-[#00E5FF]/30 bg-[#00E5FF]/5 px-4 py-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${ttlSeconds > 60 ? 'bg-emerald-400 animate-ping' : 'bg-rose-500 animate-ping'}`}
+                  />
+                  <span className="font-mono text-xs uppercase text-white/80">
+                    Handshake TTL:{' '}
+                    <strong className={ttlSeconds > 60 ? 'text-[#00E5FF]' : 'text-rose-400'}>
+                      {formatTtl(ttlSeconds)}
+                    </strong>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => requestBackendHandshake(channel, true)}
+                  disabled={isGeneratingHandshake}
+                  className="font-mono text-[10px] text-[#FFD700] hover:underline uppercase disabled:opacity-50"
+                >
+                  {isGeneratingHandshake ? 'Resending...' : '↺ Resend Code'}
+                </button>
+              </div>
+
+              {/* 6-Digit Code Input */}
+              <div className="flex items-center gap-2 w-full">
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={handshakeCodeInput}
+                  onChange={(e) => setHandshakeCodeInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Enter recovery code"
+                  className="flex-1 rounded-xl border border-[#00E5FF]/30 bg-[#120D22] px-4 py-3 font-mono text-center text-xl font-bold tracking-[0.4em] text-[#00E5FF] placeholder:text-[#00E5FF]/20 focus:border-[#00E5FF] focus:outline-none"
+                />
+              </div>
+
+              <div className="mt-4 w-full flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setMethod('runic_pin')}
+                  className="rounded-lg border border-white/20 px-4 py-2.5 text-xs uppercase tracking-widest text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  Back to PIN
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerifyHandshakeCode}
+                  disabled={
+                    isVerifyingHandshake || handshakeCodeInput.length < 4 || ttlSeconds <= 0
+                  }
+                  className="rounded-xl border border-[#00E5FF] bg-[#00E5FF]/20 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.3)] transition-all hover:bg-[#00E5FF]/30 hover:scale-105 disabled:opacity-40 cursor-pointer"
+                >
+                  {isVerifyingHandshake ? 'Verifying...' : 'Verify & Recover'}
+                </button>
+              </div>
+
+              {/* Error or Warning */}
+              {handshakeError && (
+                <p className="mt-4 font-mono text-xs text-rose-400 animate-shake">
+                  ⚠ {handshakeError}
+                </p>
+              )}
+
+              {/* Dispatched Preview Sandbox Note */}
+              {handshakeSession?.sandboxCode && (
+                <div className="mt-4 w-full rounded-lg border border-white/10 bg-white/5 p-2 text-left text-[10px] font-mono text-white/70">
+                  <div className="flex items-center justify-between text-[#FFD700]">
+                    <span>RECOVERY DISPATCH SIMULATION:</span>
+                    <span>
+                      CODE:{' '}
+                      <strong className="text-white text-xs">{handshakeSession.sandboxCode}</strong>
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-white/50 truncate">
+                    Recipient: {handshakeSession.recipient}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Method 3: Hardware Token (FIDO2 / YubiKey) */}
           {method === 'passkey' && (
             <div className="flex flex-col items-center text-center">
@@ -927,19 +1072,33 @@ export function BiometricAuthModal({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setPin(DEFAULT_PIN);
-                  setStatus('verifying');
-                  setTimeout(() => {
-                    triggerDecryptionSequence('Sovereign Master PIN');
-                  }, 250);
-                }}
-                className="mt-2 text-[10px] font-mono text-[#FFD700]/70 hover:text-[#FFD700] hover:underline"
-              >
-                [⚡ Quick Fill Master PIN: 711001]
-              </button>
+              <div className="mt-4 flex w-full justify-between items-center px-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMethod('forgot_password');
+                    setChannel('email');
+                    requestBackendHandshake('email');
+                  }}
+                  className="text-[10px] font-mono text-[#00E5FF]/70 hover:text-[#00E5FF] hover:underline"
+                >
+                  Forgot PIN? (Email Recovery)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPin(DEFAULT_PIN);
+                    setStatus('verifying');
+                    setTimeout(() => {
+                      triggerDecryptionSequence('Sovereign Master PIN');
+                    }, 250);
+                  }}
+                  className="text-[10px] font-mono text-[#FFD700]/70 hover:text-[#FFD700] hover:underline"
+                >
+                  [⚡ Quick Fill Master PIN: 711001]
+                </button>
+              </div>
             </div>
           )}
         </div>

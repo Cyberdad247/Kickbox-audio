@@ -376,7 +376,7 @@ export function CamelotSwordAndStoneBootScreen({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       id="camelot-boot-screen-root"
-      className="fixed inset-0 z-50 overflow-hidden bg-[#030206] text-white select-none perspective-1200"
+      className="fixed inset-0 z-50 overflow-hidden bg-[#030206] text-white select-none perspective-[1200px]"
     >
       {/* Full-bleed Gothic Cathedral Artwork Environment */}
       <CamelotGothicEnvironment

@@ -18,7 +18,6 @@ import { VoiceWaveformIndicator } from './VoiceWaveformIndicator';
 import { MicrophoneSelectDropdown } from './MicrophoneSelectDropdown';
 import { VoiceTranscriptPanel } from './VoiceTranscriptPanel';
 import { useVoiceTranscript } from '../../context/VoiceTranscriptContext';
-import { useAutoSleep } from '../../hooks/useAutoSleep';
 import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
 import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
 
@@ -191,8 +190,6 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     togglePanel: toggleTranscriptPanel,
     transcripts,
   } = useVoiceTranscript();
-
-  const autoSleep = useAutoSleep();
 
   const [activeWorkspaceTab, setActiveWorkspaceTab] = React.useState<
     | 'cinematic'
@@ -849,24 +846,6 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               <span>Embed</span>
             </button>
 
-            {/* Auto-Sleep Idle Status & Manual Lock Trigger */}
-            <button
-              type="button"
-              id="header-auto-sleep-btn"
-              onClick={autoSleep.triggerSleepNow}
-              title={`Auto-Sleep Active (5-min idle timeout). Inactivity timer: ${autoSleep.formattedRemaining}. Click to sleep now.`}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[9px] transition-all cursor-pointer ${
-                autoSleep.isIdleWarning
-                  ? 'border-amber-400 bg-amber-400/20 text-amber-300 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.6)]'
-                  : 'border-white/15 bg-white/5 text-white/60 hover:text-white hover:border-[#FFD700]/40'
-              }`}
-            >
-              <span>🌙</span>
-              <span className="hidden xl:inline font-bold">
-                {autoSleep.isIdleWarning ? `Sleep in ${autoSleep.timeRemainingSeconds}s` : `Sleep (${autoSleep.formattedRemaining})`}
-              </span>
-            </button>
-
             <TenantQuickBar />
             <div
               title={
@@ -882,41 +861,6 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
             />
           </div>
         </header>
-
-        {/* Auto-Sleep 30-Second Warning Toast Banner */}
-        {autoSleep.isIdleWarning && (
-          <div
-            id="auto-sleep-warning-banner"
-            className="flex items-center justify-between gap-4 border-b border-amber-500/60 bg-gradient-to-r from-amber-950/90 via-black/90 to-amber-950/90 px-6 py-2 text-amber-200 text-xs font-mono shadow-[0_4px_20px_rgba(245,158,11,0.2)] animate-fadeIn z-30 shrink-0"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="animate-spin text-sm">⏳</span>
-              <span>
-                <strong>AUTO-SLEEP IMMINENT:</strong> Locking session in{' '}
-                <strong className="text-amber-400 underline decoration-amber-400 font-bold">
-                  {autoSleep.timeRemainingSeconds}s
-                </strong>{' '}
-                due to 5 minutes of inactivity.
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={autoSleep.recordActivity}
-                className="rounded border border-amber-400 bg-amber-400 px-3 py-1 font-bold text-black text-[10px] uppercase tracking-wider hover:bg-amber-300 transition-colors shadow-md cursor-pointer"
-              >
-                Stay Active
-              </button>
-              <button
-                type="button"
-                onClick={autoSleep.triggerSleepNow}
-                className="rounded border border-white/20 bg-black/60 px-2.5 py-1 text-[10px] text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
-              >
-                Sleep Now
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="flex-1 overflow-auto p-6 relative">
           <React.Suspense fallback={<WorkspacePartitionFallback />}>

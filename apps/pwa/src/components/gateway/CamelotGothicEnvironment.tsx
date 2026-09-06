@@ -30,7 +30,9 @@ export function CamelotGothicEnvironment({
       <div
         className="absolute inset-0 w-full h-full transition-transform duration-700 ease-out"
         style={{
-          transform: `scale(1.02) translate(${mousePos.x * -10}px, ${mousePos.y * -8}px)`,
+          transform: `scale(1.05) translate(${mousePos.x * -15}px, ${mousePos.y * -10}px) rotateX(${mousePos.y * 4}deg) rotateY(${mousePos.x * 4}deg)`,
+          transformStyle: 'preserve-3d',
+          perspective: '1200px',
         }}
       >
         <img
