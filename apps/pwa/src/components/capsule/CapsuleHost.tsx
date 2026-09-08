@@ -384,6 +384,15 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     return <MobileEdgeArchitectureView />;
   }
 
+  if (activeWorkspaceTab === 'cinematic') {
+    return (
+      <div className="flex h-screen w-full overflow-hidden bg-obsidian text-white/80 relative">
+        <SovereignCinematicFlow />
+        <RunicConsole />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-obsidian text-white/80 relative">
       {/* Hidden Cartridge Trigger */}

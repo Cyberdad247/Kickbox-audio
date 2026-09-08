@@ -291,7 +291,7 @@ export function CamelotSwordAndStoneBootScreen({
 
         if (matched) {
           setIsListening(false);
-          setVoiceFeedback('Voice command verified: ACCESS GRANTED');
+          setVoiceFeedback(`Voice command verified: ACCESS GRANTED [CACHED: ${currentTenant.name}]`);
           recognition.stop();
           handleAccessCamelot();
         }

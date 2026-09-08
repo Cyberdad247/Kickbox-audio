@@ -239,6 +239,7 @@ interface TenantContextValue {
   addTenant: (newTenant: Omit<TenantProfile, 'id' | 'lastActive'>) => void;
   deleteTenant: (tenantId: string) => void;
   updateConfiguration: (config: Partial<TenantConfiguration>) => void;
+  updateAvatar: (avatar: string) => void;
 }
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
@@ -482,6 +483,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     [activeTenant.id],
   );
 
+  const updateAvatar = useCallback(
+    (avatar: string) => {
+      setTenants((prev) =>
+        prev.map((t) =>
+          t.id === activeTenant.id
+            ? {
+                ...t,
+                avatar,
+              }
+            : t,
+        ),
+      );
+    },
+    [activeTenant.id]
+  );
+
   return (
     <TenantContext.Provider
       value={{
@@ -509,6 +526,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         addTenant,
         deleteTenant,
         updateConfiguration,
+        updateAvatar,
       }}
     >
       {children}
