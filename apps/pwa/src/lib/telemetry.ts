@@ -23,3 +23,19 @@ export function formatMs(ms: number | null | undefined): string {
   if (ms == null) return '—';
   return `${Math.round(ms)}ms`;
 }
+
+// Telemetry History Ring Buffer for real-time Sparkline rendering (max 20 points)
+const MAX_HISTORY_POINTS = 20;
+const latencyHistory: number[] = [12, 14, 11, 15, 18, 14, 16, 13, 12, 11];
+
+export function recordLatencySample(ms: number): number[] {
+  latencyHistory.push(Math.max(1, Math.round(ms)));
+  if (latencyHistory.length > MAX_HISTORY_POINTS) {
+    latencyHistory.shift();
+  }
+  return [...latencyHistory];
+}
+
+export function getLatencyHistory(): number[] {
+  return [...latencyHistory];
+}

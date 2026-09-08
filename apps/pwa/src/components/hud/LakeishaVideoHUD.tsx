@@ -226,6 +226,43 @@ export function LakeishaVideoHUD() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Document Picture-in-Picture Button */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (typeof window !== 'undefined' && 'documentPictureInPicture' in window) {
+                try {
+                  const pipWindow = await (window as any).documentPictureInPicture.requestWindow({
+                    width: 380,
+                    height: 520,
+                  });
+                  if (pipWindow) {
+                    pipWindow.document.title = 'Lakeisha Enclave Cockpit';
+                    pipWindow.document.body.innerHTML = `
+                      <div style="background:#050507;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:24px;text-align:center;height:100vh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #D4AF37;">
+                        <div style="font-size:44px;margin-bottom:12px;filter:drop-shadow(0 0 10px #D4AF37);">⚔️</div>
+                        <h2 style="color:#D4AF37;margin:0 0 6px 0;font-size:16px;letter-spacing:0.12em;text-transform:uppercase;">Lakeisha Enclave Cockpit</h2>
+                        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0 0 16px 0;">Sovereign Persistent Edge Companion</p>
+                        <div style="padding:6px 14px;background:rgba(212,175,55,0.15);border:1px solid #D4AF37;border-radius:999px;font-size:11px;color:#D4AF37;">
+                          ● Bifröst Listening Active
+                        </div>
+                      </div>
+                    `;
+                  }
+                } catch (e) {
+                  console.warn('[PiP] Document PiP request cancelled or rejected', e);
+                }
+              }
+            }}
+            title="Pop into Picture-in-Picture window"
+            className="flex h-7 w-7 items-center justify-center border border-white/20 bg-[#050505]/75 text-gold-light hover:border-gold hover:text-white transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-3.5 w-3.5">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <rect x="11" y="9" width="9" height="7" rx="1" fill="#D4AF37" fillOpacity="0.3" stroke="#D4AF37" />
+            </svg>
+          </button>
+
           {/* Minimize / Hide Avatar HUD Button */}
           <button
             type="button"

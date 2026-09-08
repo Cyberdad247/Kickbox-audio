@@ -9,9 +9,31 @@ export class CinematicAudioEngine {
   private isMuted: boolean = false;
   private freqOffset: number = 0;
   private panValue: number = 0;
+  private autoplayGateBound: boolean = false;
+
+  private setupAutoplayGate() {
+    if (this.autoplayGateBound || typeof window === 'undefined') return;
+    this.autoplayGateBound = true;
+
+    const unlock = () => {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().then(() => {
+          console.log('[CinematicAudio] Autoplay gate unlocked via user gesture');
+        }).catch(() => {});
+      }
+      ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
+        window.removeEventListener(evt, unlock);
+      });
+    };
+
+    ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, unlock, { passive: true, once: true });
+    });
+  }
 
   private init() {
     if (this.ctx) return;
+    this.setupAutoplayGate();
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioContextClass();
