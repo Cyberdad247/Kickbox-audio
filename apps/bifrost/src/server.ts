@@ -3,6 +3,7 @@ import http from 'node:http';
 import express, { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { WebSocket, WebSocketServer } from 'ws';
+<<<<<<< HEAD
 import { z } from 'zod';
 import {
   createAuthHandshake,
@@ -21,6 +22,12 @@ import {
   getStreamingSnapshot,
   upsertStreamingTelemetry,
 } from './streaming';
+=======
+import { MicrocubicMatrix } from './microcubic';
+import { type Command, parseCommand } from './nlp';
+import { verifyWebhookSignature } from './security';
+import { applyCommand, snapshot } from './state';
+>>>>>>> remotes/origin/feat/microcubic-routing
 
 // WebSocket carrying the heartbeat flag used by the reaper loop below.
 interface LiveSocket extends WebSocket {
@@ -129,6 +136,18 @@ function broadcastStreamingTelemetry(): void {
       client.send(msg);
     }
   }
+}
+
+// Route a parsed command: update in-memory state, dispatch a microcube for the
+// DB side effects, then broadcast the new state to all clients.
+async function routeCommand(cmd: Command): Promise<void> {
+  applyCommand(cmd);
+  try {
+    await matrix.executeCube({ id: randomUUID(), command: cmd });
+  } catch (error) {
+    console.error('microcube execution failed:', error);
+  }
+  broadcastState();
 }
 
 // vMAX //ROUTE + //REZERO — remote MCP endpoint must be a Tailscale URL.
@@ -275,6 +294,7 @@ app.post('/webhook/sms', webhookLimiter, async (req: RawBodyRequest, res) => {
     return res.status(400).send('Message is required');
   }
 
+<<<<<<< HEAD
   const outcome = await handleUtterance(message);
   res.status(200).json({
     status: 'received',
@@ -419,6 +439,11 @@ app.post('/api/provenance', express.json(), (req, res) => {
     console.error('Failed to append to ledger:', err);
     res.status(500).json({ error: 'WRITE_FAILED' });
   }
+=======
+  const cmd = parseCommand(message);
+  await routeCommand(cmd);
+  res.status(200).json({ status: 'received', command: cmd.action });
+>>>>>>> remotes/origin/feat/microcubic-routing
 });
 
 // ── WebSocket: command intake + heartbeat ──
@@ -438,11 +463,22 @@ wss.on('connection', (ws: LiveSocket, req: http.IncomingMessage) => {
     let raw: string;
     try {
       const parsed = JSON.parse(data.toString());
+<<<<<<< HEAD
       raw = typeof parsed?.payload === 'string' ? parsed.payload : data.toString();
     } catch {
       raw = data.toString();
     }
     await handleUtterance(raw);
+=======
+      cmd =
+        typeof parsed?.payload === 'string'
+          ? parseCommand(parsed.payload)
+          : parseCommand(data.toString());
+    } catch {
+      cmd = parseCommand(data.toString());
+    }
+    await routeCommand(cmd);
+>>>>>>> remotes/origin/feat/microcubic-routing
   });
 
   ws.on('error', (error) => {
