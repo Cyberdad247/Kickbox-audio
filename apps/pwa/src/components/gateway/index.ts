@@ -7,4 +7,5 @@ export * from './QRAuthScanner';
 export * from './AddKnightModal';
 export * from './TenantWarpTransition';
 export * from './CamelotSwordAndStoneBootScreen';
+export * from './BiometricAuthorizationGate';
 export * from './BootSequence';
