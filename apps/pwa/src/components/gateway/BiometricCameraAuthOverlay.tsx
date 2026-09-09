@@ -6,6 +6,7 @@ import {
   playVaultUnsealSound,
   triggerDetectionFeedback,
   triggerScanHaptic,
+  unlockAudioContext,
 } from '../../lib/feedbackCues';
 import { parseQRAuthPayload } from '../../lib/qrAuth';
 import type { TenantProfile } from '../../types/tenant';
@@ -325,6 +326,7 @@ export function BiometricCameraAuthOverlay({
   // Automated or User-Triggered Neural Biometric Scan
   const triggerBiometricScan = useCallback(() => {
     if (status === 'verifying' || status === 'success') return;
+    void unlockAudioContext();
     setStatus('scanning');
     setScanProgress(10);
     setLivenessScore(45);
@@ -353,6 +355,7 @@ export function BiometricCameraAuthOverlay({
   // Press & Hold Fast Attest for quick bypass or fallback
   const startManualHold = useCallback(() => {
     if (status === 'verifying' || status === 'success') return;
+    void unlockAudioContext();
     setIsHoldingManualAttest(true);
     setStatus('scanning');
 

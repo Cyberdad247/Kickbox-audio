@@ -1,6 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "db:generate": {
+      "cache": false
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
@@ -8,6 +11,7 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "lint": {},
     "dev": {
       "cache": false,
       "persistent": true

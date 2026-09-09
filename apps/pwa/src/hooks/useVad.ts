@@ -77,6 +77,15 @@ export function useVad({ threshold = 0.045, deviceId }: UseVadOptions = {}): Vad
       const ctx = new Ctor();
       ctxRef.current = ctx;
 
+      // Autoplay gate: ensure context is running on user gesture
+      if (ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch {
+          // Allowed to fail gracefully if permission gate is still pending
+        }
+      }
+
       const source = ctx.createMediaStreamSource(stream);
 
       // Attempt to load inline VAD AudioWorklet processor for zero-latency detection

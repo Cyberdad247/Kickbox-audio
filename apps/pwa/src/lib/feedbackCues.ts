@@ -5,7 +5,23 @@
 
 let audioCtx: AudioContext | null = null;
 
-function getAudioContext(): AudioContext | null {
+/**
+ * Explicit user-gesture unlock for Mobile Safari and Android 16 (S26 Ultra).
+ * Call this on any pointerdown / touchstart / click event.
+ */
+export async function unlockAudioContext(): Promise<AudioContext | null> {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    try {
+      await ctx.resume();
+    } catch {
+      // Handled silently
+    }
+  }
+  return ctx;
+}
+
+export function getAudioContext(): AudioContext | null {
   try {
     const globalScope = typeof window !== 'undefined' ? window : globalThis;
     const AudioContextClass =

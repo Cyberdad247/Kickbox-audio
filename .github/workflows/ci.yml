@@ -20,6 +20,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Secrets Audit (Iron Gate)
+        run: node scripts/ops/secrets-audit.mjs
       - name: Generate Prisma client
         run: npm run db:generate
       - name: Lint (Biome)
