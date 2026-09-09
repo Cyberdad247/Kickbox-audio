@@ -9,7 +9,6 @@ import { CamelotGothicEnvironment } from './CamelotGothicEnvironment';
 import { CamelotTransitionSequence } from './CamelotTransitionSequence';
 import { CamelotVoiceHelpModal, CAMELOT_VOICE_COMMANDS } from './CamelotVoiceHelpModal';
 import { TenantCarouselSelect } from './TenantCarouselSelect';
-import { BiometricAuthorizationGate } from './BiometricAuthorizationGate';
 
 export interface BootScreenProps {
   onComplete?: () => void;
@@ -47,8 +46,6 @@ export function CamelotSwordAndStoneBootScreen({
   const [isPlayingTransition, setIsPlayingTransition] = useState(false);
   const [isButtonHovered, setIsButtonHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isBiometricGateOpen, setIsBiometricGateOpen] = useState(false);
-  const [requireBiometricAuth, setRequireBiometricAuth] = useState(true);
 
   // Web Speech API Voice Listening State
   const [isListening, setIsListening] = useState(false);
@@ -157,19 +154,6 @@ export function CamelotSwordAndStoneBootScreen({
     [currentTenant, isAuthenticating, authSuccess, isPlayingTransition, playCyberSound]
   );
 
-  // Handle user-initiated access (gated by Biometric Camera Facial Recognition when enabled)
-  const handleInitiateAccess = useCallback(
-    (customVoicePrompt?: string) => {
-      if (requireBiometricAuth && !authSuccess) {
-        setIsBiometricGateOpen(true);
-        playCyberSound('click');
-      } else {
-        handleAccessCamelot(customVoicePrompt);
-      }
-    },
-    [requireBiometricAuth, authSuccess, playCyberSound, handleAccessCamelot]
-  );
-
   // Final transition completion callback
   const handleTransitionComplete = useCallback(() => {
     const target = currentTenant;
@@ -187,24 +171,21 @@ export function CamelotSwordAndStoneBootScreen({
     (commandPhrase: string) => {
       setIsHelpModalOpen(false);
       const lower = commandPhrase.toLowerCase();
-      if (lower.includes('biometric') || lower.includes('face')) {
-        setIsBiometricGateOpen(true);
-        playCyberSound('click');
-      } else if (lower.includes('vault')) {
-        handleInitiateAccess('Opening Sovereign Secure Vault.');
+      if (lower.includes('vault')) {
+        handleAccessCamelot('Opening Sovereign Secure Vault.');
       } else if (lower.includes('sync') || lower.includes('drive')) {
-        handleInitiateAccess('Synchronizing Google Drive and Workspace.');
+        handleAccessCamelot('Synchronizing Google Drive and Workspace.');
       } else if (lower.includes('status') || lower.includes('telemetry')) {
-        handleInitiateAccess('System status nominal. Diagnostic HUD online.');
+        handleAccessCamelot('System status nominal. Diagnostic HUD online.');
       } else if (lower.includes('lakisha')) {
-        handleInitiateAccess('Summoning Lakisha Voice HUD.');
+        handleAccessCamelot('Summoning Lakisha Voice HUD.');
       } else if (lower.includes('help') || lower.includes('command')) {
         setIsHelpModalOpen(true);
       } else {
-        handleInitiateAccess();
+        handleAccessCamelot();
       }
     },
-    [handleInitiateAccess, playCyberSound]
+    [handleAccessCamelot]
   );
 
   // Web Speech API Voice Recognition Activation
@@ -289,21 +270,6 @@ export function CamelotSwordAndStoneBootScreen({
           return;
         }
 
-        if (
-          transcript.includes('biometric') ||
-          transcript.includes('face scan') ||
-          transcript.includes('facial') ||
-          transcript.includes('camera auth') ||
-          transcript.includes('authorize face')
-        ) {
-          setIsListening(false);
-          setVoiceFeedback('Verified: ACTIVATING BIOMETRIC CAMERA GATE');
-          recognition.stop();
-          setIsBiometricGateOpen(true);
-          playCyberSound('click');
-          return;
-        }
-
         // Standard activation triggers
         const activationPhrases = [
           'access camelot',
@@ -325,9 +291,9 @@ export function CamelotSwordAndStoneBootScreen({
 
         if (matched) {
           setIsListening(false);
-          setVoiceFeedback(`Voice command verified: ACCESS GRANTED [CACHED: ${currentTenant.name}]`);
+          setVoiceFeedback('Voice command verified: ACCESS GRANTED');
           recognition.stop();
-          handleInitiateAccess();
+          handleAccessCamelot();
         }
       };
 
@@ -494,7 +460,7 @@ export function CamelotSwordAndStoneBootScreen({
           <button
             id="access-camelot-btn"
             type="button"
-            onClick={() => handleInitiateAccess()}
+            onClick={() => handleAccessCamelot()}
             disabled={isAuthenticating || authSuccess || isPlayingTransition}
             onMouseEnter={() => {
               setIsButtonHovered(true);
@@ -525,22 +491,6 @@ export function CamelotSwordAndStoneBootScreen({
                 ? 'UNSEALED'
                 : 'ACCESS CAMELOT'}
             </span>
-          </button>
-
-          {/* ── DEDICATED BIOMETRIC FACIAL RECOGNITION GATE BUTTON ── */}
-          <button
-            id="biometric-face-gate-btn"
-            type="button"
-            onClick={() => {
-              playCyberSound('hover');
-              setIsBiometricGateOpen(true);
-            }}
-            disabled={isAuthenticating || authSuccess || isPlayingTransition}
-            title="Biometric Authorization Gate: Neural 68-Point Camera Facial Scan"
-            className="group relative flex items-center justify-center gap-1.5 rounded-xl border-2 border-[#00F0FF]/80 bg-gradient-to-r from-[#001D2D]/90 to-[#00384E]/90 hover:border-[#00F0FF] hover:shadow-[0_0_25px_rgba(0,240,255,0.8)] py-2.5 px-3 sm:px-3.5 font-serif text-xs font-bold uppercase tracking-wider text-[#00F0FF] shadow-xl active:scale-95 transition-all duration-300 cursor-pointer backdrop-blur-md"
-          >
-            <span className="text-sm transition-transform group-hover:scale-110">👁️</span>
-            <span className="hidden sm:inline font-mono tracking-widest text-[11px]">FACE GATE</span>
           </button>
 
           {/* ── HANDS-FREE WEB SPEECH API 'LISTEN' BUTTON ── */}
@@ -613,19 +563,6 @@ export function CamelotSwordAndStoneBootScreen({
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
         onSelectCommand={handleSelectCommand}
-      />
-
-      {/* ── BIOMETRIC AUTHORIZATION GATE: DEVICE CAMERA FACIAL SCAN ── */}
-      <BiometricAuthorizationGate
-        isOpen={isBiometricGateOpen}
-        tenant={currentTenant}
-        onClose={() => setIsBiometricGateOpen(false)}
-        onAuthenticated={(tenant) => {
-          setIsBiometricGateOpen(false);
-          handleAccessCamelot(
-            `Biometric authorization verified. Welcome to Camelot OS, ${tenant.name}.`
-          );
-        }}
       />
 
       {/* ── STAGE 2: FULL-SCREEN ROUND TABLE TENANT CAROUSEL SELECT MODAL ── */}

@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
-import { cinematicAudio } from '../../lib/cinematicAudio';
 
 export interface LogEntry {
   id: string;
@@ -12,29 +11,14 @@ export interface LogEntry {
 
 export function RunicConsole() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [freqOffset, setFreqOffset] = useState(0);
-  const [pan, setPan] = useState(0);
-  const [history, setHistory] = useState<LogEntry[]>(() => {
-    try {
-      const stored = localStorage.getItem('camelot_runic_history');
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [
-      {
-        id: 'init',
-        type: 'system',
-        text: 'Camelot-OS Runic Console v1000 initialized. Type //help to view Symbolects.',
-        timestamp: new Date().toISOString(),
-      },
-    ];
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('camelot_runic_history', JSON.stringify(history));
-    } catch {}
-  }, [history]);
+  const [history, setHistory] = useState<LogEntry[]>([
+    {
+      id: 'init',
+      type: 'system',
+      text: 'Camelot-OS Runic Console v1000 initialized. Type //help to view Symbolects.',
+      timestamp: new Date().toISOString(),
+    },
+  ]);
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,33 +47,6 @@ export function RunicConsole() {
     }
   }, [history, isOpen]);
 
-  const handleMuteToggle = () => {
-    const newMuted = !isAudioMuted;
-    setIsAudioMuted(newMuted);
-    cinematicAudio.setMuted(newMuted);
-  };
-
-  const handleFreqChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    setFreqOffset(val);
-    cinematicAudio.setFrequencyOffset(val);
-  };
-
-  const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    setPan(val);
-    cinematicAudio.setPan(val);
-  };
-
-  const handleAudioReset = () => {
-    setIsAudioMuted(false);
-    cinematicAudio.setMuted(false);
-    setFreqOffset(0);
-    cinematicAudio.setFrequencyOffset(0);
-    setPan(0);
-    cinematicAudio.setPan(0);
-  };
-
   const handleExecute = (cmd: string) => {
     const trimmed = cmd.trim();
     if (!trimmed) return;
@@ -111,10 +68,7 @@ export function RunicConsole() {
     let outcomeType: LogEntry['type'] = 'system';
 
     if (trimmed.startsWith('//')) {
-      const parts = trimmed.split(' ');
-      const symbolect = parts[0].toLowerCase();
-      const args = parts.slice(1).join(' ');
-
+      const symbolect = trimmed.toLowerCase();
       switch (symbolect) {
         case '//boot':
           outcomeText =
@@ -147,39 +101,6 @@ export function RunicConsole() {
             '[GRAND_LATTICE] 🏗️ 5-Zone Sovereign Topology matrix active. Experience (Zone 0), Control (Zone 1), Execution (Zone 2), Memory (Zone 3), Connectors (Zone 4) nominal.';
           outcomeType = 'success';
           window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'lattice' }));
-          break;
-        case '//bypass':
-          outcomeText =
-            '[ARCH-SOVEREIGN] 🔓 Cinematic sequence bypassed. Direct UI access granted.';
-          outcomeType = 'success';
-          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'dashboard' }));
-          break;
-        case '//node':
-          outcomeText = args 
-            ? `[CPU NODE] 💻 Connecting to Node '${args}'... Access granted. Bypassing cinematic lock and routing to Kernel Terminal.`
-            : `[CPU NODE] 💻 Error: Please specify a node identifier.`;
-          outcomeType = args ? 'success' : 'error';
-          if (args) {
-            window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'kernel' }));
-          }
-          break;
-        case '//knight':
-          outcomeText = args
-            ? `[KNIGHT] ⚔️ Establishing telepathic link with Knight '${args}'... Connection stable.`
-            : `[KNIGHT] ⚔️ Error: Please specify a Knight designation.`;
-          outcomeType = args ? 'success' : 'error';
-          break;
-        case '//cartridge':
-          outcomeText = args
-            ? `[CARTRIDGE] 📼 Mounting Cartridge '${args}' into execution bay... Boot sector ready.`
-            : `[CARTRIDGE] 📼 Error: Please specify a Cartridge ID.`;
-          outcomeType = args ? 'success' : 'error';
-          break;
-        case '//pill':
-          outcomeText = args
-            ? `[PILL] 💊 Ingesting sub-routine Pill '${args}'... Execution stream altered.`
-            : `[PILL] 💊 Error: Please specify a Pill signature.`;
-          outcomeType = args ? 'success' : 'error';
           break;
         case '//vps_hub':
           outcomeText =
@@ -223,26 +144,7 @@ export function RunicConsole() {
           break;
         case '//help':
           outcomeText =
-            'Available Symbolects:\n' +
-            'Core: //boot, //shield, //verify, //gate, //sync, //seal, //clear\n' +
-            'Node Management: //bypass, //node [id], //knight [id], //cartridge [id], //pill [id], //list_knights, //sync_cartridges, //audit_pills\n' +
-            'Topology: //grand_lattice, //vps_hub, //voice_orb, //ravenry, //graph_engine\n' +
-            'Execution: //go_live, //dispatch, //forge';
-          break;
-        case '//list_knights':
-          outcomeText =
-            '[KNIGHT_ROSTER] ⚔️ Active Knights: Sir Boris (UI/UX), Sir Codex (WASM32), Sir Helio (Context), Sir Octavian (Actuation).';
-          outcomeType = 'success';
-          break;
-        case '//sync_cartridges':
-          outcomeText =
-            '[CARTRIDGE_SYNC] 📼 Synchronizing hardware cartridges with Sovereign topology... Matrix alignment optimal.';
-          outcomeType = 'success';
-          break;
-        case '//audit_pills':
-          outcomeText =
-            '[PILL_AUDIT] 💊 Auditing injected sub-routines... All execution streams verified. Zero rogue injections detected.';
-          outcomeType = 'success';
+            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //grand_lattice, //vps_hub, //voice_orb, //ravenry, //graph_engine, //go_live, //dispatch, //forge, //clear';
           break;
         case '//clear':
           setHistory([]);
@@ -282,62 +184,13 @@ export function RunicConsole() {
 
   return (
     <div className="fixed bottom-0 left-0 z-[100] flex h-64 w-full flex-col border-t border-gold/20 bg-[#0B0914]/60 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.7)]">
-      <div className="flex h-10 items-center justify-between border-b border-white/10 bg-black/40 px-4">
+      <div className="flex h-8 items-center justify-between border-b border-white/10 bg-black/40 px-4">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-gold animate-pulse"></span>
-          <span className="font-display text-[10px] uppercase tracking-[0.2em] text-gold hidden sm:inline">
+          <span className="font-display text-[10px] uppercase tracking-[0.2em] text-gold">
             Runic Console [L7 Ethereal Gate]
           </span>
         </div>
-        
-        {/* Audio Master Controls */}
-        <div className="flex items-center gap-4 border-l border-white/10 pl-4 ml-auto mr-4">
-          <button 
-            onClick={handleMuteToggle}
-            className={`font-mono text-[10px] uppercase tracking-widest transition-colors ${isAudioMuted ? 'text-red-400' : 'text-[#00F0FF]'}`}
-          >
-            {isAudioMuted ? 'HUM: Muted' : 'HUM: Active'}
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[9px] text-white/50">Freq Offset</span>
-            <input 
-              type="range" 
-              min="-20" 
-              max="20" 
-              step="1" 
-              value={freqOffset} 
-              onChange={handleFreqChange}
-              className="w-16 accent-[#00F0FF]"
-            />
-            <span className="font-mono text-[9px] text-[#00F0FF] w-6 text-right">
-              {freqOffset > 0 ? '+' : ''}{freqOffset}
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-2 border-l border-white/10 pl-4 ml-2">
-            <span className="font-mono text-[9px] text-white/50">L/R Pan</span>
-            <input 
-              type="range" 
-              min="-1" 
-              max="1" 
-              step="0.1" 
-              value={pan} 
-              onChange={handlePanChange}
-              className="w-16 accent-[#00F0FF]"
-            />
-            <span className="font-mono text-[9px] text-[#00F0FF] w-6 text-right">
-              {pan === 0 ? 'C' : pan < 0 ? `L${Math.abs(Math.round(pan * 10))}` : `R${Math.round(pan * 10)}`}
-            </span>
-          </div>
-
-          <button 
-            onClick={handleAudioReset}
-            className="font-mono text-[9px] uppercase text-white/40 hover:text-white transition-colors ml-1"
-          >
-            [RST]
-          </button>
-        </div>
-
         <button
           onClick={() => setIsOpen(false)}
           className="text-white/40 hover:text-white transition-colors"
@@ -355,7 +208,7 @@ export function RunicConsole() {
             <span className="text-white/30 shrink-0">
               [{new Date(log.timestamp).toLocaleTimeString('en-US', { hour12: false })}]
             </span>
-            <div className="flex-1 break-words whitespace-pre-wrap">
+            <div className="flex-1 break-words">
               {log.type === 'input' && (
                 <span className="text-[#00F0FF]">root@camelot-os:/omni-nexus# {log.text}</span>
               )}

@@ -3,23 +3,23 @@ import React from 'react';
 import { useBifrost } from '../../context/BifrostContext';
 import { useMacros } from '../../context/MacroContext';
 import { useTenant } from '../../context/TenantContext';
-import { useVoiceTranscript } from '../../context/VoiceTranscriptContext';
 import { useBackgroundSync } from '../../hooks/useBackgroundSync';
 import { useCapsuleState } from '../../hooks/useCapsuleState';
 import { useHardwareCompatibility } from '../../hooks/useHardwareCompatibility';
 import { usePiPAndBadging } from '../../hooks/usePiPAndBadging';
-import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
 import { OODADiagnosticVisualizer } from '../dashboard/OODADiagnosticVisualizer';
-import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
 import { TenantQuickBar } from '../gateway/TenantQuickBar';
 import { GmailNotificationStream } from '../gmail/GmailNotificationStream';
 import { CommandPalette } from '../navigation/CommandPalette';
 import { CamelotHelperChat } from './CamelotHelperChat';
-import { MicrophoneSelectDropdown } from './MicrophoneSelectDropdown';
 import { MobileEdgeArchitectureView } from './MobileEdgeArchitectureView';
 import { RunicConsole } from './RunicConsole';
-import { VoiceTranscriptPanel } from './VoiceTranscriptPanel';
 import { VoiceWaveformIndicator } from './VoiceWaveformIndicator';
+import { MicrophoneSelectDropdown } from './MicrophoneSelectDropdown';
+import { VoiceTranscriptPanel } from './VoiceTranscriptPanel';
+import { useVoiceTranscript } from '../../context/VoiceTranscriptContext';
+import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
+import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
 
 // Lazily load tab partitions to reduce initial bundle size and speed up FCP
 const Dashboard = React.lazy(() => import('../Dashboard').then((m) => ({ default: m.Dashboard })));
@@ -326,9 +326,7 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
   });
 
   const [isHardwareModalOpen, setIsHardwareModalOpen] = React.useState(false);
-  const [hardwareModalTab, setHardwareModalTab] = React.useState<
-    'hardware' | 'embedding' | 'simulator'
-  >('hardware');
+  const [hardwareModalTab, setHardwareModalTab] = React.useState<'hardware' | 'embedding' | 'simulator'>('hardware');
 
   React.useEffect(() => {
     try {
@@ -384,27 +382,6 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
 
   if (hw.tier === 'edge-mobile') {
     return <MobileEdgeArchitectureView />;
-  }
-
-  if (activeWorkspaceTab === 'cinematic') {
-    return (
-      <div className="flex h-screen w-full overflow-hidden bg-obsidian text-white/80 relative">
-        <SovereignCinematicFlow />
-        <RunicConsole />
-        <CommandPalette
-          isOpen={isCommandPaletteOpen}
-          onClose={() => setIsCommandPaletteOpen(false)}
-          onNavigateTab={(tab) => {
-            if (tab === 'avatar') {
-              setShowAvatarKnightScreen(true);
-            } else {
-              setShowAvatarKnightScreen(false);
-            }
-            setActiveWorkspaceTab(tab as any);
-          }}
-        />
-      </div>
-    );
   }
 
   return (
@@ -742,7 +719,7 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
             <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10 shrink-0">
               {[
                 { id: 'lattice', label: 'Lattice', icon: '🏗️', color: '#D4AF37' },
-                { id: 'cinematic', label: 'Excalibur', icon: '🗡️', color: '#FFD700' },
+                { id: 'cinematic', label: 'Living Realm', icon: '🏰', color: '#00F0FF' },
                 { id: 'topology', label: 'Topology', icon: '🕸️', color: '#9D4EDD' },
                 { id: 'avatar', label: 'Knights', icon: '🛡️', color: '#10B981' },
                 { id: 'kernel', label: 'Anya', icon: '🧠', color: '#FFD700' },
@@ -758,11 +735,6 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
                     onClick={() => {
                       setShowAvatarKnightScreen(false);
                       setActiveWorkspaceTab(tab.id as any);
-                      if (tab.id === 'cinematic') {
-                        window.dispatchEvent(
-                          new CustomEvent('camelot:set-cinematic-stage', { detail: 'boot' }),
-                        );
-                      }
                     }}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
                       isActive

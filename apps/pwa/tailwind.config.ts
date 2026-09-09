@@ -164,10 +164,6 @@ const config: Config = {
               'drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(212, 175, 55, 0.55))',
           },
         },
-        'cinematic-enter': {
-          '0%': { opacity: '0', filter: 'blur(12px)', transform: 'scale(1.03)' },
-          '100%': { opacity: '1', filter: 'blur(0px)', transform: 'scale(1)' },
-        },
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -178,7 +174,6 @@ const config: Config = {
         'ooda-pill': 'ooda-pill 1.8s ease-in-out infinite',
         'glow-pass': 'glow-pass 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
         'connector-pulse': 'connector-pulse 1.6s ease-in-out infinite',
-        'cinematic-enter': 'cinematic-enter 1s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
     },
   },

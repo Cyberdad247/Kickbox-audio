@@ -98,12 +98,11 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
     {
       id: 'tab-cinematic',
       category: 'Workspace Tabs',
-      title: 'Excalibur Cinematic Screen & Video Transition',
-      subtitle: '3D Sword & Stone, Gothic cathedral, Arthurian video transition sequence',
-      icon: '🗡️',
-      badge: 'EXCALIBUR',
+      title: 'Living Workspace & 6-Stage Flow',
+      subtitle: 'Dynamic weather sky, 3D Reliquary, Tactical Table',
+      icon: '🏰',
+      badge: 'MAIN',
       action: () => {
-        window.dispatchEvent(new CustomEvent('camelot:set-cinematic-stage', { detail: 'boot' }));
         onNavigateTab('cinematic');
         onClose();
       },
@@ -148,8 +147,7 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       id: 'tab-lattice',
       category: 'Workspace Tabs',
       title: 'Living Lattice Blueprints (5 Zones & Hub)',
-      subtitle:
-        'Grand Lattice, Cybertronia 8GB VPS Hub, S26 Voice Orb, Ravenry Mail & Graph Engine',
+      subtitle: 'Grand Lattice, Cybertronia 8GB VPS Hub, S26 Voice Orb, Ravenry Mail & Graph Engine',
       icon: '🏗️',
       badge: 'vMAX',
       action: () => {
@@ -375,41 +373,15 @@ export function CommandPalette({ isOpen, onClose, onNavigateTab }: CommandPalett
       id: 'action-boot-screen',
       category: 'System & Offline' as const,
       title: '3D Sword & Stone Boot Screen',
-      subtitle: 'Launch 3D Excalibur boot screen & video transition sequence',
+      subtitle: 'Launch 3D Excalibur boot screen & sovereign login gate',
       icon: '🗡️',
       badge: '3D HUD',
       action: () => {
-        window.dispatchEvent(new CustomEvent('camelot:set-cinematic-stage', { detail: 'boot' }));
-        onNavigateTab('cinematic');
         forceOpenGateway();
         logActivity('BOOT_SCREEN_OPENED', 'Launched 3D Sword & Stone boot screen', {
           category: 'security',
           severity: 'info',
         });
-        triggerHaptic('click');
-        onClose();
-      },
-    },
-    {
-      id: 'action-biometric-gate',
-      category: 'System & Offline' as const,
-      title: 'Biometric Authorization Gate',
-      subtitle: 'Activate device camera 68-point neural facial recognition gate',
-      icon: '👁️',
-      badge: 'FACIAL SCAN',
-      action: () => {
-        window.dispatchEvent(
-          new CustomEvent('camelot:set-cinematic-stage', { detail: 'biometric' })
-        );
-        onNavigateTab('cinematic');
-        logActivity(
-          'BIOMETRIC_GATE_TRIGGERED',
-          'Launched camera facial recognition authorization gate',
-          {
-            category: 'security',
-            severity: 'info',
-          }
-        );
         triggerHaptic('click');
         onClose();
       },

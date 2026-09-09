@@ -21,14 +21,6 @@ export const CAMELOT_VOICE_COMMANDS: VoiceCommandItem[] = [
     badge: 'Primary Gate',
   },
   {
-    phrase: 'Biometric Facial Scan',
-    aliases: ['Biometric', 'Face Scan', 'Facial Recognition', 'Camera Auth', 'Authorize Face'],
-    description: 'Activates device camera for 68-point neural facial recognition authorization gate.',
-    category: 'Access & Gateway',
-    icon: '👁️',
-    badge: 'Camera Biometrics',
-  },
-  {
     phrase: 'Open Vault',
     aliases: ['Vault', 'Secure Storage', 'Open Storage'],
     description: 'Unseals the system and initializes Sovereign encrypted local storage.',
