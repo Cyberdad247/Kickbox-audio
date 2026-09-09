@@ -1,0 +1,15 @@
+[Unit]
+Description=Camelot Bio-Kinetic Swarm Host
+After=camelot-bifrost.service camelot-sentinel.service camelot-wasmtime.service
+
+[Service]
+Type=simple
+User=camelot-svc
+ExecStart=/usr/local/bin/camelot-nanobot --config /etc/camelot/nanobot.yaml
+Restart=always
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

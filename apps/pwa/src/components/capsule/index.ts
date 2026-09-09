@@ -17,6 +17,8 @@ export * from './KnightChoiceAndArmory';
 export * from './VoiceWaveformIndicator';
 export * from './MicrophoneSelectDropdown';
 export * from './VoiceTranscriptPanel';
+export * from './BioKineticNanobotHUD';
+export * from './BioKineticSwarmWorkbench';
 export * from '../drive/GoogleDriveExplorer';
 export * from '../../lib/googleDriveClient';
 export { VoiceMacroConfig } from '../macro/VoiceMacroConfig';

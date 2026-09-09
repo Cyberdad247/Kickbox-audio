@@ -142,9 +142,29 @@ export function RunicConsole() {
             '[SOVEREIGN_FORGE] 💎 UI/UX Vanguard souls compiled into unified split-brain meta-prompt.';
           outcomeType = 'success';
           break;
+        case '//forge_bio_kinetic_swarm':
+        case '//nanobot':
+        case '//swarm':
+          outcomeText =
+            '[MERLIN_Ω] 🤖 //FORGE_BIO_KINETIC_SWARM engaged. Native Rust wasm32-wasip2 swarm active under cgroups v2 512MB quota.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'nanobot' }));
+          break;
+        case '//loop_prompt':
+          outcomeText =
+            '[MERLIN_Ω] 🔁 Merlin Loop-Prompting DAG initialized. Dynamic re-prompting with failure evidence hash & diagnostics.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'nanobot' }));
+          break;
+        case '//triage':
+          outcomeText =
+            '[SELF_TRIAGE] ⚖️ Autonomous Ring 0/1/2 self-triaging matrix loaded. Cgroups v2 limits enforced.';
+          outcomeType = 'success';
+          window.dispatchEvent(new CustomEvent('camelot:navigate-tab', { detail: 'nanobot' }));
+          break;
         case '//help':
           outcomeText =
-            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //grand_lattice, //vps_hub, //voice_orb, //ravenry, //graph_engine, //go_live, //dispatch, //forge, //clear';
+            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //forge_bio_kinetic_swarm, //nanobot, //loop_prompt, //triage, //grand_lattice, //vps_hub, //voice_orb, //ravenry, //graph_engine, //go_live, //dispatch, //forge, //clear';
           break;
         case '//clear':
           setHistory([]);

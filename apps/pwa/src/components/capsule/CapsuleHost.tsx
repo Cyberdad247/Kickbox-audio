@@ -17,6 +17,7 @@ import { RunicConsole } from './RunicConsole';
 import { VoiceWaveformIndicator } from './VoiceWaveformIndicator';
 import { MicrophoneSelectDropdown } from './MicrophoneSelectDropdown';
 import { VoiceTranscriptPanel } from './VoiceTranscriptPanel';
+import { BioKineticNanobotHUD } from './BioKineticNanobotHUD';
 import { useVoiceTranscript } from '../../context/VoiceTranscriptContext';
 import { ProvenanceLedgerService } from '../../lib/provenanceLedger';
 import { HardwareAndEmbeddingModal } from '../gateway/HardwareAndEmbeddingModal';
@@ -67,6 +68,9 @@ const GmailExplorer = React.lazy(() =>
 );
 const FileDriverExplorer = React.lazy(() =>
   import('./FileDriverExplorer').then((m) => ({ default: m.FileDriverExplorer })),
+);
+const BioKineticSwarmWorkbench = React.lazy(() =>
+  import('./BioKineticSwarmWorkbench').then((m) => ({ default: m.BioKineticSwarmWorkbench })),
 );
 
 function WorkspacePartitionFallback() {
@@ -140,9 +144,32 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
             '⚜️_SOVEREIGN_TRUTH: Master cryptographic transaction sealed. Deployment finalized.';
           outcomeType = 'success';
           break;
+        case '//forge_bio_kinetic_swarm':
+        case '//nanobot':
+        case '//swarm':
+          outcomeText =
+            '[MERLIN_Ω] 🤖 //FORGE_BIO_KINETIC_SWARM engaged. Native Rust wasm32-wasip2 swarm active under cgroups v2 512MB quota.';
+          outcomeType = 'success';
+          setShowAvatarKnightScreen(false);
+          setActiveWorkspaceTab('nanobot');
+          break;
+        case '//loop_prompt':
+          outcomeText =
+            '[MERLIN_Ω] 🔁 Merlin Loop-Prompting DAG initialized. Dynamic re-prompting with failure evidence hash & diagnostics.';
+          outcomeType = 'success';
+          setShowAvatarKnightScreen(false);
+          setActiveWorkspaceTab('nanobot');
+          break;
+        case '//triage':
+          outcomeText =
+            '[SELF_TRIAGE] ⚖️ Autonomous Ring 0/1/2 self-triaging matrix loaded. Cgroups v2 limits enforced.';
+          outcomeType = 'success';
+          setShowAvatarKnightScreen(false);
+          setActiveWorkspaceTab('nanobot');
+          break;
         case '//help':
           outcomeText =
-            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //clear';
+            'Available Symbolects: //boot, //shield, //verify, //gate, //sync, //seal, //forge_bio_kinetic_swarm, //nanobot, //loop_prompt, //triage, //clear';
           break;
         case '//clear':
           setRunicHistory([]);
@@ -211,6 +238,7 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
     | 'activity'
     | 'ooda'
     | 'transcript'
+    | 'nanobot'
   >('cinematic');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
   const [isLakishaHudOpen, setIsLakishaHudOpen] = React.useState(false);
@@ -724,6 +752,7 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
                 { id: 'avatar', label: 'Knights', icon: '🛡️', color: '#10B981' },
                 { id: 'kernel', label: 'Anya', icon: '🧠', color: '#FFD700' },
                 { id: 'bifrost', label: 'Bifrost', icon: '🌉', color: '#38BDF8' },
+                { id: 'nanobot', label: 'Nanobots', icon: '🤖', color: '#10B981' },
                 { id: 'filedriver', label: 'Files', icon: '⚡', color: '#34D399' },
                 { id: 'activity', label: 'Ledger', icon: '📜', color: '#F59E0B' },
               ].map((tab) => {
@@ -862,6 +891,14 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
           </div>
         </header>
 
+        {/* Real-time Status HUD for Bio-Kinetic Nanobots (Knights) & Swarm State */}
+        <BioKineticNanobotHUD
+          onNavigateToSwarm={() => {
+            setShowAvatarKnightScreen(false);
+            setActiveWorkspaceTab('nanobot');
+          }}
+        />
+
         <div className="flex-1 overflow-auto p-6 relative">
           <React.Suspense fallback={<WorkspacePartitionFallback />}>
             {activeWorkspaceTab === 'lattice' ? (
@@ -911,6 +948,8 @@ export function CapsuleHost({ children }: { children?: React.ReactNode }) {
               <div className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)]">
                 <VoiceTranscriptPanel mode="full" />
               </div>
+            ) : activeWorkspaceTab === 'nanobot' ? (
+              <BioKineticSwarmWorkbench />
             ) : activeWorkspaceTab === 'ooda' ? (
               <div className="max-w-7xl mx-auto w-full">
                 <OODADiagnosticVisualizer floating={false} />

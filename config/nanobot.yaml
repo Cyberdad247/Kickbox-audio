@@ -1,0 +1,24 @@
+swarm:
+  max_parallel_knights: 4   # 4GB Edge budget
+  knights:
+    - "sir_codex"
+    - "sir_boris"
+    - "lady_mnemosyne"
+    - "sir_warden"
+  loop_prompting:
+    max_retries: 2
+    re_prompt_mode: "context_injection"
+  governance:
+    require_lease: true
+    require_evidence: true
+  runtime:
+    wasmtime: true
+    firecracker_fallback: true
+  cgroups_v2:
+    memory_max: "512M"
+    cpu_quota: "100%"
+    tasks_max: 128
+  triage:
+    ring_0_max_latency_ms: 25
+    ring_1_max_latency_ms: 300
+    ring_2_max_latency_ms: 5000
